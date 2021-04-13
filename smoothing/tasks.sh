@@ -1,7 +1,7 @@
 #!/bin/bash 
 
 declare -a commands=(
-    "python smoothing/convolutional.py -l test -s test --name testModel --test true --train true --pinTest false -d --debugOutput debug.log --modelOutput model.log --bashOutput true"
+    "python smoothing/convolutional.py -l test -s test --name testModel --test true --train true --pinTest false -d --debugOutput debug --modelOutput model --bashOutput true"
 )
 
 declare -a names=(
@@ -55,9 +55,9 @@ catchSIG() {
 trap catchSIG SIGTSTP
 trap kllChild SIGINT
 
-
-if ["$1" -eq "rmLogs"]; then
+if  [ -n "$1" ] && [[ "$1" -eq "rmLogs" ]]; then
     rm *.log
+    exit
 fi
 
 # main

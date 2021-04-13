@@ -8,6 +8,8 @@ import os, sys, getopt
 from os.path import expanduser
 import statistics
 import signal
+from datetime import datetime
+import time
 
 from playsound import playsound
 
@@ -131,9 +133,9 @@ class MetaData:
         if(self.stream is None):
             self.stream = Output()
         if(self.name is not None):
-            self.stream.print(f"Starting new model: {self.name}")
+            self.stream.print(f"\n@@@@\nStarting new model: " + self.name + "\nTime: " + str(datetime.now()) + "\n@@@@\n")
         else:
-            self.stream.print(f"Starting new model without name")
+            self.stream.print(f"\n@@@@\nStarting new model without name\nTime: " + str(datetime.now()) + "\n@@@@\n")
 
     def exitError(help):
         print(help) 
@@ -239,6 +241,44 @@ class MetaData:
             return True
         print('Metadata save failure')
         return False
+
+class Timer:
+    def __init__(self):
+        self.timeStart = None
+        self.timeEnd = None
+        self.modelTimeSum = 0.0
+        self.modelTimeCount = 0
+
+    def start(self):
+        self.timeStart = time.perf_counter()
+
+    def end(self):
+        self.timeEnd = time.perf_counter()
+
+    def getDiff(self):
+        if(self.timeStart is not None or self.timeEnd is not None):
+            return self.timeEnd - self.timeStart
+        return None
+
+    def addToStatistics(self):
+        tmp = self.getDiff()
+        if(tmp is not None):
+            self.modelTimeSum += self.getDiff()
+            self.modelTimeCount += 1
+
+    def clearTime(self):
+        self.timeStart = None
+        self.timeEnd = None
+
+    def clearStatistics(self):
+        self.modelTimeSum = 0.0
+        self.modelTimeCount = 0
+        
+    def getAverage(self):
+        if(self.modelTimeCount != 0):
+            return self.modelTimeSum / self.modelTimeCount
+        return None
+
 
 class Output:
     def __init__(self):
@@ -387,11 +427,32 @@ class Data:
         '''
         return self.setTransform(), self.setTrainData(), self.setTestData()
 
+    def train(self, model, smoothing, timer, inputs, labels):
+        timer.clearTime()
+        # start model calculations
+        timer.start()
+
+        # forward + backward + optimize
+        outputs = model(inputs)
+        loss = model.loss_fn(outputs, labels)
+        loss.backward()
+        model.optimizer.step()
+
+        # run smoothing
+        #smoothing.forwardLossFun(loss.item())
+        #average = smoothing.fullAverageWeights(model.named_parameters())
+        diff = smoothing.lastWeightDifference(model)
+
+        # end model calculations
+        timer.end()
+        return loss, diff
+
     def trainLoop(self, model, smoothing):
         size = len(self.trainloader.dataset)
         model.train()
         model.bindedMetadata.prepareOutput()
         stream = model.bindedMetadata.stream
+        timer = Timer()
 
         for batch, (inputs, labels) in enumerate(self.trainloader, start=self.batchNumbTrain):
             self.batchNumbTrain = batch
@@ -400,16 +461,7 @@ class Data:
             inputs, labels = inputs.to(model.bindedMetadata.device), labels.to(model.bindedMetadata.device)
             model.optimizer.zero_grad()
 
-            # forward + backward + optimize
-            outputs = model(inputs)
-            loss = model.loss_fn(outputs, labels)
-            loss.backward()
-            model.optimizer.step()
-
-            # run smoothing
-            #smoothing.forwardLossFun(loss.item())
-            #average = smoothing.fullAverageWeights(model.named_parameters())
-            diff = smoothing.lastWeightDifference(model)
+            loss, diff = self.train(model, smoothing, timer, inputs, labels)
 
             # print statistics
             if metadata.debugInfo and metadata.howOftenPrintTrain is not None and batch % metadata.howOftenPrintTrain == 0:
@@ -429,12 +481,22 @@ class Data:
 
         model.average = average
 
+    def test(self, timer, inputs):
+        timer.clearTime()
+        # start model calculations
+        timer.start()
+        pred = model(inputs)
+        # end model calculations
+        timer.end()
+        return pred
+
     def testLoop(self, model):
         size = len(self.testloader.dataset)
         test_loss, correct = 0, 0
         model.eval()
         model.bindedMetadata.prepareOutput()
         stream = model.bindedMetadata.stream
+        timer = Timer()
 
         with torch.no_grad():
             for batch, (X, y) in enumerate(self.testloader, self.batchNumbTest):
@@ -444,7 +506,7 @@ class Data:
 
                 X = X.to(model.bindedMetadata.device)
                 y = y.to(model.bindedMetadata.device)
-                pred = model(X)
+                pred = self.test(timer, X)
                 test_loss += model.loss_fn(pred, y).item()
                 correct += (pred.argmax(1) == y).type(torch.float).sum().item()
 
@@ -688,6 +750,7 @@ if(__name__ == '__main__'):
     if metadata.commandLineArg(sys.argv[1:]) == False:
         metadata.trySelectCUDA()
 
+metadata.prepareOutput()
 metadata.printStartNewModel()
 
 model = Model()
