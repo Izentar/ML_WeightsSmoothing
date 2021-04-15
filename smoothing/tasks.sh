@@ -1,7 +1,7 @@
 #!/bin/bash 
 
 declare -a commands=(
-    "python smoothing/convolutional.py -l test -s test --name testModel --test true --train true --pinTest false -d --debugOutput debug --modelOutput model --bashOutput true"
+    "python smoothing/convolutional.py -l test -s test --name testModel --test true --train true --pinTest false -d --debugOutput debug --modelOutput model --bashOutput true --formatedOutput formated"
 )
 
 declare -a names=(
@@ -96,3 +96,4 @@ done
 
 let counter=0
 echo "$counter" > "$fileBashStateName"
+python smoothing/playSound.py

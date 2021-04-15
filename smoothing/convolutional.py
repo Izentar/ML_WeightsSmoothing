@@ -10,8 +10,7 @@ import statistics
 import signal
 from datetime import datetime
 import time
-
-from playsound import playsound
+import copy as cp
 
 SAVE_AND_EXIT_FLAG = False
 
@@ -28,29 +27,67 @@ signal.signal(signal.SIGTSTP, saveWorkAndExit)
 
 signal.signal(signal.SIGINT, recSign)
     
-class Hiperparameters:
+class SaveClass:
+    def loadFromDump(self, dump):
+        raise Exception("Not implemented")
+
+    def createDump(self):
+        raise Exception("Not implemented")
+
+    def tryLoad(self, objectToSave, pathBegin: str, pathBeginTmp: str, fileName: str, suffix: str, nameStr: str, temporaryLocation = False):
+        path = None
+        if(temporaryLocation):
+            path = pathBeginTmp + fileName + suffix
+        else:
+            path = pathBegin + fileName + suffix
+        if fileName is not None and os.path.exists(path):
+            dump = torch.load(path)
+            self.loadFromDump(dump)
+            print(nameStr + ' loaded successfully')
+            return True
+        print(nameStr + ' load failure')
+        return False
+
+    def trySave(self, objectToSave, pathBegin: str, pathBeginTmp: str, fileName: str, suffix: str, nameStr: str, temporaryLocation = False) -> bool:
+        if fileName is not None and os.path.exists(pathBegin) and os.path.exists(pathBeginTmp):
+            path = None
+            if(temporaryLocation):
+                path = pathBeginTmp + fileName + suffix
+            else:
+                path = pathBegin + fileName + suffix
+            torch.save(self.createDump(), path)
+            print(nameStr + ' saved successfully')
+            return True
+        print(nameStr + ' save failure')
+        return False
+
+class Hyperparameters:
     def __init__(self):
         self.learning_rate = 1e-3
         self.momentum = 0.9
         self.oscilationMax = 0.001
 
     def __str__(self):
-        tmp_str = '\n/Hiperparameters class\n-----------------------------------------------------------------------\n'
+        tmp_str = '\n/Hyperparameters class\n-----------------------------------------------------------------------\n'
         tmp_str += ('Learning rate:\t{}\n'.format(self.learning_rate))
         tmp_str += ('Momentum:\t{}\n'.format(self.momentum))
-        tmp_str += ('-----------------------------------------------------------------------\nEnd Hiperparameters class\n')
+        tmp_str += ('-----------------------------------------------------------------------\nEnd Hyperparameters class\n')
         return tmp_str
 
 class MetaData:
     def __init__(self):
         self.PATH = expanduser("~") + '/.data/models/'
-        self.MODEL_SUFFIX = '.pt'
-        self.METADATA_SUFFIX = '.mdat'
-        self.DATA_SUFFIX = '.dat'
+        self.TMP_PATH = expanduser("~") + '/.data/models/tmp/'
+        self.MODEL_SUFFIX = '.model'
+        self.METADATA_SUFFIX = '.metadata'
+        self.DATA_SUFFIX = '.data'
+        self.TIMER_SUFFIX = '.timer'
+        self.SMOOTHING_SUFFIX = '.smoothing'
+        self.OUTPUT_SUFFIX = '.output'
         self.epoch = 1
         self.batchTrainSize = 4
         self.batchTestSize = 4
-        self.hiperparam = Hiperparameters()
+        self.hiperparam = Hyperparameters()
 
         self.fileNameSave = None
         self.fileNameLoad = None
@@ -67,6 +104,7 @@ class MetaData:
         self.stream = None
         self.bashFlag = False
         self.name = None
+        self.formatedOutput = None
         
         # batch size * howOftenPrintTrain
         self.howOftenPrintTrain = 2000
@@ -131,7 +169,7 @@ class MetaData:
 
     def printStartNewModel(self):
         if(self.stream is None):
-            self.stream = Output()
+            raise Exception("Stream not initialized")
         if(self.name is not None):
             self.stream.print(f"\n@@@@\nStarting new model: " + self.name + "\nTime: " + str(datetime.now()) + "\n@@@@\n")
         else:
@@ -152,8 +190,14 @@ class MetaData:
             self.stream.open('model', self.modelOutput)
         if(self.bashFlag == True):
             self.stream.open('bash')
+        if(self.formatedOutput is not None):
+            self.stream.open('formatedLog', self.formatedOutput)
 
     def commandLineArg(self, argv):
+        '''
+        Returns False if metadata was not loaded.
+        Otherwise True.
+        '''
         help = 'Help:\n'
         help += os.path.basename(__file__) + ' -h <help> [-s,--save] <file name to save> [-l,--load] <file name to load>'
 
@@ -163,7 +207,8 @@ class MetaData:
             'debugOutput=',
             'modelOutput=',
             'bashOutput=',
-            'name='
+            'name=',
+            'formatedOutput='
             ]
 
         try:
@@ -200,6 +245,8 @@ class MetaData:
             elif opt in ('--bashOutput'):
                 boolean = MetaData.onOff(arg)
                 self.bashFlag = boolean if boolean is not None else MetaData.exitError(help)
+            elif opt in ('--formatedOutput'):
+                self.formatedOutput = arg # formated output file path
             elif opt in ('--name'):
                 self.name = arg
 
@@ -223,7 +270,8 @@ class MetaData:
         self.epoch = dump['epoch']
         self.device = dump['device']
 
-    def tryLoad(self):
+    def tryLoad(self, temporaryLocation = False):
+        path = None
         path = self.PATH + self.fileNameLoad + self.METADATA_SUFFIX
         if self.fileNameLoad is not None and os.path.exists(path):
             dump = torch.load(path)
@@ -233,7 +281,7 @@ class MetaData:
         print('Metadata load failure')
         return False
 
-    def trySave(self):
+    def trySave(self, temporaryLocation = False):
         if self.fileNameSave is not None and os.path.exists(self.PATH):
             path = self.PATH + self.fileNameSave + self.METADATA_SUFFIX
             torch.save(self.createDump(), path)
@@ -256,7 +304,7 @@ class Timer:
         self.timeEnd = time.perf_counter()
 
     def getDiff(self):
-        if(self.timeStart is not None or self.timeEnd is not None):
+        if(self.timeStart is not None and self.timeEnd is not None):
             return self.timeEnd - self.timeStart
         return None
 
@@ -279,6 +327,34 @@ class Timer:
             return self.modelTimeSum / self.modelTimeCount
         return None
 
+    def getUnits(self):
+        return "s"
+
+    def trySave(self, metadata, temporaryLocation = False):
+        if metadata.fileNameSave is not None and os.path.exists(metadata.PATH):
+            path = None
+            if(temporaryLocation):
+                path = metadata.TMP_PATH + metadata.fileNameSave + metadata.TIMER_SUFFIX
+            else:
+                path = metadata.PATH + metadata.fileNameSave + metadata.TIMER_SUFFIX
+            torch.save(self, path)
+            print('Timer saved successfully')
+            return True
+        print('Timer save failure')
+        return False
+
+    def tryLoad(self, metadata, temporaryLocation = False):
+        path = None
+        if(temporaryLocation):
+            path = metadata.TMP_PATH + metadata.fileNameLoad + metadata.TIMER_SUFFIX
+        else:
+            path = metadata.PATH + metadata.fileNameLoad + metadata.TIMER_SUFFIX
+        if metadata.fileNameLoad is not None and os.path.exists(path):
+            obj = torch.load(path)
+            print('Timer loaded successfully')
+            return obj
+        print('Timer load failure')
+        return None
 
 class Output:
     def __init__(self):
@@ -287,13 +363,40 @@ class Output:
         self.debugPath = None
         self.modelPath = None
         self.bash = False
+        self.formatedLogF = None
+        self.formatedLogPath = None
+
+    def __getstate__(self):
+        state = self.__dict__.copy()
+        del state['debugF']
+        del state['modelF']
+        del state['formatedLogF']
+        return state
+
+    def __setstate__(self, state):
+        self.__dict__.update(state)
+        if(self.debugPath is not None):
+            self.debugF = open(self.debugPath + ".log", 'a')
+        if(self.modelPath is not None):
+            if(self.modelPath == self.debugPath):
+                self.modelF = self.debugF
+            else:
+                self.modelF = open(self.modelPath + ".log", 'a')
+        if(self.formatedLogPath is not None):
+            if(self.formatedLogPath == self.debugPath):
+                self.formatedLogF = self.debugF
+            elif(self.formatedLogPath == self.modelPath):
+                self.formatedLogF = self.modelF
+            else:
+                self.formatedLogF = open(self.formatedLogPath + ".log", 'a')
 
     def open(self, outputType, path = None):
-            if(outputType != 'debug' and outputType != 'model' and outputType != 'bash'):
+            if(outputType != 'debug' and outputType != 'model' and outputType != 'bash' and outputType != 'formatedLog'):
                 raise Exception("unknown command")
 
             if(outputType == 'bash'):
                 self.bash = True
+                return
 
             # if you want to open file with other path
             if(outputType == 'debug' and path != self.debugPath and self.debugPath is not None and path is not None):
@@ -304,14 +407,33 @@ class Output:
                 self.modelF.close()
                 self.modelPath = None
                 self.modelF = None
+            elif(outputType == 'formatedLog' and path != self.formatedLogPath and self.formatedLogPath is not None and path is not None):
+                self.formatedLogF.close()
+                self.formatedLogF = None
+                self.formatedLogPath = None
 
             # if file is already open in different outputType
-            if(outputType == 'debug' and path is not None and path == self.modelPath):
-                self.debugPath = path
-                self.debugF = self.modelF
-            elif(outputType == 'model' and path is not None and path == self.debugPath):
-                self.modelPath = path
-                self.modelF = self.debugF
+            if(outputType == 'debug' and path is not None ):
+                if(path == self.modelPath):
+                    self.debugPath = path
+                    self.debugF = self.modelF
+                elif(path == self.formatedLogPath):
+                    self.debugPath = path
+                    self.debugF = self.formatedLogF
+            elif(outputType == 'model' and path is not None):
+                if(path == self.debugPath):
+                    self.modelPath = path
+                    self.modelF = self.debugF
+                elif(path == self.formatedLogPath):
+                    self.modelPath = path
+                    self.modelF = self.formatedLogF
+            elif(outputType == 'formatedLog' and path is not None and path == self.debugPath):
+                if(path == self.debugPath):
+                    self.formatedLogPath = path
+                    self.formatedLogF = self.debugF
+                elif(path == self.modelPath):
+                    self.formatedLogPath = path
+                    self.formatedLogF = self.modelF
 
             # if file was not opened
             if(outputType == 'debug' and path is not None and self.debugPath is None):
@@ -320,6 +442,9 @@ class Output:
             elif(outputType == 'model' and path is not None and self.modelPath is None):
                 self.modelF = open(path + ".log", 'a')
                 self.modelPath = path
+            elif(outputType == 'formatedLog' and path is not None and self.formatedLogPath is None):
+                self.formatedLogF = open(path + ".log", 'a')
+                self.formatedLogPath = path
 
     def write(self, arg):
         if(self.bash is True):
@@ -343,6 +468,14 @@ class Output:
             self.debugF.write(arg + '\n')
         if(self.modelF is not None):
             self.modelF.write(arg + '\n')
+
+    def writeFormated(self, arg):
+        if(self.formatedLogPath is not None):
+            self.formatedLogF.write(arg)
+
+    def printFormated(self, arg):
+        if(self.formatedLogPath is not None):
+            self.formatedLogF.write(arg + '\n')
 
     def writeTo(self, outputType, arg):
         if self.bash == True:
@@ -369,6 +502,43 @@ class Output:
             self.debugF.close()
         if(self.modelF is not None): 
             self.modelF.close()# if closed this do nothing
+        if(self.formatedLogF is not None): 
+            self.formatedLogF.close()# if closed this do nothing
+
+    def flushAll(self):
+        if(self.debugF is not None):
+            self.debugF.flush()
+        if(self.modelF is not None):
+            self.modelF.flush()
+        if(self.formatedLogF is not None):
+            self.formatedLogF.flush()
+        sys.stdout.flush()
+
+    def trySave(self, metadata, temporaryLocation = False):
+        if metadata.fileNameSave is not None and os.path.exists(metadata.PATH):
+            path = None
+            if(temporaryLocation):
+                path = metadata.TMP_PATH + metadata.fileNameSave + metadata.OUTPUT_SUFFIX
+            else:
+                path = metadata.PATH + metadata.fileNameSave + metadata.OUTPUT_SUFFIX
+            torch.save(self, path)
+            print('Output saved successfully')
+            return True
+        print('Output save failure')
+        return False
+
+    def tryLoad(self, metadata, temporaryLocation = False):
+        path = None
+        if(temporaryLocation):
+            path = metadata.TMP_PATH + metadata.fileNameLoad + metadata.OUTPUT_SUFFIX
+        else:
+            path = metadata.PATH + metadata.fileNameLoad + metadata.OUTPUT_SUFFIX
+        if metadata.fileNameLoad is not None and os.path.exists(path):
+            obj = torch.load(path)
+            print('Output loaded successfully')
+            return obj
+        print('Output load failure')
+        return None
 
 class Data:
     def __init__(self):
@@ -445,6 +615,7 @@ class Data:
 
         # end model calculations
         timer.end()
+        timer.addToStatistics()
         return loss, diff
 
     def trainLoop(self, model, smoothing):
@@ -453,7 +624,13 @@ class Data:
         model.bindedMetadata.prepareOutput()
         stream = model.bindedMetadata.stream
         timer = Timer()
+        loopTimer = Timer()
+        loss = None 
+        diff = None
 
+        stream.printFormated("trainLoop;\nAverage train time;Loop train time;Weight difference of last layer average;divided by;")
+
+        loopTimer.start()
         for batch, (inputs, labels) in enumerate(self.trainloader, start=self.batchNumbTrain):
             self.batchNumbTrain = batch
             if(SAVE_AND_EXIT_FLAG):
@@ -465,21 +642,28 @@ class Data:
 
             # print statistics
             if metadata.debugInfo and metadata.howOftenPrintTrain is not None and batch % metadata.howOftenPrintTrain == 0:
-                average = smoothing.getAverage()
+                averageWeights = smoothing.getStateDict()
                 loss, current = loss.item(), batch * len(inputs)
-                averKey = list(average.keys())[-1]
+                averKey = list(averageWeights.keys())[-1]
                 
                 stream.print(f"loss: {loss:>7f}  [{current:>5d}/{size:>5d}]")
-                stream.printTo(['debug', 'bash'], f"Average: {average[averKey]}")
+                stream.printTo(['debug', 'bash'], f"Average: {averageWeights[averKey]}")
                 if(diff is None):
                     stream.print(f"No weight difference")
                 else:
                     diffKey = list(diff.keys())[-1]
                     stream.printTo(['debug', 'bash'], f"Weight difference: {diff[diffKey]}")
-                    stream.print(f"Weight difference average: {diff[diffKey].sum() / diff[diffKey].numel()} :: divided by: {diff[diffKey].numel()}")
-                stream.print('################################################')
+                    stream.print(f"Weight difference of last layer average: {diff[diffKey].sum() / diff[diffKey].numel()} :: was divided by: {diff[diffKey].numel()}")
+                    stream.print('################################################')
 
-        model.average = average
+        model.pinAverageWeights(averageWeights)
+        loopTimer.end()
+
+        diffKey = list(diff.keys())[-1]
+        stream.print("Train summary:")
+        stream.print(f" Average train time ({timer.getUnits()}): {timer.getAverage()}")
+        stream.print(f" Loop train time ({timer.getUnits()}): {loopTimer.getDiff()}")
+        stream.printFormated(f"{timer.getAverage()};{loopTimer.getDiff()};{diff[diffKey].sum() / diff[diffKey].numel()};{diff[diffKey].numel()}")
 
     def test(self, timer, inputs):
         timer.clearTime()
@@ -488,6 +672,7 @@ class Data:
         pred = model(inputs)
         # end model calculations
         timer.end()
+        timer.addToStatistics()
         return pred
 
     def testLoop(self, model):
@@ -497,8 +682,13 @@ class Data:
         model.bindedMetadata.prepareOutput()
         stream = model.bindedMetadata.stream
         timer = Timer()
+        loopTimer = Timer()
+        pred = None
+
+        stream.printFormated("testLoop;\nAverage test time;Loop test time;Accuracy;Avg loss")
 
         with torch.no_grad():
+            loopTimer.start()
             for batch, (X, y) in enumerate(self.testloader, self.batchNumbTest):
                 self.batchNumbTest = batch
                 if(SAVE_AND_EXIT_FLAG):
@@ -509,10 +699,15 @@ class Data:
                 pred = self.test(timer, X)
                 test_loss += model.loss_fn(pred, y).item()
                 correct += (pred.argmax(1) == y).type(torch.float).sum().item()
+            loopTimer.end()
 
         test_loss /= size
         correct /= size
-        stream.print(f"Test Error: \n Accuracy: {(100*correct):>0.1f}%, Avg loss: {test_loss:>8f} \n")
+        stream.print(f"Test summary: \n Accuracy: {(100*correct):>0.1f}%, Avg loss: {test_loss:>8f}")
+        stream.print(f" Average test time ({timer.getUnits()}): {timer.getAverage()}")
+        stream.print(f" Loop test time ({timer.getUnits()}): {loopTimer.getDiff()}")
+        stream.print("")
+        stream.printFormated(f"{timer.getAverage()};{loopTimer.getDiff()};{(correct):>0.0001f};{test_loss:>8f}")
 
     def epochLoop(self, model):
         smoothing = Smoothing()
@@ -523,7 +718,7 @@ class Data:
         for ep, (loopEpoch) in enumerate(range(model.bindedMetadata.epoch), self.epochNumb):  # loop over the dataset multiple times
             self.epochNumb = ep
             stream.print(f"\nEpoch {loopEpoch+1}\n-------------------------------")
-            sys.stdout.flush()
+            stream.flushAll()
             if(model.bindedMetadata.trainFlag):
                 self.trainLoop(model, smoothing)
 
@@ -532,34 +727,46 @@ class Data:
                 
             with torch.no_grad():
                 if(model.bindedMetadata.testFlag):
+                    stream.write("Plain weights, ")
+                    stream.writeFormated("Plain weights;")
                     self.testLoop(model)
+                    model.swapWeights()
+                    stream.write("Smoothing weights, ")
+                    stream.writeFormated("Smoothing weights;")
+                    self.testLoop(model)
+                    model.swapWeights()
 
                 # model.linear1.weight = torch.nn.parameter.Parameter(model.average)
                 # model.linear1.weight = model.average
-                model.load_state_dict(model.average)
-                self.testLoop(model)
 
             self.batchNumbTrain = 0
             self.batchNumbTest = 0
-        sys.stdout.flush()
-
+        stream.flushAll()
 
     def update(self, metadata = None):
         if(metadata is not None):
             self.bindedMetadata = metadata
         # TODO może coś więcej dodać jak aktualizacja ścieżek dla danych (ponowne wczytanie)
 
-    def trySave(self, metadata):
+    def trySave(self, metadata, temporaryLocation = False):
         if metadata.fileNameSave is not None and os.path.exists(metadata.PATH):
-            path = metadata.PATH + metadata.fileNameSave + metadata.DATA_SUFFIX
+            path = None
+            if(temporaryLocation)
+                path = metadata.TMP_PATH + metadata.fileNameSave + metadata.DATA_SUFFIX
+            else:
+                path = metadata.PATH + metadata.fileNameSave + metadata.DATA_SUFFIX
             torch.save(self, path)
             print('Data saved successfully')
             return True
         print('Data save failure')
         return False
 
-    def tryLoad(metadata):
-        path = metadata.PATH + metadata.fileNameLoad + metadata.DATA_SUFFIX
+    def tryLoad(metadata, temporaryLocation = False):
+        path = None
+        if(temporaryLocation):
+            path = metadata.TMP_PATH + metadata.fileNameLoad + metadata.DATA_SUFFIX
+        else:
+            path = metadata.PATH + metadata.fileNameLoad + metadata.DATA_SUFFIX
         if metadata.fileNameLoad is not None and os.path.exists(path):
             obj = torch.load(path)
             print('Data loaded successfully')
@@ -607,7 +814,7 @@ class Smoothing:
         for key, arg in model.named_parameters():
             self.sumWeights[key].add_(arg)
         
-    def getAverage(self):
+    def getStateDict(self):
         average = {}
         for key, arg in self.sumWeights.items():
             average[key] = self.sumWeights[key] / self.countWeights
@@ -657,7 +864,31 @@ class Smoothing:
             print(self.lossAverage[-1])
             print(variance)
 
-#    def isSimilarLossFun(self):
+    def trySave(self, metadata, temporaryLocation = False):
+        if metadata.fileNameSave is not None and os.path.exists(metadata.PATH):
+            path = None
+            if(temporaryLocation):
+                path = metadata.TMP_PATH + metadata.fileNameSave + metadata.SMOOTHING_SUFFIX
+            else:
+                path = metadata.PATH + metadata.fileNameSave + metadata.SMOOTHING_SUFFIX
+            torch.save(self, path)
+            print('Smoothing saved successfully')
+            return True
+        print('Smoothing save failure')
+        return False
+
+    def tryLoad(self, metadata, temporaryLocation = False):
+        path = None
+        if(temporaryLocation):
+            path = metadata.TMP_PATH + metadata.fileNameLoad + metadata.SMOOTHING_SUFFIX
+        else:
+            path = metadata.PATH + metadata.fileNameLoad + metadata.SMOOTHING_SUFFIX
+        if metadata.fileNameLoad is not None and os.path.exists(path):
+            obj = torch.load(path)
+            print('Smoothing loaded successfully')
+            return obj
+        print('Smoothing load failure')
+        return None
 
 
 class Model(nn.Module):
@@ -674,8 +905,10 @@ class Model(nn.Module):
         self.optimizer = optim.AdamW(self.parameters(), lr=metadata.hiperparam.learning_rate)
         #self.optimizer = optim.SGD(self.parameters(), lr=metadata.hiperparam.learning_rate, momentum=metadata.hiperparam.momentum)
 
-        self.saveObj = None
         self.bindedMetadata = None
+
+        self.weightsStateDict: dict = None
+        self.weightsStateDictType = None
 
     def forward(self, x):
         x = self.pool(F.hardswish(self.conv1(x)))
@@ -688,43 +921,83 @@ class Model(nn.Module):
 
     def __getstate__(self):
         state = self.__dict__.copy()
-        del state['saveObj']
         del state['bindedMetadata']
         return state
 
-    def __setstate__(self, state):
-        self.__dict__.update(state)
+    def cloneStateDict(weights: dict):
+        newDict = dict()
+        for key, val in weights.items():
+            newDict[key] = torch.clone(val)
+        return newDict
+
+    def pinAverageWeights(self, weights: dict, copy = False):
+        if(copy):
+            self.weightsStateDict = Model.cloneStateDict(weights)
+        else:
+            self.weightsStateDict = weights
+        self.weightsStateDictType = 'plain'
+
+    def swapWeights(self):
+        if(self.weightsStateDictType == 'smoothing' and self.weightsStateDict is not None):
+            tmp = self.state_dict()
+            self.load_state_dict(self.weightsStateDict)
+            self.weightsStateDict = tmp
+            self.weightsStateDictType = 'plain'
+            return 'plain'
+        elif(self.weightsStateDictType == 'plain' and self.weightsStateDict is not None):
+            tmp = self.state_dict()
+            self.load_state_dict(self.weightsStateDict)
+            self.weightsStateDict = tmp
+            self.weightsStateDictType = 'smoothing'
+            return 'smoothing'
+        else:
+            raise Exception("unknown command or unset variables")
 
     def createDump(self, metadata):
-        self.saveObj = {
-                'model_state_dict': model.state_dict(),
-                'optimizer_state_dict': model.optimizer.state_dict()
+        saveObj = {
+                'model_state_dict': self.state_dict(),
+                'optimizer_state_dict': self.optimizer.state_dict(),
+                'loss_fn': self.loss_fn,
+                'weightsStateDict': self.weightsStateDict,
+                'weightsStateDictType': self.weightsStateDictType
             }
-        return self.saveObj
+        return saveObj
 
     def loadFromDump(self, obj):
-        self.saveObj = obj
+        saveObj = obj
         #self.to(obj['device'])
         self.load_state_dict(obj['model_state_dict'])
         self.optimizer.load_state_dict(obj['optimizer_state_dict'])
+        self.loss_fn.load_state_dict(obj['loss_fn'])
+        self.weightsStateDict = obj['weightsStateDict']
+        self.weightsStateDictType = obj['weightsStateDictType']
 
-    def tryLoad(self, metadata):
+    def tryLoad(self, metadata, temporaryLocation = False):
         '''
         Tries to load the model from the path in the metadata.
         '''
-        path = metadata.PATH + metadata.fileNameLoad + metadata.MODEL_SUFFIX
+        path = None
+        if(temporaryLocation):
+            path = metadata.TMP_PATH + metadata.fileNameLoad + metadata.MODEL_SUFFIX
+        else:
+            path = metadata.PATH + metadata.fileNameLoad + metadata.MODEL_SUFFIX
         if metadata.fileNameLoad is not None and os.path.exists(path):
             dump = torch.load(path, map_location=metadata.device)
             self.loadFromDump(dump)
             self.bindedMetadata = metadata
             print('Model loaded successfully')
+            self.update(metadata)
             return True
         print('Model load failure')
         return False
 
-    def trySave(self, metadata):
+    def trySave(self, metadata, temporaryLocation = False):
         if metadata.fileNameSave is not None:
-            path = metadata.PATH + metadata.fileNameSave + metadata.MODEL_SUFFIX
+            path = None
+            if(temporaryLocation):
+                path = metadata.TMP_PATH + metadata.fileNameSave + metadata.MODEL_SUFFIX
+            else:
+                path = metadata.PATH + metadata.fileNameSave + metadata.MODEL_SUFFIX
             torch.save(self.createDump(metadata), path)
             print('Model saved successfully')
             return True
@@ -736,7 +1009,7 @@ class Model(nn.Module):
         Updates the model against the metadata and binds the metadata to the model
         '''
         self.to(metadata.device)
-        self.loss_fn.to(metadata.device)
+        #self.loss_fn.to(metadata.device)
         self.bindedMetadata = metadata
 
         # must create new optimizer because we changed the model device. It must be set after setting model.
@@ -747,7 +1020,7 @@ class Model(nn.Module):
 metadata = MetaData()
 
 if(__name__ == '__main__'):
-    if metadata.commandLineArg(sys.argv[1:]) == False:
+    if (metadata.commandLineArg(sys.argv[1:]) == False): # if model was not loaded
         metadata.trySelectCUDA()
 
 metadata.prepareOutput()
@@ -755,7 +1028,6 @@ metadata.printStartNewModel()
 
 model = Model()
 model.tryLoad(metadata)
-    
 model.update(metadata)
 
 data = Data.tryLoad(metadata)
@@ -780,5 +1052,3 @@ data.epochLoop(model)
 metadata.trySave()
 model.trySave(metadata)
 data.trySave(metadata)
-
-playsound('/home/mateusz/Muzyka/simple_bell.mp3')
