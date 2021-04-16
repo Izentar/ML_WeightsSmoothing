@@ -11,6 +11,8 @@ import signal
 from datetime import datetime
 import time
 import copy as cp
+import random
+from torch.utils.data.dataloader import Sampler
 
 SAVE_AND_EXIT_FLAG = False
 
@@ -68,6 +70,25 @@ class SaveClass:
             return True
         print(nameStr + ' save failure')
         return False
+
+class BaseSampler:
+    def __init__(self, data, batchSize, startIndex = 0, seed = 984):
+        random.seed(seed)
+        self.sequence = list(range(len(data)))[startIndex * batchSize:]
+        random.shuffle(self.sequence)
+
+    def __iter__(self):
+        return iter(self.sequence)
+
+    def __len__(self):
+        return len(self.sequence)
+
+    def __getstate__(self):
+        state = self.__dict__.copy()
+        return state
+
+    def __setstate__(self, state):
+        self.__dict__.update(state)
 
 class Hyperparameters:
     def __init__(self):
@@ -492,6 +513,16 @@ class Output(SaveClass):
     def tryLoad(metadata, temporaryLocation = False):
         return SaveClass.tryLoad(metadata.fileNameLoad, StaticData.OUTPUT_SUFFIX, Output.__name__, temporaryLocation)
 
+class Data_Metadata:
+    DATA_PATH = '~/.data'
+
+    def __init__(self):
+        self.train = True
+        self.download = True
+        self.batchTrainSize = None # TODO dodać inne tego typu metadane dla pozostałych klas
+
+        
+
 class Data(SaveClass):
     def __init__(self):
         self.trainset = None
@@ -499,11 +530,13 @@ class Data(SaveClass):
         self.testset = None
         self.testloader = None
         self.transform = None
-        self.bindedMetadata = None
 
         self.batchNumbTrain = 0
         self.batchNumbTest = 0
         self.epochNumb = 0
+
+        self.trainSampler = None
+        self.testSampler = None
 
     def __str__(self):
         tmp_str = ('\n/Data class\n-----------------------------------------------------------------------\n')
@@ -517,22 +550,29 @@ class Data(SaveClass):
 
     def __getstate__(self):
         state = self.__dict__.copy()
-        del state['bindedMetadata']
+        del state['trainset']
+        del state['trainloader']
+        del state['testset']
+        del state['testloader']
+        del state['transform']
         return state
 
     def __setstate__(self, state):
         self.__dict__.update(state)
+        self.setTransform()
 
-    def setTrainData(self):
+    def setTrainData(self, metadata):
         self.trainset = torchvision.datasets.CIFAR10(root='~/.data', train=True, download=True, transform=self.transform)
-        self.trainloader = torch.utils.data.DataLoader(self.trainset, batch_size=self.bindedMetadata.batchTrainSize,
-                                          shuffle=True, num_workers=2, pin_memory=self.bindedMetadata.pin_memoryTrain)
+        self.trainSampler = BaseSampler(self.trainset, metadata.batchTrainSize)
+        self.trainloader = torch.utils.data.DataLoader(self.trainset, batch_size=metadata.batchTrainSize, sampler=self.trainSampler,
+                                          shuffle=True, num_workers=2, pin_memory=metadata.pin_memoryTrain)
         return self.trainset, self.trainloader
 
-    def setTestData(self):
+    def setTestData(self, metadata):
         self.testset = torchvision.datasets.CIFAR10(root='~/.data', train=False, download=True, transform=self.transform)
-        self.testloader = torch.utils.data.DataLoader(self.testset, batch_size=self.bindedMetadata.batchTestSize,
-                                         shuffle=False, num_workers=2, pin_memory=self.bindedMetadata.pin_memoryTest)
+        self.testSampler = BaseSampler(self.trainset, metadata.batchTrainSize)
+        self.testloader = torch.utils.data.DataLoader(self.testset, batch_size=metadata.batchTestSize, sampler=self.testSampler,
+                                         shuffle=False, num_workers=2, pin_memory=metadata.pin_memoryTest)
         return self.testset, self.testloader
 
     def setTransform(self):
@@ -542,12 +582,12 @@ class Data(SaveClass):
         )
         return self.transform
 
-    def setAll(self):
+    def setAll(self, metadata):
         '''
         Set transform of the input data and set train and test data.
         Returns transform function, trainset, trainloader, testset, testloader
         '''
-        return self.setTransform(), self.setTrainData(), self.setTestData()
+        return self.setTransform(), self.setTrainData(metadata), self.setTestData(metadata)
 
     def train(self, model, smoothing, timer, inputs, labels):
         timer.clearTime()
@@ -696,8 +736,7 @@ class Data(SaveClass):
         stream.flushAll()
 
     def update(self, metadata = None):
-        if(metadata is not None):
-            self.bindedMetadata = metadata
+        pass
         # TODO może coś więcej dodać jak aktualizacja ścieżek dla danych (ponowne wczytanie)
 
     def trySave(self, metadata, temporaryLocation = False):
@@ -904,38 +943,72 @@ class Model(nn.Module, SaveClass):
         self.optimizer = optim.AdamW(self.parameters(), lr=metadata.hiperparam.learning_rate)
 
 
-metadata = MetaData()
 
-if(__name__ == '__main__'):
-    if (metadata.commandLineArg(sys.argv[1:]) == False): # if model was not loaded
-        metadata.trySelectCUDA()
+def model():
+    metadata = MetaData()
 
-metadata.prepareOutput()
-metadata.printStartNewModel()
+    if(__name__ == '__main__'):
+        if (metadata.commandLineArg(sys.argv[1:]) == False): # if model was not loaded
+            metadata.trySelectCUDA()
 
-model = Model()
-model.tryLoad(metadata)
-model.update(metadata)
+    metadata.prepareOutput()
+    metadata.printStartNewModel()
 
-data = Data.tryLoad(metadata)
+    model = Model()
+    model.tryLoad(metadata)
+    model.update(metadata)
 
-upd = False
-if(data is None):
-    data = Data()
-    upd = True
+    data = Data.tryLoad(metadata)
 
-data.update(metadata)
+    upd = False
+    if(data is None):
+        data = Data()
+        upd = True
 
-if(upd):
-    data.setAll()
+    data.update(metadata)
+
+    if(upd):
+        data.setAll(metadata)
 
 
-#print(metadata)
-#print(data)
+    #print(metadata)
+    #print(data)
 
-data.epochLoop(model)
+    data.epochLoop(model)
 
-# TODO sprawdzić, czy metadata == model == data
-metadata.trySave()
-model.trySave(metadata)
-data.trySave(metadata)
+    # TODO sprawdzić, czy metadata == model == data
+    metadata.trySave()
+    model.trySave(metadata)
+    data.trySave(metadata)
+
+#model()
+
+dataDict = {
+    0: 'a0',
+    1: 'b1',
+    2: 'c2',
+    3: 'd3',
+    4: 'e4',
+    5: 'f5',
+    6: 'g6',
+    7: 'h7',
+    8: 'i8',
+    9: 'j9'
+}
+
+transform = transforms.Compose(
+    [transforms.ToTensor(),
+    transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))]
+)
+testset = torchvision.datasets.CIFAR10(root='~/.data', train=False, download=True, transform=transform)
+sampler = BaseSampler(testset, 4, seed=6893647)
+testloader = torch.utils.data.DataLoader(testset, batch_size=4, sampler=sampler,
+                                    shuffle=False, num_workers=2, pin_memory=True)
+
+
+
+
+for i, (x, y) in enumerate(testloader):
+    print(x, y)
+    if(i == 1):
+        break
