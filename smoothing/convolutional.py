@@ -34,7 +34,7 @@ class SaveClass:
     def createDump(self):
         raise Exception("Not implemented")
 
-    def tryLoad(self, objectToSave, pathBegin: str, pathBeginTmp: str, fileName: str, suffix: str, nameStr: str, temporaryLocation = False):
+    def tryLoad(self, pathBegin: str, pathBeginTmp: str, fileName: str, suffix: str, nameStr: str, temporaryLocation = False) -> bool:
         path = None
         if(temporaryLocation):
             path = pathBeginTmp + fileName + suffix
@@ -48,7 +48,7 @@ class SaveClass:
         print(nameStr + ' load failure')
         return False
 
-    def trySave(self, objectToSave, pathBegin: str, pathBeginTmp: str, fileName: str, suffix: str, nameStr: str, temporaryLocation = False) -> bool:
+    def trySave(self, pathBegin: str, pathBeginTmp: str, fileName: str, suffix: str, nameStr: str, temporaryLocation = False) -> bool:
         if fileName is not None and os.path.exists(pathBegin) and os.path.exists(pathBeginTmp):
             path = None
             if(temporaryLocation):
@@ -74,7 +74,7 @@ class Hyperparameters:
         tmp_str += ('-----------------------------------------------------------------------\nEnd Hyperparameters class\n')
         return tmp_str
 
-class MetaData:
+class MetaData(SaveClass):
     def __init__(self):
         self.PATH = expanduser("~") + '/.data/models/'
         self.TMP_PATH = expanduser("~") + '/.data/models/tmp/'
@@ -271,24 +271,10 @@ class MetaData:
         self.device = dump['device']
 
     def tryLoad(self, temporaryLocation = False):
-        path = None
-        path = self.PATH + self.fileNameLoad + self.METADATA_SUFFIX
-        if self.fileNameLoad is not None and os.path.exists(path):
-            dump = torch.load(path)
-            self.loadFromDump(dump)
-            print('Metadata loaded successfully')
-            return True
-        print('Metadata load failure')
-        return False
+        return super().tryLoad(self.PATH, self.TMP_PATH, self.fileNameLoad, self.METADATA_SUFFIX, "Metadata", temporaryLocation)
 
     def trySave(self, temporaryLocation = False):
-        if self.fileNameSave is not None and os.path.exists(self.PATH):
-            path = self.PATH + self.fileNameSave + self.METADATA_SUFFIX
-            torch.save(self.createDump(), path)
-            print('Metadata saved successfully')
-            return True
-        print('Metadata save failure')
-        return False
+        return super().trySave(self.PATH, self.TMP_PATH, self.fileNameLoad, self.METADATA_SUFFIX, "Metadata", temporaryLocation)
 
 class Timer:
     def __init__(self):
@@ -330,8 +316,15 @@ class Timer:
     def getUnits(self):
         return "s"
 
+    def loadFromDump(self, dump):
+        torch.load(path)
+
+    def createDump(self):
+        raise Exception("Not implemented")
+
     def trySave(self, metadata, temporaryLocation = False):
-        if metadata.fileNameSave is not None and os.path.exists(metadata.PATH):
+        return super().trySave(metadata.PATH, metadata.TMP_PATH, metadata.fileNameLoad, metadata.METADATA_SUFFIX, "Timer", temporaryLocation)
+        '''if metadata.fileNameSave is not None and os.path.exists(metadata.PATH):
             path = None
             if(temporaryLocation):
                 path = metadata.TMP_PATH + metadata.fileNameSave + metadata.TIMER_SUFFIX
@@ -341,20 +334,10 @@ class Timer:
             print('Timer saved successfully')
             return True
         print('Timer save failure')
-        return False
+        return False'''
 
     def tryLoad(self, metadata, temporaryLocation = False):
-        path = None
-        if(temporaryLocation):
-            path = metadata.TMP_PATH + metadata.fileNameLoad + metadata.TIMER_SUFFIX
-        else:
-            path = metadata.PATH + metadata.fileNameLoad + metadata.TIMER_SUFFIX
-        if metadata.fileNameLoad is not None and os.path.exists(path):
-            obj = torch.load(path)
-            print('Timer loaded successfully')
-            return obj
-        print('Timer load failure')
-        return None
+        return super().tryLoad(metadata.PATH, metadata.TMP_PATH, metadata.fileNameLoad, metadata.METADATA_SUFFIX, "Timer", temporaryLocation)
 
 class Output:
     def __init__(self):
