@@ -20,42 +20,50 @@ def saveWorkAndExit(signumb, frame):
     print('Ending and saving model')
     return
 
-def recSign(signumb, frame):
+def terminate(signumb, frame):
     exit(2)
 
 signal.signal(signal.SIGTSTP, saveWorkAndExit)
 
-signal.signal(signal.SIGINT, recSign)
-    
+signal.signal(signal.SIGINT, terminate)
+
+class StaticData:
+    PATH = expanduser("~") + '/.data/models/'
+    TMP_PATH = expanduser("~") + '/.data/models/tmp/'
+    MODEL_SUFFIX = '.model'
+    METADATA_SUFFIX = '.metadata'
+    DATA_SUFFIX = '.data'
+    TIMER_SUFFIX = '.timer'
+    SMOOTHING_SUFFIX = '.smoothing'
+    OUTPUT_SUFFIX = '.output'
+    NAME_CLASS_METADATA = 'Metadata'
+
 class SaveClass:
-    def loadFromDump(self, dump):
-        raise Exception("Not implemented")
+    '''
+    Should implement __setstate__ and __getstate__
+    '''
 
-    def createDump(self):
-        raise Exception("Not implemented")
-
-    def tryLoad(self, pathBegin: str, pathBeginTmp: str, fileName: str, suffix: str, nameStr: str, temporaryLocation = False) -> bool:
+    def tryLoad(fileName: str, suffix: str, nameStr: str, temporaryLocation = False):
         path = None
         if(temporaryLocation):
-            path = pathBeginTmp + fileName + suffix
+            path = StaticData.TMP_PATH + fileName + suffix
         else:
-            path = pathBegin + fileName + suffix
+            path = StaticData.PATH + fileName + suffix
         if fileName is not None and os.path.exists(path):
-            dump = torch.load(path)
-            self.loadFromDump(dump)
+            obj = torch.load(path)
             print(nameStr + ' loaded successfully')
-            return True
+            return obj
         print(nameStr + ' load failure')
-        return False
+        return None
 
-    def trySave(self, pathBegin: str, pathBeginTmp: str, fileName: str, suffix: str, nameStr: str, temporaryLocation = False) -> bool:
-        if fileName is not None and os.path.exists(pathBegin) and os.path.exists(pathBeginTmp):
+    def trySave(self, fileName: str, suffix: str, nameStr: str, temporaryLocation = False) -> bool:
+        if fileName is not None and os.path.exists(StaticData.PATH) and os.path.exists(StaticData.TMP_PATH):
             path = None
             if(temporaryLocation):
-                path = pathBeginTmp + fileName + suffix
+                path = StaticData.TMP_PATH + fileName + suffix
             else:
-                path = pathBegin + fileName + suffix
-            torch.save(self.createDump(), path)
+                path = StaticData.PATH + fileName + suffix
+            torch.save(self, path)
             print(nameStr + ' saved successfully')
             return True
         print(nameStr + ' save failure')
@@ -76,14 +84,7 @@ class Hyperparameters:
 
 class MetaData(SaveClass):
     def __init__(self):
-        self.PATH = expanduser("~") + '/.data/models/'
-        self.TMP_PATH = expanduser("~") + '/.data/models/tmp/'
-        self.MODEL_SUFFIX = '.model'
-        self.METADATA_SUFFIX = '.metadata'
-        self.DATA_SUFFIX = '.data'
-        self.TIMER_SUFFIX = '.timer'
-        self.SMOOTHING_SUFFIX = '.smoothing'
-        self.OUTPUT_SUFFIX = '.output'
+        self.defines = StaticData()
         self.epoch = 1
         self.batchTrainSize = 4
         self.batchTestSize = 4
@@ -111,8 +112,8 @@ class MetaData(SaveClass):
 
     def __str__(self):
         tmp_str = ('\n/MetaData class\n-----------------------------------------------------------------------\n')
-        tmp_str += ('Save path:\t{}\n'.format(self.PATH + self.fileNameSave if self.fileNameSave is not None else 'Not set'))
-        tmp_str += ('Load path:\t{}\n'.format(self.PATH + self.fileNameLoad if self.fileNameLoad is not None else 'Not set'))
+        tmp_str += ('Save path:\t{}\n'.format(StaticData.PATH + self.fileNameSave if self.fileNameSave is not None else 'Not set'))
+        tmp_str += ('Load path:\t{}\n'.format(StaticData.PATH + self.fileNameLoad if self.fileNameLoad is not None else 'Not set'))
         tmp_str += ('Number of epochs:\t{}\n'.format(self.epoch))
         tmp_str += ('Batch train size:\t{}\n'.format(self.batchTrainSize))
         tmp_str += ('Batch test size:\t{}\n'.format(self.batchTestSize))
@@ -221,9 +222,9 @@ class MetaData(SaveClass):
                 print(help)
                 sys.exit()
             elif opt in ('-s', '--save'):
-                metadata.fileNameSave = arg
+                self.fileNameSave = arg
             elif opt in ('-l', '--load'):
-                metadata.fileNameLoad = arg
+                self.fileNameLoad = arg
             elif opt in ('--test'):
                 boolean = MetaData.onOff(arg)
                 self.testFlag = boolean if boolean is not None else MetaData.exitError(help)
@@ -257,26 +258,25 @@ class MetaData(SaveClass):
             self.debugOutput = 'default.log'
         
         if(self.fileNameLoad is not None):
-            return self.tryLoad()
+            return MetaData.tryLoad(self.fileNameLoad)
         return True
 
-    def createDump(self):
+    def __getstate__(self):
         return {
                 'epoch': self.epoch,
                 'device': self.device
             }
 
-    def loadFromDump(self, dump):
-        self.epoch = dump['epoch']
-        self.device = dump['device']
-
-    def tryLoad(self, temporaryLocation = False):
-        return super().tryLoad(self.PATH, self.TMP_PATH, self.fileNameLoad, self.METADATA_SUFFIX, "Metadata", temporaryLocation)
+    def __setstate__(self, state):
+        self.__dict__.update(state)
 
     def trySave(self, temporaryLocation = False):
-        return super().trySave(self.PATH, self.TMP_PATH, self.fileNameLoad, self.METADATA_SUFFIX, "Metadata", temporaryLocation)
+        return super().trySave(self.fileNameSave, StaticData.METADATA_SUFFIX, MetaData.__name__, temporaryLocation)
 
-class Timer:
+    def tryLoad(fileName: str, temporaryLocation = False):
+        return SaveClass.tryLoad(fileName, StaticData.METADATA_SUFFIX, MetaData.__name__, temporaryLocation)
+
+class Timer(SaveClass):
     def __init__(self):
         self.timeStart = None
         self.timeEnd = None
@@ -316,30 +316,19 @@ class Timer:
     def getUnits(self):
         return "s"
 
-    def loadFromDump(self, dump):
-        torch.load(path)
+    def __getstate__(self):
+        return self.__dict__.copy()
 
-    def createDump(self):
-        raise Exception("Not implemented")
+    def __setstate__(self, state):
+        self.__dict__.update(state)
 
     def trySave(self, metadata, temporaryLocation = False):
-        return super().trySave(metadata.PATH, metadata.TMP_PATH, metadata.fileNameLoad, metadata.METADATA_SUFFIX, "Timer", temporaryLocation)
-        '''if metadata.fileNameSave is not None and os.path.exists(metadata.PATH):
-            path = None
-            if(temporaryLocation):
-                path = metadata.TMP_PATH + metadata.fileNameSave + metadata.TIMER_SUFFIX
-            else:
-                path = metadata.PATH + metadata.fileNameSave + metadata.TIMER_SUFFIX
-            torch.save(self, path)
-            print('Timer saved successfully')
-            return True
-        print('Timer save failure')
-        return False'''
+        return super().trySave(metadata.fileNameSave, StaticData.TIMER_SUFFIX, Timer.__name__, temporaryLocation)
 
-    def tryLoad(self, metadata, temporaryLocation = False):
-        return super().tryLoad(metadata.PATH, metadata.TMP_PATH, metadata.fileNameLoad, metadata.METADATA_SUFFIX, "Timer", temporaryLocation)
+    def tryLoad(metadata, temporaryLocation = False):
+        return SaveClass.tryLoad(metadata.fileNameLoad, StaticData.TIMER_SUFFIX, Timer.__name__, temporaryLocation)
 
-class Output:
+class Output(SaveClass):
     def __init__(self):
         self.debugF = None
         self.modelF = None
@@ -498,32 +487,12 @@ class Output:
         sys.stdout.flush()
 
     def trySave(self, metadata, temporaryLocation = False):
-        if metadata.fileNameSave is not None and os.path.exists(metadata.PATH):
-            path = None
-            if(temporaryLocation):
-                path = metadata.TMP_PATH + metadata.fileNameSave + metadata.OUTPUT_SUFFIX
-            else:
-                path = metadata.PATH + metadata.fileNameSave + metadata.OUTPUT_SUFFIX
-            torch.save(self, path)
-            print('Output saved successfully')
-            return True
-        print('Output save failure')
-        return False
+        return super().trySave(metadata.fileNameSave, StaticData.OUTPUT_SUFFIX, Output.__name__, temporaryLocation)
 
-    def tryLoad(self, metadata, temporaryLocation = False):
-        path = None
-        if(temporaryLocation):
-            path = metadata.TMP_PATH + metadata.fileNameLoad + metadata.OUTPUT_SUFFIX
-        else:
-            path = metadata.PATH + metadata.fileNameLoad + metadata.OUTPUT_SUFFIX
-        if metadata.fileNameLoad is not None and os.path.exists(path):
-            obj = torch.load(path)
-            print('Output loaded successfully')
-            return obj
-        print('Output load failure')
-        return None
+    def tryLoad(metadata, temporaryLocation = False):
+        return SaveClass.tryLoad(metadata.fileNameLoad, StaticData.OUTPUT_SUFFIX, Output.__name__, temporaryLocation)
 
-class Data:
+class Data(SaveClass):
     def __init__(self):
         self.trainset = None
         self.trainloader = None
@@ -732,35 +701,13 @@ class Data:
         # TODO może coś więcej dodać jak aktualizacja ścieżek dla danych (ponowne wczytanie)
 
     def trySave(self, metadata, temporaryLocation = False):
-        if metadata.fileNameSave is not None and os.path.exists(metadata.PATH):
-            path = None
-            if(temporaryLocation)
-                path = metadata.TMP_PATH + metadata.fileNameSave + metadata.DATA_SUFFIX
-            else:
-                path = metadata.PATH + metadata.fileNameSave + metadata.DATA_SUFFIX
-            torch.save(self, path)
-            print('Data saved successfully')
-            return True
-        print('Data save failure')
-        return False
+        return super().trySave(metadata.fileNameSave, StaticData.DATA_SUFFIX, Data.__name__, temporaryLocation)
 
     def tryLoad(metadata, temporaryLocation = False):
-        path = None
-        if(temporaryLocation):
-            path = metadata.TMP_PATH + metadata.fileNameLoad + metadata.DATA_SUFFIX
-        else:
-            path = metadata.PATH + metadata.fileNameLoad + metadata.DATA_SUFFIX
-        if metadata.fileNameLoad is not None and os.path.exists(path):
-            obj = torch.load(path)
-            print('Data loaded successfully')
-            return obj
-        print('Data load failure')
-        return None
+        return SaveClass.tryLoad(metadata.fileNameLoad, StaticData.DATA_SUFFIX, Data.__name__, temporaryLocation)
 
-class Smoothing:
+class Smoothing(SaveClass):
     def __init__(self):
-        self.batchNumber = None
-        self.vectorOscilation = None
         self.lossSum = 0.0
         self.lossCounter = 0
         self.lossList = []
@@ -847,34 +794,30 @@ class Smoothing:
             print(self.lossAverage[-1])
             print(variance)
 
+    def __getstate__(self):
+        state = self.__dict__.copy()
+        del state['bindedMetadata']
+        return state
+
+    def __getstate__(self):
+        state = self.__dict__.copy()
+        del state['bindedMetadata']
+        return state
+
+    def __getstate__(self):
+        state = self.__dict__.copy()
+        return state
+
+    def __setstate__(self, state):
+        self.__dict__.update(state)
+
     def trySave(self, metadata, temporaryLocation = False):
-        if metadata.fileNameSave is not None and os.path.exists(metadata.PATH):
-            path = None
-            if(temporaryLocation):
-                path = metadata.TMP_PATH + metadata.fileNameSave + metadata.SMOOTHING_SUFFIX
-            else:
-                path = metadata.PATH + metadata.fileNameSave + metadata.SMOOTHING_SUFFIX
-            torch.save(self, path)
-            print('Smoothing saved successfully')
-            return True
-        print('Smoothing save failure')
-        return False
+        return super().trySave(metadata.fileNameSave, StaticData.SMOOTHING_SUFFIX, Smoothing.__name__, temporaryLocation)
 
-    def tryLoad(self, metadata, temporaryLocation = False):
-        path = None
-        if(temporaryLocation):
-            path = metadata.TMP_PATH + metadata.fileNameLoad + metadata.SMOOTHING_SUFFIX
-        else:
-            path = metadata.PATH + metadata.fileNameLoad + metadata.SMOOTHING_SUFFIX
-        if metadata.fileNameLoad is not None and os.path.exists(path):
-            obj = torch.load(path)
-            print('Smoothing loaded successfully')
-            return obj
-        print('Smoothing load failure')
-        return None
+    def tryLoad(metadata, temporaryLocation = False):
+        return SaveClass.tryLoad(metadata.fileNameSave, StaticData.SMOOTHING_SUFFIX, Smoothing.__name__, temporaryLocation)
 
-
-class Model(nn.Module):
+class Model(nn.Module, SaveClass):
     def __init__(self):
         super(Model, self).__init__()
         self.conv1 = nn.Conv2d(3, 6, 5)
@@ -907,6 +850,10 @@ class Model(nn.Module):
         del state['bindedMetadata']
         return state
 
+    def __setstate__(self, state):
+        self.__dict__.update(state)
+        self.eval()
+
     def cloneStateDict(weights: dict):
         newDict = dict()
         for key, val in weights.items():
@@ -936,57 +883,14 @@ class Model(nn.Module):
         else:
             raise Exception("unknown command or unset variables")
 
-    def createDump(self, metadata):
-        saveObj = {
-                'model_state_dict': self.state_dict(),
-                'optimizer_state_dict': self.optimizer.state_dict(),
-                'loss_fn': self.loss_fn,
-                'weightsStateDict': self.weightsStateDict,
-                'weightsStateDictType': self.weightsStateDictType
-            }
-        return saveObj
-
-    def loadFromDump(self, obj):
-        saveObj = obj
-        #self.to(obj['device'])
-        self.load_state_dict(obj['model_state_dict'])
-        self.optimizer.load_state_dict(obj['optimizer_state_dict'])
-        self.loss_fn.load_state_dict(obj['loss_fn'])
-        self.weightsStateDict = obj['weightsStateDict']
-        self.weightsStateDictType = obj['weightsStateDictType']
+    def trySave(self, metadata, temporaryLocation = False):
+        return super().trySave(metadata.fileNameSave, StaticData.MODEL_SUFFIX, Model.__name__, temporaryLocation)
 
     def tryLoad(self, metadata, temporaryLocation = False):
-        '''
-        Tries to load the model from the path in the metadata.
-        '''
-        path = None
-        if(temporaryLocation):
-            path = metadata.TMP_PATH + metadata.fileNameLoad + metadata.MODEL_SUFFIX
-        else:
-            path = metadata.PATH + metadata.fileNameLoad + metadata.MODEL_SUFFIX
-        if metadata.fileNameLoad is not None and os.path.exists(path):
-            dump = torch.load(path, map_location=metadata.device)
-            self.loadFromDump(dump)
-            self.bindedMetadata = metadata
-            print('Model loaded successfully')
-            self.update(metadata)
-            return True
-        print('Model load failure')
-        return False
-
-    def trySave(self, metadata, temporaryLocation = False):
-        if metadata.fileNameSave is not None:
-            path = None
-            if(temporaryLocation):
-                path = metadata.TMP_PATH + metadata.fileNameSave + metadata.MODEL_SUFFIX
-            else:
-                path = metadata.PATH + metadata.fileNameSave + metadata.MODEL_SUFFIX
-            torch.save(self.createDump(metadata), path)
-            print('Model saved successfully')
-            return True
-        print('Model save failure')
-        return False
-
+        obj =  SaveClass.tryLoad(metadata.fileNameLoad, StaticData.MODEL_SUFFIX, Model.__name__, temporaryLocation)
+        obj.update(metadata)
+        return obj
+    
     def update(self, metadata):
         '''
         Updates the model against the metadata and binds the metadata to the model
