@@ -17,6 +17,7 @@ from torch.utils.data.dataloader import Sampler
 import matplotlib.pyplot as plt
 
 SAVE_AND_EXIT_FLAG = False
+MODEL_RESUME = False
 
 def saveWorkAndExit(signumb, frame):
     global SAVE_AND_EXIT_FLAG
@@ -114,7 +115,7 @@ class BaseSampler:
         return state
 
     def __setstate__(self, state):
-        self.__dict__.__update__(state)
+        self.__dict__.update(state)
 
 # nieużywane
 class TensorsContainer(SaveClass):
@@ -293,7 +294,7 @@ class MetaData(SaveClass):
         return self.__dict__.copy()
 
     def __setstate__(self, state):
-        self.__dict__.__update__(state)
+        self.__dict__.update(state)
 
     def trySave(self, temporaryLocation = False):
         return super().trySave(self, StaticData.METADATA_SUFFIX, MetaData.__name__, temporaryLocation)
@@ -347,7 +348,7 @@ class Timer(SaveClass):
         return self.__dict__.copy()
 
     def __setstate__(self, state):
-        self.__dict__.__update__(state)
+        self.__dict__.update(state)
 
     def trySave(self, metadata, temporaryLocation = False):
         return super().trySave(metadata, StaticData.TIMER_SUFFIX, Timer.__name__, temporaryLocation)
@@ -373,7 +374,7 @@ class Output(SaveClass):
         return state
 
     def __setstate__(self, state):
-        self.__dict__.__update__(state)
+        self.__dict__.update(state)
         self.formatedLogF = None
         self.debugF = None
         self.modelF = None
@@ -581,7 +582,7 @@ class Data_Metadata(SaveClass):
         return self.__dict__.copy()
 
     def __setstate__(self, state):
-        self.__dict__.__update__(state)
+        self.__dict__.update(state)
 
     def trySave(self, metadata, temporaryLocation = False):
         return super().trySave(metadata, StaticData.DATA_METADATA_SUFFIX, Data_Metadata.__name__, temporaryLocation)
@@ -613,7 +614,7 @@ class Model_Metadata(SaveClass):
         return self.__dict__.copy()
 
     def __setstate__(self, state):
-        self.__dict__.__update__(state)
+        self.__dict__.update(state)
 
 
     def trySave(self, metadata, temporaryLocation = False):
@@ -641,7 +642,7 @@ class Weight(SaveClass):
         return self.__dict__.copy()
 
     def __setstate__(self, state):
-        self.__dict__.__update__(state)
+        self.__dict__.update(state)
 
     def trySave(self, metadata, temporaryLocation = False):
         return super().trySave(metadata, StaticData.WEIGHT_SUFFIX, Weight.__name__, temporaryLocation)
@@ -649,7 +650,7 @@ class Weight(SaveClass):
     def tryLoad(metadata, temporaryLocation = False):
         return SaveClass.tryLoad(metadata.fileNameSave, StaticData.WEIGHT_SUFFIX, Weight.__name__, temporaryLocation)
 
-class LoopDataContainer():
+class TrainDataContainer():
     def __init__(self):
         self.size = None
         self.timer = None
@@ -663,16 +664,27 @@ class LoopDataContainer():
 
         self.batchNumber = None
 
+class TestDataContainer():
+    def __init__(self):
+        self.size = None
+        self.timer = None
+        self.loopTimer = None
+
+        # one loop test data
+        self.pred = None
+        self.inputs = None
+        self.labels = None
+
+        self.batchNumber = None
+
         # one loop test data
         self.test_loss = 0
         self.test_correct = 0
 
-        self.X = None
-        self.y = None
-
 class EpochDataContainer():
     def __init__(self):
         self.epochNumber = None
+        self.returnObj = None
 
 class Data(SaveClass):
     def __init__(self):
@@ -688,6 +700,16 @@ class Data(SaveClass):
 
         self.trainSampler = None
         self.testSampler = None
+
+        """
+        Aby wyciągnąć helper poza pętlę, należy go przypisać do dodatkowej zmiennej przy przeciążeniu dowolnej, wewnętrznej metody dla danej pętli. 
+        Inaczej po zakończonych obliczeniach zmienna self.trainHelper zostanie ustawiona na None.
+        Podane zmienne używane są po to, aby umożliwić zapisanie stanu programu.
+        Aby jednak wymusić ponowne stworzenie danych obiektów, należy przypisać im wartość None.
+        """
+        self.trainHelper = None
+        self.testHelper = None
+        self.epochHelper = None
 
     def __str__(self):
         tmp_str = ('\n/Data class\n-----------------------------------------------------------------------\n')
@@ -707,12 +729,15 @@ class Data(SaveClass):
         del state['transform']
 
     def __getstate__(self):
+        """
+        Nie nadpisujemy tej klasy. Do nadpisania służy \_\_customizeState__(self, state).
+        """
         state = self.__dict__.copy()
         self.__customizeState__(state)
         return state
 
     def __setstate__(self, state):
-        self.__dict__.__update__(state)
+        self.__dict__.update(state)
         self.trainset = None
         self.trainloader = None
         self.testset = None
@@ -763,25 +788,18 @@ class Data(SaveClass):
                                          shuffle=False, num_workers=2, pin_memory=dataMetadata.pin_memoryTest)
 
     def __train__(self, helperEpoch, helper, model, dataMetadata, modelMetadata, metadata, smoothing):
-        """
-        Metoda powinna zwracać wartości:
-        (strata, różnica)
-        """
         # forward + backward + optimize
         outputs = model(helper.inputs)
-        loss = model.loss_fn(outputs, helper.labels)
-        loss.backward()
+        helper.loss = model.loss_fn(outputs, helper.labels)
+        helper.loss.backward()
         model.optimizer.step()
 
         # run smoothing
-        #smoothing.forwardLossFun(loss.item())
-        #average = smoothing.fullAverageWeights(model.named_parameters())
-        diff = smoothing.lastWeightDifference(model)
-
-        return loss, diff
+        helper.diff = smoothing.lastWeightDifference(model)
+        smoothing.call(helperEpoch, helper, model, dataMetadata, modelMetadata, metadata)
 
     def setTrainLoop(self, model, modelMetadata, metadata):
-        helper = LoopDataContainer()
+        helper = TrainDataContainer()
         helper.size = len(self.trainloader.dataset)
         model.train()
         metadata.prepareOutput()
@@ -824,40 +842,38 @@ class Data(SaveClass):
         metadata.stream.printFormated(f"{helper.timer.getAverage()};{helper.loopTimer.getDiff()};{helper.diff[diffKey].sum() / helper.diff[diffKey].numel()};{helper.diff[diffKey].numel()}")
 
     def trainLoop(self, model, helperEpoch, dataMetadata, modelMetadata, metadata, smoothing):
-        helper = self.setTrainLoop(model, modelMetadata, metadata)
-        self.__beforeTrainLoop__(helperEpoch, helper, model, dataMetadata, modelMetadata, metadata, smoothing)
+        if(self.trainHelper is None): # jeżeli nie było wznowione; nowe wywołanie
+            self.trainHelper = self.setTrainLoop(model, modelMetadata, metadata)
+        self.__beforeTrainLoop__(helperEpoch, self.trainHelper, model, dataMetadata, modelMetadata, metadata, smoothing)
 
-        helper.loopTimer.start()
+        self.trainHelper.loopTimer.start()
         for batch, (inputs, labels) in enumerate(self.trainloader, start=self.batchNumbTrain):
-            helper.inputs = inputs
-            helper.labels = labels
-            helper.batchNumber = batch
+            self.trainHelper.inputs = inputs
+            self.trainHelper.labels = labels
+            self.trainHelper.batchNumber = batch
             self.batchNumbTrain = batch
             if(SAVE_AND_EXIT_FLAG):
                 return
             
-            self.__beforeTrain__(helperEpoch, helper, model, dataMetadata, modelMetadata, metadata, smoothing)
+            self.__beforeTrain__(helperEpoch, self.trainHelper, model, dataMetadata, modelMetadata, metadata, smoothing)
 
-            helper.timer.clearTime()
-            helper.timer.start()
-            helper.loss, helper.diff = self.__train__(helperEpoch, helper, model, dataMetadata, modelMetadata, metadata, smoothing)
-            helper.timer.end()
-            helper.timer.addToStatistics()
+            self.trainHelper.timer.clearTime()
+            self.trainHelper.timer.start()
+            self.__train__(helperEpoch, self.trainHelper, model, dataMetadata, modelMetadata, metadata, smoothing)
+            self.trainHelper.timer.end()
+            self.trainHelper.timer.addToStatistics()
 
-            self.__afterTrain__(helperEpoch, helper, model, dataMetadata, modelMetadata, metadata, smoothing)
+            self.__afterTrain__(helperEpoch, self.trainHelper, model, dataMetadata, modelMetadata, metadata, smoothing)
 
-        helper.loopTimer.end()
-        self.__afterTrainLoop__(helperEpoch, helper, model, dataMetadata, modelMetadata, metadata, smoothing)
+        self.trainHelper.loopTimer.end()
+        self.__afterTrainLoop__(helperEpoch, self.trainHelper, model, dataMetadata, modelMetadata, metadata, smoothing)
+        self.trainHelper = None
 
     def __test__(self, helperEpoch, helper, model, dataMetadata, modelMetadata, metadata, smoothing):
-        """
-        Metoda zwraca predykcję modelu
-        """
-        pred = model(helper.X)
-        return pred
+        helper.pred = model(helper.inputs)
 
     def setTestLoop(self, model, modelMetadata, metadata):
-        helper = LoopDataContainer()
+        helper = TestDataContainer()
         helper.size = len(self.testloader.dataset)
         helper.test_loss, helper.test_correct = 0, 0
         model.eval()
@@ -870,12 +886,12 @@ class Data(SaveClass):
         metadata.stream.printFormated("testLoop;\nAverage test time;Loop test time;Accuracy;Avg loss")
 
     def __beforeTest__(self, helperEpoch, helper, model, dataMetadata, modelMetadata, metadata, smoothing):
-        helper.X = helper.X.to(modelMetadata.device)
-        helper.y = helper.y.to(modelMetadata.device)
+        helper.inputs = helper.inputs.to(modelMetadata.device)
+        helper.labels = helper.labels.to(modelMetadata.device)
 
     def __afterTest__(self, helperEpoch, helper, model, dataMetadata, modelMetadata, metadata, smoothing):
-        helper.test_loss += model.loss_fn(helper.pred, helper.y).item()
-        helper.test_correct += (helper.pred.argmax(1) == helper.y).type(torch.float).sum().item()
+        helper.test_loss += model.loss_fn(helper.pred, helper.labels).item()
+        helper.test_correct += (helper.pred.argmax(1) == helper.labels).type(torch.float).sum().item()
 
     def __afterTestLoop__(self, helperEpoch, helper, model, dataMetadata, modelMetadata, metadata, smoothing):
         helper.test_loss /= helper.size
@@ -887,33 +903,34 @@ class Data(SaveClass):
         metadata.stream.printFormated(f"{helper.timer.getAverage()};{helper.loopTimer.getDiff()};{(helper.test_correct):>0.0001f};{helper.test_loss:>8f}")
 
     def testLoop(self, helperEpoch, model, dataMetadata, modelMetadata, metadata, smoothing):
-        helper = self.setTestLoop(model, modelMetadata, metadata)
-
-        self.__beforeTestLoop__(helperEpoch, helper, model, dataMetadata, modelMetadata, metadata, smoothing)
+        if(self.testHelper is None): # jeżeli nie było wznowione; nowe wywołanie
+            self.testHelper = self.setTestLoop(model, modelMetadata, metadata)
+        self.__beforeTestLoop__(helperEpoch, self.testHelper, model, dataMetadata, modelMetadata, metadata, smoothing)
 
         with torch.no_grad():
-            helper.loopTimer.start()
-            for batch, (X, y) in enumerate(self.testloader, self.batchNumbTest):
-                helper.X = X
-                helper.y = y
-                helper.batchNumber = batch
+            self.testHelper.loopTimer.start()
+            for batch, (inputs, labels) in enumerate(self.testloader, self.batchNumbTest):
+                self.testHelper.inputs = inputs
+                self.testHelper.labels = labels
+                self.testHelper.batchNumber = batch
                 self.batchNumbTest = batch
                 if(SAVE_AND_EXIT_FLAG):
                     return
 
-                self.__beforeTest__(helperEpoch, helper, model, dataMetadata, modelMetadata, metadata, smoothing)
+                self.__beforeTest__(helperEpoch, self.testHelper, model, dataMetadata, modelMetadata, metadata, smoothing)
 
-                helper.timer.clearTime()
-                helper.timer.start()
-                helper.pred = self.__test__(helperEpoch, helper, model, dataMetadata, modelMetadata, metadata, smoothing)
-                helper.timer.end()
-                helper.timer.addToStatistics()
+                self.testHelper.timer.clearTime()
+                self.testHelper.timer.start()
+                self.__test__(helperEpoch, self.testHelper, model, dataMetadata, modelMetadata, metadata, smoothing)
+                self.testHelper.timer.end()
+                self.testHelper.timer.addToStatistics()
 
-                self.__afterTest__(helperEpoch, helper, model, dataMetadata, modelMetadata, metadata, smoothing)
+                self.__afterTest__(helperEpoch, self.testHelper, model, dataMetadata, modelMetadata, metadata, smoothing)
 
-            helper.loopTimer.end()
+            self.testHelper.loopTimer.end()
 
-        self.__afterTestLoop__(helperEpoch, helper, model, dataMetadata, modelMetadata, metadata, smoothing)
+        self.__afterTestLoop__(helperEpoch, self.testHelper, model, dataMetadata, modelMetadata, metadata, smoothing)
+        self.testHelper = None
 
     def __beforeEpochLoop__(self, helperEpoch, model, dataMetadata, modelMetadata, metadata, smoothing):
         pass
@@ -954,24 +971,25 @@ class Data(SaveClass):
         '''smoothing = Smoothing()
         smoothing.setDictionary(model.named_parameters())'''
         metadata.prepareOutput()
-        helperEpoch = EpochDataContainer()
+        self.epochHelper = EpochDataContainer()
 
-        self.__beforeEpochLoop__(helperEpoch, model, dataMetadata, modelMetadata, metadata, smoothing)
+        self.__beforeEpochLoop__(self.epochHelper, model, dataMetadata, modelMetadata, metadata, smoothing)
 
         for ep, (loopEpoch) in enumerate(range(dataMetadata.epoch), self.epochNumb):  # loop over the dataset multiple times
-            helperEpoch.epochNumber = ep
+            self.epochHelper.epochNumber = ep
             metadata.stream.print(f"\nEpoch {loopEpoch+1}\n-------------------------------")
             metadata.stream.flushAll()
             
-            self.__epoch__(helperEpoch, model, dataMetadata, modelMetadata, metadata, smoothing)
+            self.__epoch__(self.epochHelper, model, dataMetadata, modelMetadata, metadata, smoothing)
             if(SAVE_AND_EXIT_FLAG):
                 return
 
             self.resetEpochState()
 
-        self.__afterEpochLoop__(helperEpoch, model, dataMetadata, modelMetadata, metadata, smoothing)
+        self.__afterEpochLoop__(self.epochHelper, model, dataMetadata, modelMetadata, metadata, smoothing)
         self.resetFullEpochState()
         metadata.stream.flushAll()
+        self.epochHelper = None
 
     def resetEpochState(self):
         self.batchNumbTrain = 0
@@ -1018,6 +1036,19 @@ class Smoothing(SaveClass):
 
         self.mainWeights = None
 
+        def call(self, helperEpoch, helper, model, dataMetadata, modelMetadata, metadata):
+            self.counter += 1
+            if(self.counter > self.numbOfBatchAfterSwitchOn):
+                self.countWeights += 1
+                helper.substract = {}
+                with torch.no_grad():
+                    for key, arg in model.named_parameters():
+                        self.sumWeights[key].add_(arg)
+                for key, arg in model.named_parameters():
+                substract[key] = arg.sub(self.previousWeights[key])
+                self.previousWeights[key].data.copy_(arg.data)
+
+
     def beforeParamUpdate(self, model):
         return
 
@@ -1044,24 +1075,26 @@ class Smoothing(SaveClass):
             for key, arg in model.named_parameters():
                 self.sumWeights[key].add_(arg)
         
+    # ważne
     def getStateDict(self):
         average = {}
         for key, arg in self.sumWeights.items():
             average[key] = self.sumWeights[key] / self.countWeights
         return average
-
+'''
     def fullAverageWeights(self, model):
         self.counter += 1
         self.countWeights += 1
         return self.addToAverageWeights(model)
-        
+   '''
+   '''     
     def lateStartAverageWeights(self, model):
         self.counter += 1
         if(self.countWeights > self.numbOfBatchAfterSwitchOn):
             self.countWeights += 1
             return self.addToAverageWeights(model)
         return dict(model)
-
+'''
     def comparePrevWeights(self, model):
         substract = {}
         self.addToAverageWeights(model)
@@ -1109,7 +1142,7 @@ class Smoothing(SaveClass):
         return state
 
     def __setstate__(self, state):
-        self.__dict__.__update__(state)
+        self.__dict__.update(state)
 
 
     def trySave(self, metadata, temporaryLocation = False):
@@ -1160,7 +1193,7 @@ class Model(nn.Module, SaveClass):
         return self.__dict__.copy()
 
     def __setstate__(self, state):
-        self.__dict__.__update__(state)
+        self.__dict__.update(state)
         self.eval()
 
     '''def cloneStateDict(weights: dict):
