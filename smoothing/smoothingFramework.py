@@ -14,6 +14,8 @@ import copy as cp
 import random
 from torch.utils.data.dataloader import Sampler
 
+import matplotlib.pyplot as plt
+
 SAVE_AND_EXIT_FLAG = False
 
 def saveWorkAndExit(signumb, frame):
@@ -112,7 +114,7 @@ class BaseSampler:
         return state
 
     def __setstate__(self, state):
-        self.__dict__.update(state)
+        self.__dict__.__update__(state)
 
 # nieużywane
 class TensorsContainer(SaveClass):
@@ -291,7 +293,7 @@ class MetaData(SaveClass):
         return self.__dict__.copy()
 
     def __setstate__(self, state):
-        self.__dict__.update(state)
+        self.__dict__.__update__(state)
 
     def trySave(self, temporaryLocation = False):
         return super().trySave(self, StaticData.METADATA_SUFFIX, MetaData.__name__, temporaryLocation)
@@ -345,7 +347,7 @@ class Timer(SaveClass):
         return self.__dict__.copy()
 
     def __setstate__(self, state):
-        self.__dict__.update(state)
+        self.__dict__.__update__(state)
 
     def trySave(self, metadata, temporaryLocation = False):
         return super().trySave(metadata, StaticData.TIMER_SUFFIX, Timer.__name__, temporaryLocation)
@@ -371,7 +373,7 @@ class Output(SaveClass):
         return state
 
     def __setstate__(self, state):
-        self.__dict__.update(state)
+        self.__dict__.__update__(state)
         self.formatedLogF = None
         self.debugF = None
         self.modelF = None
@@ -540,21 +542,29 @@ class Data_Metadata(SaveClass):
         self.howOftenPrintTrain = 2000
 
     def tryPinMemoryTrain(self, metadata, modelMetadata):
-        if modelMetadata.device == 'cpu': modelMetadata.trySelectCUDA(metadata)
+        if(torch.cuda.is_available()):
+            self.pin_memoryTrain = True
+        return bool(self.pin_memoryTrain)
+        '''if modelMetadata.device == 'cpu': modelMetadata.trySelectCUDA(metadata)
         if(Model_Metadata.checkCUDA(modelMetadata.device)):
             self.pin_memoryTrain = True
         if(metadata.debugInfo):
             print('Train data pinned to GPU: {}'.format(self.pin_memoryTrain))
-        return bool(self.pin_memoryTrain)
+        return bool(self.pin_memoryTrain)'''
 
     def tryPinMemoryTest(self, metadata, modelMetadata):
+        if(torch.cuda.is_available()):
+            self.pin_memoryTest = True
+        return bool(self.pin_memoryTest)
+        '''
         if modelMetadata.device == 'cpu': modelMetadata.trySelectCUDA(metadata)
         if(Model_Metadata.checkCUDA(modelMetadata.device)):
             self.pin_memoryTest = True
         if(metadata.debugInfo):
             print('Test data pinned to GPU: {}'.format(self.pin_memoryTest))
-        return bool(self.pin_memoryTest)
+        return bool(self.pin_memoryTest)'''
 
+    # unused
     def tryPinMemoryAll(self, metadata, modelMetadata):
         return self.tryPinMemoryTrain(metadata, modelMetadata), self.tryPinMemoryTest(metadata, modelMetadata)
 
@@ -571,7 +581,7 @@ class Data_Metadata(SaveClass):
         return self.__dict__.copy()
 
     def __setstate__(self, state):
-        self.__dict__.update(state)
+        self.__dict__.__update__(state)
 
     def trySave(self, metadata, temporaryLocation = False):
         return super().trySave(metadata, StaticData.DATA_METADATA_SUFFIX, Data_Metadata.__name__, temporaryLocation)
@@ -582,7 +592,7 @@ class Data_Metadata(SaveClass):
 class Model_Metadata(SaveClass):
     def __init__(self):
         self.learning_rate = 1e-3 # TODO usunąć, bo to klasa podstawowa
-        self.device = 'cpu'
+        self.device = 'cuda:0'
         
     def checkCUDA(string):
         return string.startswith('cuda')
@@ -603,7 +613,7 @@ class Model_Metadata(SaveClass):
         return self.__dict__.copy()
 
     def __setstate__(self, state):
-        self.__dict__.update(state)
+        self.__dict__.__update__(state)
 
 
     def trySave(self, metadata, temporaryLocation = False):
@@ -631,7 +641,7 @@ class Weight(SaveClass):
         return self.__dict__.copy()
 
     def __setstate__(self, state):
-        self.__dict__.update(state)
+        self.__dict__.__update__(state)
 
     def trySave(self, metadata, temporaryLocation = False):
         return super().trySave(metadata, StaticData.WEIGHT_SUFFIX, Weight.__name__, temporaryLocation)
@@ -639,6 +649,30 @@ class Weight(SaveClass):
     def tryLoad(metadata, temporaryLocation = False):
         return SaveClass.tryLoad(metadata.fileNameSave, StaticData.WEIGHT_SUFFIX, Weight.__name__, temporaryLocation)
 
+class LoopDataContainer():
+    def __init__(self):
+        self.size = None
+        self.timer = None
+        self.loopTimer = None
+
+        # one loop train data
+        self.loss = None
+        self.diff = None
+        self.inputs = None
+        self.labels = None
+
+        self.batchNumber = None
+
+        # one loop test data
+        self.test_loss = 0
+        self.test_correct = 0
+
+        self.X = None
+        self.y = None
+
+class EpochDataContainer():
+    def __init__(self):
+        self.epochNumber = None
 
 class Data(SaveClass):
     def __init__(self):
@@ -665,17 +699,20 @@ class Data(SaveClass):
         tmp_str += ('-----------------------------------------------------------------------\nEnd Data class\n')
         return tmp_str
 
-    def __getstate__(self):
-        state = self.__dict__.copy()
+    def __customizeState__(self, state):
         del state['trainset']
         del state['trainloader']
         del state['testset']
         del state['testloader']
         del state['transform']
+
+    def __getstate__(self):
+        state = self.__dict__.copy()
+        self.__customizeState__(state)
         return state
 
     def __setstate__(self, state):
-        self.__dict__.update(state)
+        self.__dict__.__update__(state)
         self.trainset = None
         self.trainloader = None
         self.testset = None
@@ -712,10 +749,7 @@ class Data(SaveClass):
         #return self.setTransform(), self.setTrainData(trainSampler, dataMetadata), self.setTestData(testSampler, dataMetadata)
 
     def prepare(self, dataMetadata):
-        self.transform = transforms.Compose(
-            [transforms.ToTensor(),
-            transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))]
-        )
+        self.setTransform()
 
         self.trainset = torchvision.datasets.CIFAR10(root='~/.data', train=True, download=True, transform=self.transform)
         self.testset = torchvision.datasets.CIFAR10(root='~/.data', train=False, download=True, transform=self.transform)
@@ -728,14 +762,14 @@ class Data(SaveClass):
         self.testloader = torch.utils.data.DataLoader(self.testset, batch_size=dataMetadata.batchTestSize, sampler=self.testSampler,
                                          shuffle=False, num_workers=2, pin_memory=dataMetadata.pin_memoryTest)
 
-    def train(self, model, smoothing, timer, inputs, labels):
-        timer.clearTime()
-        # start model calculations
-        timer.start()
-
+    def __train__(self, helperEpoch, helper, model, dataMetadata, modelMetadata, metadata, smoothing):
+        """
+        Metoda powinna zwracać wartości:
+        (strata, różnica)
+        """
         # forward + backward + optimize
-        outputs = model(inputs)
-        loss = model.loss_fn(outputs, labels)
+        outputs = model(helper.inputs)
+        loss = model.loss_fn(outputs, helper.labels)
         loss.backward()
         model.optimizer.step()
 
@@ -744,141 +778,210 @@ class Data(SaveClass):
         #average = smoothing.fullAverageWeights(model.named_parameters())
         diff = smoothing.lastWeightDifference(model)
 
-        # end model calculations
-        timer.end()
-        timer.addToStatistics()
         return loss, diff
 
-    def trainLoop(self, model, dataMetadata, modelMetadata, metadata, smoothing):
-        size = len(self.trainloader.dataset)
+    def setTrainLoop(self, model, modelMetadata, metadata):
+        helper = LoopDataContainer()
+        helper.size = len(self.trainloader.dataset)
         model.train()
         metadata.prepareOutput()
-        stream = metadata.stream
-        timer = Timer()
-        loopTimer = Timer()
-        loss = None 
-        diff = None
+        helper.timer = Timer()
+        helper.loopTimer = Timer()
+        helper.loss = None 
+        helper.diff = None
 
-        stream.printFormated("trainLoop;\nAverage train time;Loop train time;Weight difference of last layer average;divided by;")
+        return helper
 
-        loopTimer.start()
+    def __beforeTrainLoop__(self, helperEpoch, helper, model, dataMetadata, modelMetadata, metadata, smoothing):
+        pass
+
+    def __beforeTrain__(self, helperEpoch, helper, model, dataMetadata, modelMetadata, metadata, smoothing):
+        helper.inputs, helper.labels = helper.inputs.to(modelMetadata.device), helper.labels.to(modelMetadata.device)
+        model.optimizer.zero_grad()
+
+    def __afterTrain__(self, helperEpoch, helper, model, dataMetadata, modelMetadata, metadata, smoothing):
+        if(bool(metadata.debugInfo) and dataMetadata.howOftenPrintTrain is not None and helper.batchNumber % dataMetadata.howOftenPrintTrain == 0):
+            averageWeights = smoothing.getStateDict()
+            calcLoss, current = helper.loss.item(), helper.batchNumber * len(helper.inputs)
+            averKey = list(averageWeights.keys())[-1]
+            
+            metadata.stream.print(f"loss: {calcLoss:>7f}  [{current:>5d}/{helper.size:>5d}]")
+            metadata.stream.printTo(['debug', 'bash'], f"Average: {averageWeights[averKey]}")
+            if(helper.diff is None):
+                metadata.stream.print(f"No weight difference")
+            else:
+                diffKey = list(helper.diff.keys())[-1]
+                metadata.stream.printTo(['debug', 'bash'], f"Weight difference: {helper.diff[diffKey]}")
+                metadata.stream.print(f"Weight difference of last layer average: {helper.diff[diffKey].sum() / helper.diff[diffKey].numel()} :: was divided by: {helper.diff[diffKey].numel()}")
+                metadata.stream.print('################################################')
+
+    def __afterTrainLoop__(self, helperEpoch, helper, model, dataMetadata, modelMetadata, metadata, smoothing):
+        diffKey = list(helper.diff.keys())[-1]
+        metadata.stream.print("Train summary:")
+        metadata.stream.print(f" Average train time ({helper.timer.getUnits()}): {helper.timer.getAverage()}")
+        metadata.stream.print(f" Loop train time ({helper.timer.getUnits()}): {helper.loopTimer.getDiff()}")
+        metadata.stream.printFormated("trainLoop;\nAverage train time;Loop train time;Weight difference of last layer average;divided by;")
+        metadata.stream.printFormated(f"{helper.timer.getAverage()};{helper.loopTimer.getDiff()};{helper.diff[diffKey].sum() / helper.diff[diffKey].numel()};{helper.diff[diffKey].numel()}")
+
+    def trainLoop(self, model, helperEpoch, dataMetadata, modelMetadata, metadata, smoothing):
+        helper = self.setTrainLoop(model, modelMetadata, metadata)
+        self.__beforeTrainLoop__(helperEpoch, helper, model, dataMetadata, modelMetadata, metadata, smoothing)
+
+        helper.loopTimer.start()
         for batch, (inputs, labels) in enumerate(self.trainloader, start=self.batchNumbTrain):
+            helper.inputs = inputs
+            helper.labels = labels
+            helper.batchNumber = batch
             self.batchNumbTrain = batch
             if(SAVE_AND_EXIT_FLAG):
                 return
             
-            inputs, labels = inputs.to(modelMetadata.device), labels.to(modelMetadata.device)
-            model.optimizer.zero_grad()
+            self.__beforeTrain__(helperEpoch, helper, model, dataMetadata, modelMetadata, metadata, smoothing)
 
-            loss, diff = self.train(model, smoothing, timer, inputs, labels)
+            helper.timer.clearTime()
+            helper.timer.start()
+            helper.loss, helper.diff = self.__train__(helperEpoch, helper, model, dataMetadata, modelMetadata, metadata, smoothing)
+            helper.timer.end()
+            helper.timer.addToStatistics()
 
-            # print statistics
-            if metadata.debugInfo and dataMetadata.howOftenPrintTrain is not None and batch % dataMetadata.howOftenPrintTrain == 0:
-                averageWeights = smoothing.getStateDict()
-                loss, current = loss.item(), batch * len(inputs)
-                averKey = list(averageWeights.keys())[-1]
-                
-                stream.print(f"loss: {loss:>7f}  [{current:>5d}/{size:>5d}]")
-                stream.printTo(['debug', 'bash'], f"Average: {averageWeights[averKey]}")
-                if(diff is None):
-                    stream.print(f"No weight difference")
-                else:
-                    diffKey = list(diff.keys())[-1]
-                    stream.printTo(['debug', 'bash'], f"Weight difference: {diff[diffKey]}")
-                    stream.print(f"Weight difference of last layer average: {diff[diffKey].sum() / diff[diffKey].numel()} :: was divided by: {diff[diffKey].numel()}")
-                    stream.print('################################################')
+            self.__afterTrain__(helperEpoch, helper, model, dataMetadata, modelMetadata, metadata, smoothing)
 
-        loopTimer.end()
-        self.batchNumbTrain = 0
+        helper.loopTimer.end()
+        self.__afterTrainLoop__(helperEpoch, helper, model, dataMetadata, modelMetadata, metadata, smoothing)
 
-        diffKey = list(diff.keys())[-1]
-        stream.print("Train summary:")
-        stream.print(f" Average train time ({timer.getUnits()}): {timer.getAverage()}")
-        stream.print(f" Loop train time ({timer.getUnits()}): {loopTimer.getDiff()}")
-        stream.printFormated(f"{timer.getAverage()};{loopTimer.getDiff()};{diff[diffKey].sum() / diff[diffKey].numel()};{diff[diffKey].numel()}")
-
-    def test(self, model, timer, inputs):
-        timer.clearTime()
-        # start model calculations
-        timer.start()
-        pred = model(inputs)
-        # end model calculations
-        timer.end()
-        timer.addToStatistics()
+    def __test__(self, helperEpoch, helper, model, dataMetadata, modelMetadata, metadata, smoothing):
+        """
+        Metoda zwraca predykcję modelu
+        """
+        pred = model(helper.X)
         return pred
 
-    def testLoop(self, model, dataMetadata, modelMetadata, metadata, smoothing):
-        size = len(self.testloader.dataset)
-        test_loss, correct = 0, 0
+    def setTestLoop(self, model, modelMetadata, metadata):
+        helper = LoopDataContainer()
+        helper.size = len(self.testloader.dataset)
+        helper.test_loss, helper.test_correct = 0, 0
         model.eval()
         metadata.prepareOutput()
-        stream = metadata.stream
-        timer = Timer()
-        loopTimer = Timer()
-        pred = None
+        helper.timer = Timer()
+        helper.loopTimer = Timer()
+        return helper
 
-        stream.printFormated("testLoop;\nAverage test time;Loop test time;Accuracy;Avg loss")
+    def __beforeTestLoop__(self, helperEpoch, helper, model, dataMetadata, modelMetadata, metadata, smoothing):
+        metadata.stream.printFormated("testLoop;\nAverage test time;Loop test time;Accuracy;Avg loss")
+
+    def __beforeTest__(self, helperEpoch, helper, model, dataMetadata, modelMetadata, metadata, smoothing):
+        helper.X = helper.X.to(modelMetadata.device)
+        helper.y = helper.y.to(modelMetadata.device)
+
+    def __afterTest__(self, helperEpoch, helper, model, dataMetadata, modelMetadata, metadata, smoothing):
+        helper.test_loss += model.loss_fn(helper.pred, helper.y).item()
+        helper.test_correct += (helper.pred.argmax(1) == helper.y).type(torch.float).sum().item()
+
+    def __afterTestLoop__(self, helperEpoch, helper, model, dataMetadata, modelMetadata, metadata, smoothing):
+        helper.test_loss /= helper.size
+        helper.test_correct /= helper.size
+        metadata.stream.print(f"Test summary: \n Accuracy: {(100*helper.test_correct):>0.1f}%, Avg loss: {helper.test_loss:>8f}")
+        metadata.stream.print(f" Average test time ({helper.timer.getUnits()}): {helper.timer.getAverage()}")
+        metadata.stream.print(f" Loop test time ({helper.timer.getUnits()}): {helper.loopTimer.getDiff()}")
+        metadata.stream.print("")
+        metadata.stream.printFormated(f"{helper.timer.getAverage()};{helper.loopTimer.getDiff()};{(helper.test_correct):>0.0001f};{helper.test_loss:>8f}")
+
+    def testLoop(self, helperEpoch, model, dataMetadata, modelMetadata, metadata, smoothing):
+        helper = self.setTestLoop(model, modelMetadata, metadata)
+
+        self.__beforeTestLoop__(helperEpoch, helper, model, dataMetadata, modelMetadata, metadata, smoothing)
 
         with torch.no_grad():
-            loopTimer.start()
+            helper.loopTimer.start()
             for batch, (X, y) in enumerate(self.testloader, self.batchNumbTest):
+                helper.X = X
+                helper.y = y
+                helper.batchNumber = batch
                 self.batchNumbTest = batch
                 if(SAVE_AND_EXIT_FLAG):
                     return
 
-                X = X.to(modelMetadata.device)
-                y = y.to(modelMetadata.device)
-                pred = self.test(model, timer, X)
-                test_loss += model.loss_fn(pred, y).item()
-                correct += (pred.argmax(1) == y).type(torch.float).sum().item()
-            loopTimer.end()
-            self.batchNumbTest = 0
+                self.__beforeTest__(helperEpoch, helper, model, dataMetadata, modelMetadata, metadata, smoothing)
 
-        test_loss /= size
-        correct /= size
-        stream.print(f"Test summary: \n Accuracy: {(100*correct):>0.1f}%, Avg loss: {test_loss:>8f}")
-        stream.print(f" Average test time ({timer.getUnits()}): {timer.getAverage()}")
-        stream.print(f" Loop test time ({timer.getUnits()}): {loopTimer.getDiff()}")
-        stream.print("")
-        stream.printFormated(f"{timer.getAverage()};{loopTimer.getDiff()};{(correct):>0.0001f};{test_loss:>8f}")
+                helper.timer.clearTime()
+                helper.timer.start()
+                helper.pred = self.__test__(helperEpoch, helper, model, dataMetadata, modelMetadata, metadata, smoothing)
+                helper.timer.end()
+                helper.timer.addToStatistics()
+
+                self.__afterTest__(helperEpoch, helper, model, dataMetadata, modelMetadata, metadata, smoothing)
+
+            helper.loopTimer.end()
+
+        self.__afterTestLoop__(helperEpoch, helper, model, dataMetadata, modelMetadata, metadata, smoothing)
+
+    def __beforeEpochLoop__(self, helperEpoch, model, dataMetadata, modelMetadata, metadata, smoothing):
+        pass
+
+    def __afterEpochLoop__(self, helperEpoch, model, dataMetadata, modelMetadata, metadata, smoothing):
+        pass
+
+    def __epoch__(self, helperEpoch, model, dataMetadata, modelMetadata, metadata, smoothing):
+        """
+        Reprezentuje pojedynczy epoch.
+        Znajduje się tu cała logika epocha. Aby wykorzystać możliwość wyjścia i zapisu w danym momencie stanu modelu, należy zastosować konstrukcję:
+
+        if(SAVE_AND_EXIT_FLAG):\n
+            return 
+        """
+        if(metadata.trainFlag):
+            self.trainLoop(model, helperEpoch, dataMetadata, modelMetadata, metadata, smoothing)
+        
+        if(SAVE_AND_EXIT_FLAG):
+            return 
+
+        with torch.no_grad():
+            if(metadata.testFlag):
+                metadata.stream.write("Plain weights, ")
+                metadata.stream.writeFormated("Plain weights;")
+                self.testLoop(helperEpoch, model, dataMetadata, modelMetadata, metadata, smoothing)
+                smoothing.saveMainWeight(model)
+                model.setWeights(smoothing)
+                metadata.stream.write("Smoothing weights, ")
+                metadata.stream.writeFormated("Smoothing weights;")
+                self.testLoop(helperEpoch, model, dataMetadata, modelMetadata, metadata, smoothing)
+                # TODO dodać możliwość zmieniania wag
+
+            # model.linear1.weight = torch.nn.parameter.Parameter(model.average)
+            # model.linear1.weight = model.average
 
     def epochLoop(self, model, dataMetadata, modelMetadata, metadata, smoothing):
         '''smoothing = Smoothing()
         smoothing.setDictionary(model.named_parameters())'''
         metadata.prepareOutput()
-        stream = metadata.stream
+        helperEpoch = EpochDataContainer()
+
+        self.__beforeEpochLoop__(helperEpoch, model, dataMetadata, modelMetadata, metadata, smoothing)
 
         for ep, (loopEpoch) in enumerate(range(dataMetadata.epoch), self.epochNumb):  # loop over the dataset multiple times
-            self.epochNumb = ep
-            stream.print(f"\nEpoch {loopEpoch+1}\n-------------------------------")
-            stream.flushAll()
-            if(metadata.trainFlag):
-                self.trainLoop(model, dataMetadata, modelMetadata, metadata, smoothing)
-
+            helperEpoch.epochNumber = ep
+            metadata.stream.print(f"\nEpoch {loopEpoch+1}\n-------------------------------")
+            metadata.stream.flushAll()
+            
+            self.__epoch__(helperEpoch, model, dataMetadata, modelMetadata, metadata, smoothing)
             if(SAVE_AND_EXIT_FLAG):
                 return
-                
-            with torch.no_grad():
-                if(metadata.testFlag):
-                    stream.write("Plain weights, ")
-                    stream.writeFormated("Plain weights;")
-                    self.testLoop(model, dataMetadata, modelMetadata, metadata, smoothing)
-                    smoothing.saveMainWeight(model)
-                    model.setWeights(smoothing)
-                    stream.write("Smoothing weights, ")
-                    stream.writeFormated("Smoothing weights;")
-                    self.testLoop(model, dataMetadata, modelMetadata, metadata, smoothing)
-                    # TODO dodać możliwość zmieniania wag
 
-                # model.linear1.weight = torch.nn.parameter.Parameter(model.average)
-                # model.linear1.weight = model.average
+            self.resetEpochState()
 
-            self.batchNumbTrain = 0
-            self.batchNumbTest = 0
-            self.epochNumb = 0
-        stream.flushAll()
+        self.__afterEpochLoop__(helperEpoch, model, dataMetadata, modelMetadata, metadata, smoothing)
+        self.resetFullEpochState()
+        metadata.stream.flushAll()
 
-    def update(self, dataMetadata):
+    def resetEpochState(self):
+        self.batchNumbTrain = 0
+        self.batchNumbTest = 0
+
+    def resetFullEpochState(self):
+        self.resetEpochState()
+        self.epochNumb = 0
+
+    def __update__(self, dataMetadata):
         self.trainset = torchvision.datasets.CIFAR10(root='~/.data', train=True, download=True, transform=self.transform)
         self.testset = torchvision.datasets.CIFAR10(root='~/.data', train=False, download=True, transform=self.transform)
         self.setTransform()
@@ -1006,7 +1109,7 @@ class Smoothing(SaveClass):
         return state
 
     def __setstate__(self, state):
-        self.__dict__.update(state)
+        self.__dict__.__update__(state)
 
 
     def trySave(self, metadata, temporaryLocation = False):
@@ -1015,7 +1118,7 @@ class Smoothing(SaveClass):
     def tryLoad(metadata, temporaryLocation = False):
         return SaveClass.tryLoad(metadata.fileNameSave, StaticData.SMOOTHING_SUFFIX, Smoothing.__name__, temporaryLocation)
 
-    def update(self):
+    def __update__(self):
         if(bool(self.sumWeights)):
             for key, val in self.sumWeights.items():
                 val.to('cuda:0')
@@ -1057,7 +1160,7 @@ class Model(nn.Module, SaveClass):
         return self.__dict__.copy()
 
     def __setstate__(self, state):
-        self.__dict__.update(state)
+        self.__dict__.__update__(state)
         self.eval()
 
     '''def cloneStateDict(weights: dict):
@@ -1101,10 +1204,10 @@ class Model(nn.Module, SaveClass):
 
     def tryLoad(metadata, modelMetadata, temporaryLocation = False):
         obj = SaveClass.tryLoad(metadata.fileNameLoad, StaticData.MODEL_SUFFIX, Model.__name__, temporaryLocation)
-        obj.update(modelMetadata)
+        obj.__update__(modelMetadata)
         return obj
     
-    def update(self, modelMetadata):
+    def __update__(self, modelMetadata):
         '''
         Updates the model against the metadata and binds the metadata to the model
         '''
@@ -1116,34 +1219,38 @@ class Model(nn.Module, SaveClass):
         self.optimizer = optim.AdamW(self.parameters(), lr=modelMetadata.learning_rate)
 
 
-
-def tryLoad(metadata, temporaryLocation = False):
+def tryLoad(tupleClasses: list, metadata, temporaryLocation = False):
     dictObjs = {}
-    dictObjs['metadata'] = metadata
-    if(dictObjs['metadata'] is None):
+    dictObjs[type(metadata).__name__] = metadata
+    if(dictObjs['MetaData'] is None):
         return None
-    dictObjs['dataMetadata'] = Data_Metadata.tryLoad(metadata, temporaryLocation)
-    dictObjs['modelMetadata'] = Model_Metadata.tryLoad(metadata, temporaryLocation)
-    if(dictObjs['dataMetadata'] is None or dictObjs['modelMetadata'] is None):
-        return None
-    dictObjs['data'] = Data.tryLoad(dictObjs['metadata'], temporaryLocation)
-    if(dictObjs['data'] is not None):
-        dictObjs['data'].update(dictObjs['dataMetadata'])
-    dictObjs['smoothing'] = Smoothing.tryLoad(metadata, temporaryLocation)
-    dictObjs['model'] = Model.tryLoad(metadata, dictObjs['modelMetadata'], temporaryLocation)
-    if(dictObjs['model'] is not None):
-        dictObjs['model'].update(dictObjs['modelMetadata'])
 
+    for mdcl, objcl in tupleClasses:
+        # load class metadata
+        if(mdcl is not None):
+            dictObjs[mdcl.__name__] = mdcl.tryLoad(metadata, temporaryLocation)
+            if(dictObjs[mdcl.__name__] is None):
+                return None
+            # load class
+            dictObjs[objcl.__name__] = objcl.tryLoad(metadata, dictObjs[mdcl.__name__], temporaryLocation)
+            if(dictObjs[objcl.__name__] is None):
+                return None
+        else:
+            dictObjs[objcl.__name__] = objcl.tryLoad(metadata, temporaryLocation)
+            if(dictObjs[objcl.__name__] is None):
+                return None
+        #update
+        if(mdcl is not None):
+            dictObjs[objcl.__name__].__update__(dictObjs[mdcl.__name__])
     return dictObjs
 
 def trySave(dictObjs: dict, temporaryLocation = False):
-    dictObjs['metadata'].trySave()
-    dictObjs['model'].trySave(dictObjs['metadata'])
-    dictObjs['data'].trySave(dictObjs['metadata'])
-    dictObjs['smoothing'].trySave(dictObjs['metadata'])
-
-    dictObjs['dataMetadata'].trySave(dictObjs['metadata'])
-    dictObjs['modelMetadata'].trySave(dictObjs['metadata'])
+    dictObjs['MetaData'].trySave()
+    md = dictObjs['MetaData']
+    
+    for key, obj in dictObjs.items():
+        if(key != 'MetaData'):
+            obj.trySave(md)
 
 def model():
     if(__name__ == '__main__'):
@@ -1151,35 +1258,35 @@ def model():
         metadata.prepareOutput()
         loadedSuccessful = False
 
-        dictObjs = {'metadata': metadata}
-        dictObjs['dataMetadata'] = Data_Metadata()
-        dictObjs['modelMetadata'] = Model_Metadata()
+        dictObjs = {'MetaData': metadata}
+        dictObjs['Data_Metadata'] = Data_Metadata()
+        dictObjs['Model_Metadata'] = Model_Metadata()
 
-        metadataTmp = metadata.commandLineArg(dictObjs['dataMetadata'], dictObjs['modelMetadata'], sys.argv[1:])
+        metadataTmp = metadata.commandLineArg(dictObjs['Data_Metadata'], dictObjs['Model_Metadata'], sys.argv[1:])
         if(metadataTmp is not None): # if model should be loaded
             metadata = metadataTmp
-            dictObjsTmp = tryLoad(metadata)
+            dictObjsTmp = tryLoad([(Data_Metadata, Data), (None, Smoothing), (Model_Metadata, Model)], metadata)
             if(dictObjsTmp is None):
                 loadedSuccessful = False
             else:
                 dictObjs = dictObjsTmp
-                metadata = dictObjs['metadata']
-                dictObjs['data'].update(dictObjs['dataMetadata'])
+                metadata = dictObjs['MetaData']
+                dictObjs['Data'].__update__(dictObjs['Data_Metadata'])
                 loadedSuccessful = True
                 metadata.printContinueLoadedModel()
 
         if(loadedSuccessful == False):
             metadata.printStartNewModel()
-            dictObjs['data'] = Data()
+            dictObjs['Data'] = Data()
             
-            dictObjs['data'].prepare(dictObjs['dataMetadata'])
+            dictObjs['Data'].prepare(dictObjs['Data_Metadata'])
             
-            dictObjs['smoothing'] = Smoothing()
-            dictObjs['model'] = Model(dictObjs['modelMetadata'])
+            dictObjs['Smoothing'] = Smoothing()
+            dictObjs['Model'] = Model(dictObjs['Model_Metadata'])
 
-            dictObjs['smoothing'].setDictionary(dictObjs['model'].named_parameters())
+            dictObjs['Smoothing'].setDictionary(dictObjs['Model'].named_parameters())
 
-        dictObjs['data'].epochLoop(dictObjs['model'], dictObjs['dataMetadata'], dictObjs['modelMetadata'], dictObjs['metadata'], dictObjs['smoothing'])
+        dictObjs['Data'].epochLoop(dictObjs['Model'], dictObjs['Data_Metadata'], dictObjs['Model_Metadata'], dictObjs['MetaData'], dictObjs['Smoothing'])
 
         trySave(dictObjs)
 
@@ -1217,3 +1324,30 @@ for i, (x, y) in enumerate(testloader):
     print(x, y)
     if(i == 1):
         break'''
+'''
+stats = ((0.5074,0.4867,0.4411),(0.2011,0.1987,0.2025))
+train_transform = transforms.Compose(
+            [transforms.ToTensor(),
+            transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))]
+        )
+
+train_data = torchvision.datasets.CIFAR100(download=True,root="~/.data",transform=train_transform)
+train_dl = torch.utils.data.DataLoader(train_data,128,num_workers=4,pin_memory=True,shuffle=True)
+
+for image,label in train_data:
+    print("Image shape: ",image.shape)
+    print("Image tensor: ", image)
+    print("Label: ", label)
+    break
+
+def show_batch(dl):
+    for batch in dl:
+        images,labels = batch
+        fig, ax = plt.subplots(figsize=(7.5,7.5))
+        ax.set_yticks([])
+        ax.set_xticks([])
+        ax.imshow(torchvision.utils.make_grid(images[:20],nrow=5, normalize=True).permute(1,2,0))
+        plt.show()
+        break
+
+show_batch(train_dl)'''
