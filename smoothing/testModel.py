@@ -15,12 +15,6 @@ class TestModel_Metadata(sf.Model_Metadata):
         self.momentum = 0.9
         self.oscilationMax = 0.001
 
-    def trySave(self, metadata, onlyKeyIngredients = False, temporaryLocation = False):
-        return sf.Model_Metadata.trySave(self, metadata, sf.StaticData.MODEL_METADATA_SUFFIX, TestModel_Metadata.__name__, onlyKeyIngredients, temporaryLocation)
-
-    def tryLoad(metadata, onlyKeyIngredients = False, temporaryLocation = False):
-        return SaveClass.tryLoad(metadata.fileNameLoad, StaticData.MODEL_METADATA_SUFFIX, TestModel_Metadata.__name__, temporaryLocation)
-
 class TestData_Metadata(sf.Data_Metadata):
     def __init__(self):
         sf.Data_Metadata.__init__(self)
@@ -63,21 +57,14 @@ class TestModel(sf.Model):
         x = F.hardswish(self.linear2(x))
         x = self.linear3(x)
         return x
-
-    def trySave(self, metadata, onlyKeyIngredients = False, temporaryLocation = False):
-        return sf.Model.trySave(metadata, StaticData.MODEL_SUFFIX, TestModel.__name__, onlyKeyIngredients, temporaryLocation)
-
-    def tryLoad(metadata, modelMetadata, onlyKeyIngredients = False, temporaryLocation = False):
-        obj = SaveClass.tryLoad(metadata.fileNameLoad, StaticData.MODEL_SUFFIX, TestModel.__name__, temporaryLocation)
-        obj.update(modelMetadata)
-        return obj
     
-    def update(self, modelMetadata):
-        super().update(modelMetadata)
+    def __update__(self, modelMetadata):
+        super().__update__(modelMetadata)
         self.optimizer = optim.SGD(self.parameters(), lr=modelMetadata.learning_rate, momentum=modelMetadata.momentum)
 
 class TestSmoothing(sf.Smoothing):
     def __init__(self):
+        sf.Smoothing.__init__(self)
         self.lossSum = 0.0
         self.lossCounter = 0
         self.lossList = []
@@ -164,12 +151,6 @@ class TestData(sf.Data):
 
         self.testloader = torch.utils.data.DataLoader(self.testset, batch_size=dataMetadata.batchTestSize, sampler=self.testSampler,
                                          shuffle=False, num_workers=2, pin_memory=dataMetadata.pin_memoryTest, worker_init_fn=dataMetadata.worker_seed if sf.enabledDeterminism() else None)
-
-    def trySave(self, metadata, onlyKeyIngredients = False, temporaryLocation = False):
-        return super().trySave(metadata, StaticData.DATA_SUFFIX, TestData.__name__, onlyKeyIngredients, temporaryLocation)
-
-    def tryLoad(metadata, dataMetadata, temporaryLocation = False):
-        return sf.SaveClass.tryLoad(metadata.fileNameLoad, sf.StaticData.DATA_SUFFIX, TestData.__name__, temporaryLocation)
 
 if(__name__ == '__main__'):
     sf.useDeterministic()
