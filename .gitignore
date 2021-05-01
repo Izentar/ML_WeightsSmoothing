@@ -1,3 +1,6 @@
 .vscode/
 *.log
+*.pyc
+*.cpy
+learning/
 TODO
