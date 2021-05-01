@@ -30,6 +30,12 @@ def saveWorkAndExit(signumb, frame):
 def terminate(signumb, frame):
     exit(2)
 
+def enabledDeterminism():
+    return DETERMINISTIC
+
+def enabledSaveAndExit():
+    return SAVE_AND_EXIT_FLAG
+
 signal.signal(signal.SIGTSTP, saveWorkAndExit)
 
 signal.signal(signal.SIGINT, terminate)
@@ -39,6 +45,7 @@ signal.signal(signal.SIGINT, terminate)
 def useDeterministic(torchSeed = 0, randomSeed = 0):
     DETERMINISTIC = True
     torch.cuda.manual_seed(torchSeed)
+    torch.cuda.manual_seed_all(torchSeed)
     torch.manual_seed(torchSeed)
     numpy.random.seed(randomSeed)
     random.seed(randomSeed)
@@ -70,7 +77,9 @@ class SaveClass:
     and children should implement its own static class methods tryLoad and trySave that invoke those.
     '''
 
-    def tryLoad(fileName: str, suffix: str, classNameStr: str, temporaryLocation = False):
+    def tryLoad(metadata, Class, classMetadataObj = None, temporaryLocation = False):
+        suffix = Class.getFileSuffix()
+        fileName = metadata.fileNameLoad
         path = None
         if(temporaryLocation):
             path = StaticData.TMP_PATH + fileName + suffix
@@ -81,15 +90,19 @@ class SaveClass:
             loadedClassNameStr = toLoad['classNameStr']
             obj = toLoad['obj']
             obj.only_Key_Ingredients = None
-            if(loadedClassNameStr == classNameStr):
-                print(classNameStr + ' loaded successfully')
+            if(loadedClassNameStr == Class.__name__):
+                print(Class.__name__ + ' loaded successfully')
+                if(Class.canUpdate() == True):
+                    obj.__update__(classMetadataObj)
+                elif(classMetadataObj is not None):
+                    print('There may be an error. Class: {} does not have corresponding metadata.'.format(Class.__name__))
                 return obj
-        print(classNameStr + ' load failure')
+        print(Class.__name__ + ' load failure')
         return None
 
-    def trySave(self, metadata, suffix: str, classNameStr: str, onlyKeyIngredients = False, temporaryLocation = False) -> bool:
+    def trySave(self, metadata, suffix: str, onlyKeyIngredients = False, temporaryLocation = False) -> bool:
         if(metadata.fileNameSave is None):
-            print(classNameStr + ' save not enabled')
+            print(type(self).__name__ + ' save not enabled')
             return False
         if metadata.fileNameSave is not None and os.path.exists(StaticData.PATH) and os.path.exists(StaticData.TMP_PATH):
             path = None
@@ -99,14 +112,14 @@ class SaveClass:
                 path = StaticData.PATH + metadata.fileNameSave + suffix
             self.only_Key_Ingredients = onlyKeyIngredients
             toSave = {
-                'classNameStr': classNameStr,
+                'classNameStr': type(self).__name__,
                 'obj': self
             }
             torch.save(toSave, path)
             self.only_Key_Ingredients = None
-            print(classNameStr + ' saved successfully')
+            print(type(self).__name__ + ' saved successfully')
             return True
-        print(classNameStr + ' save failure')
+        print(type(self).__name__ + ' save failure')
         return False
 
 class BaseSampler:
@@ -144,7 +157,7 @@ class Hyperparameters(SaveClass):
         tmp_str += ('-----------------------------------------------------------------------\nEnd Hyperparameters class\n')
         return tmp_str
 
-class MetaData(SaveClass):
+class Metadata(SaveClass):
     def __init__(self):
         super().__init__()
         self.fileNameSave = None
@@ -162,12 +175,12 @@ class MetaData(SaveClass):
         self.formatedOutput = None
 
     def __str__(self):
-        tmp_str = ('\n/MetaData class\n-----------------------------------------------------------------------\n')
+        tmp_str = ('\n/Metadata class\n-----------------------------------------------------------------------\n')
         tmp_str += ('Save path:\t{}\n'.format(StaticData.PATH + self.fileNameSave if self.fileNameSave is not None else 'Not set'))
         tmp_str += ('Load path:\t{}\n'.format(StaticData.PATH + self.fileNameLoad if self.fileNameLoad is not None else 'Not set'))
         tmp_str += ('Test flag:\t{}\n'.format(self.testFlag))
         tmp_str += ('Train flag:\t{}\n'.format(self.trainFlag))
-        tmp_str += ('-----------------------------------------------------------------------\nEnd MetaData class\n')
+        tmp_str += ('-----------------------------------------------------------------------\nEnd Metadata class\n')
         return tmp_str
 
     def onOff(arg):
@@ -233,7 +246,7 @@ class MetaData(SaveClass):
         try:
             opts, args = getopt.getopt(argv, shortOptions, longOptions)
         except getopt.GetoptError:
-            MetaData.exitError(help)
+            Metadata.exitError(help)
 
         for opt, arg in opts:
             if opt in ('-h', '--help'):
@@ -244,17 +257,17 @@ class MetaData(SaveClass):
             elif opt in ('-l', '--load'):
                 self.fileNameLoad = arg
             elif opt in ('--test'):
-                boolean = MetaData.onOff(arg)
-                self.testFlag = boolean if boolean is not None else MetaData.exitError(help)
+                boolean = Metadata.onOff(arg)
+                self.testFlag = boolean if boolean is not None else Metadata.exitError(help)
             elif opt in ('--train'):
-                boolean = MetaData.onOff(arg)
-                self.trainFlag = boolean if boolean is not None else MetaData.exitError(help)
+                boolean = Metadata.onOff(arg)
+                self.trainFlag = boolean if boolean is not None else Metadata.exitError(help)
             elif opt in ('--pinTest'):
-                boolean = MetaData.onOff(arg)
-                dataMetadata.tryPinMemoryTest(self, modelMetadata) if boolean is not None else MetaData.exitError(help)
+                boolean = Metadata.onOff(arg)
+                dataMetadata.tryPinMemoryTest(self, modelMetadata) if boolean is not None else Metadata.exitError(help)
             elif opt in ('--pinTrain'):
-                boolean = MetaData.onOff(arg)
-                dataMetadata.tryPinMemoryTrain(self, modelMetadata) if boolean is not None else MetaData.exitError(help)
+                boolean = Metadata.onOff(arg)
+                dataMetadata.tryPinMemoryTrain(self, modelMetadata) if boolean is not None else Metadata.exitError(help)
             elif opt in ('-d', '--debug'):
                 self.debugInfo = True
             elif opt in ('--debugOutput'):
@@ -262,8 +275,8 @@ class MetaData(SaveClass):
             elif opt in ('--modelOutput'):
                 self.modelOutput = arg # model output file path
             elif opt in ('--bashOutput'):
-                boolean = MetaData.onOff(arg)
-                self.bashFlag = boolean if boolean is not None else MetaData.exitError(help)
+                boolean = Metadata.onOff(arg)
+                self.bashFlag = boolean if boolean is not None else Metadata.exitError(help)
             elif opt in ('--formatedOutput'):
                 self.formatedOutput = arg # formated output file path
             elif opt in ('--name'):
@@ -276,7 +289,7 @@ class MetaData(SaveClass):
             self.debugOutput = 'default.log'  
         
         if(self.fileNameLoad is not None):
-            d = MetaData.tryLoad(self.fileNameLoad)
+            d = SaveClass.tryLoad(self, Metadata)
             if(d is None):
                 return None
             print("Command line options mostly ignored.")
@@ -290,12 +303,13 @@ class MetaData(SaveClass):
         self.__dict__.update(state)
 
     def trySave(self, onlyKeyIngredients = False, temporaryLocation = False):
-        return super().trySave(self, StaticData.METADATA_SUFFIX, MetaData.__name__, temporaryLocation)
+        return super().trySave(self, StaticData.METADATA_SUFFIX, onlyKeyIngredients, temporaryLocation)
 
-    def tryLoad(fileName: str, temporaryLocation = False):
-        return SaveClass.tryLoad(fileName, StaticData.METADATA_SUFFIX, MetaData.__name__, temporaryLocation)
+    def getFileSuffix():
+        return StaticData.METADATA_SUFFIX
 
-
+    def canUpdate():
+        return False
 
 class Timer(SaveClass):
     def __init__(self):
@@ -356,10 +370,13 @@ class Timer(SaveClass):
             self.modelTimeCount = 0
 
     def trySave(self, metadata, onlyKeyIngredients = False, temporaryLocation = False):
-        return super().trySave(metadata, StaticData.TIMER_SUFFIX, Timer.__name__, temporaryLocation)
+        return super().trySave(metadata, StaticData.TIMER_SUFFIX, onlyKeyIngredients, temporaryLocation)
 
-    def tryLoad(metadata, temporaryLocation = False):
-        return SaveClass.tryLoad(metadata.fileNameLoad, StaticData.TIMER_SUFFIX, Timer.__name__, temporaryLocation)
+    def getFileSuffix():
+        return StaticData.TIMER_SUFFIX
+
+    def canUpdate():
+        return False
 
 class Output(SaveClass):
     def __init__(self):
@@ -536,11 +553,13 @@ class Output(SaveClass):
         sys.stdout.flush()
 
     def trySave(self, metadata, onlyKeyIngredients = False, temporaryLocation = False):
-        return super().trySave(metadata, StaticData.OUTPUT_SUFFIX, Output.__name__, temporaryLocation)
+        return super().trySave(metadata, StaticData.OUTPUT_SUFFIX, onlyKeyIngredients, temporaryLocation)
 
-    def tryLoad(metadata, temporaryLocation = False):
-        return SaveClass.tryLoad(metadata.fileNameLoad, StaticData.OUTPUT_SUFFIX, Output.__name__, temporaryLocation)
+    def getFileSuffix():
+        return StaticData.OUTPUT_SUFFIX
 
+    def canUpdate():
+        return False
 
 
 class Data_Metadata(SaveClass):
@@ -605,10 +624,13 @@ class Data_Metadata(SaveClass):
         self.__dict__.update(state)
 
     def trySave(self, metadata, onlyKeyIngredients = False, temporaryLocation = False):
-        return super().trySave(metadata, StaticData.DATA_METADATA_SUFFIX, Data_Metadata.__name__, temporaryLocation)
+        return super().trySave(metadata, StaticData.DATA_METADATA_SUFFIX, onlyKeyIngredients, temporaryLocation)
 
-    def tryLoad(metadata, temporaryLocation = False):
-        return SaveClass.tryLoad(metadata.fileNameLoad, StaticData.DATA_METADATA_SUFFIX, Data_Metadata.__name__, temporaryLocation)
+    def getFileSuffix():
+        return StaticData.DATA_METADATA_SUFFIX
+
+    def canUpdate():
+        return False
 
 class Model_Metadata(SaveClass):
     def __init__(self):
@@ -637,12 +659,14 @@ class Model_Metadata(SaveClass):
     def __setstate__(self, state):
         self.__dict__.update(state)
 
-
     def trySave(self, metadata, onlyKeyIngredients = False, temporaryLocation = False):
-        return super().trySave(metadata, StaticData.MODEL_METADATA_SUFFIX, Model_Metadata.__name__, temporaryLocation)
+        return super().trySave(metadata, StaticData.MODEL_METADATA_SUFFIX, onlyKeyIngredients, temporaryLocation)
 
-    def tryLoad(metadata, temporaryLocation = False):
-        return SaveClass.tryLoad(metadata.fileNameLoad, StaticData.MODEL_METADATA_SUFFIX, Model_Metadata.__name__, temporaryLocation)
+    def getFileSuffix():
+        return StaticData.MODEL_METADATA_SUFFIX
+
+    def canUpdate():
+        return False
 
 # nieużywane
 class Weight(SaveClass):
@@ -657,10 +681,13 @@ class Weight(SaveClass):
         self.__dict__.update(state)
 
     def trySave(self, metadata, onlyKeyIngredients = False, temporaryLocation = False):
-        return super().trySave(metadata, StaticData.WEIGHT_SUFFIX, Weight.__name__, temporaryLocation)
+        return super().trySave(metadata, StaticData.WEIGHT_SUFFIX, onlyKeyIngredients, temporaryLocation)
 
-    def tryLoad(metadata, temporaryLocation = False):
-        return SaveClass.tryLoad(metadata.fileNameSave, StaticData.WEIGHT_SUFFIX, Weight.__name__, temporaryLocation)
+    def getFileSuffix():
+        return StaticData.WEIGHT_SUFFIX
+
+    def canUpdate():
+        return False
 
 class TrainDataContainer():
     def __init__(self):
@@ -774,9 +801,9 @@ class Data(SaveClass):
     def __setstate__(self, state):
         self.__dict__.update(state)
         if(self.only_Key_Ingredients):
-            self.batchNumbTrain = None
-            self.batchNumbTest = None
-            self.epochNumb = None
+            self.batchNumbTrain = 0
+            self.batchNumbTest = 0
+            self.epochNumb = 0
             self.trainHelper = None
             self.testHelper = None
             self.epochHelper = None
@@ -786,7 +813,7 @@ class Data(SaveClass):
         self.testset = None
         self.testloader = None
         self.transform = None
-        self.setTransform()
+        self.__setInputTransform__()
 
     '''def setTrainData(self, trainset, trainSampler, dataMetadata):
         self.trainset = trainset
@@ -802,22 +829,15 @@ class Data(SaveClass):
                                          shuffle=False, num_workers=2, pin_memory=dataMetadata.pin_memoryTest)
         return self.testset, self.testloader'''
 
-    def setTransform(self):
+    def __setInputTransform__(self):
         self.transform = transforms.Compose(
             [transforms.ToTensor(),
             transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))]
         )
         return self.transform
 
-    #def setAll(self, trainSampler, testSampler, trainset, testset, dataMetadata):
-        '''
-        Set transform of the input data and set train and test data.
-        Returns transform function, trainset, trainloader, testset, testloader
-        '''
-        #return self.setTransform(), self.setTrainData(trainSampler, dataMetadata), self.setTestData(testSampler, dataMetadata)
-
-    def prepare(self, dataMetadata):
-        self.setTransform()
+    def __prepare__(self, dataMetadata: 'Data_Metadata'):
+        self.__setInputTransform__()
 
         self.trainset = torchvision.datasets.CIFAR10(root='~/.data', train=True, download=True, transform=self.transform)
         self.testset = torchvision.datasets.CIFAR10(root='~/.data', train=False, download=True, transform=self.transform)
@@ -830,7 +850,7 @@ class Data(SaveClass):
         self.testloader = torch.utils.data.DataLoader(self.testset, batch_size=dataMetadata.batchTestSize, sampler=self.testSampler,
                                          shuffle=False, num_workers=2, pin_memory=dataMetadata.pin_memoryTest, worker_init_fn=dataMetadata.worker_seed if DETERMINISTIC else None)
 
-    def __train__(self, helperEpoch, helper, model, dataMetadata, modelMetadata, metadata, smoothing):
+    def __train__(self, helperEpoch: 'EpochDataContainer', helper, model: 'Model', dataMetadata: 'Data_Metadata', modelMetadata, metadata: 'Metadata', smoothing: 'Smoothing'):
         # forward + backward + optimize
         outputs = model(helper.inputs)
         helper.loss = model.loss_fn(outputs, helper.labels)
@@ -841,7 +861,7 @@ class Data(SaveClass):
         helper.diff = smoothing.lastWeightDifference(model)
         smoothing.call(helperEpoch, helper, model, dataMetadata, modelMetadata, metadata)
 
-    def setTrainLoop(self, model, modelMetadata, metadata):
+    def setTrainLoop(self, model: 'Model', modelMetadata: 'Model_Metadata', metadata: 'Metadata'):
         helper = TrainDataContainer()
         helper.size = len(self.trainloader.dataset)
         model.train()
@@ -853,26 +873,29 @@ class Data(SaveClass):
 
         return helper
 
-    def __beforeTrainLoop__(self, helperEpoch, helper, model, dataMetadata, modelMetadata, metadata, smoothing):
+    def __beforeTrainLoop__(self, helperEpoch: 'EpochDataContainer', helper, model: 'Model', dataMetadata: 'Data_Metadata', modelMetadata: 'Model_Metadata', metadata: 'Metadata', smoothing: 'Smoothing'):
         helper.tmp_sumLoss = 0.0
 
-    def __beforeTrain__(self, helperEpoch, helper, model, dataMetadata, modelMetadata, metadata, smoothing):
+    def __beforeTrain__(self, helperEpoch: 'EpochDataContainer', helper, model: 'Model', dataMetadata: 'Data_Metadata', modelMetadata: 'Model_Metadata', metadata: 'Metadata', smoothing: 'Smoothing'):
         helper.inputs, helper.labels = helper.inputs.to(modelMetadata.device), helper.labels.to(modelMetadata.device)
         model.optimizer.zero_grad()
 
-    def __afterTrain__(self, helperEpoch, helper, model, dataMetadata, modelMetadata, metadata, smoothing):
+    def __afterTrain__(self, helperEpoch: 'EpochDataContainer', helper, model: 'Model', dataMetadata: 'Data_Metadata', modelMetadata: 'Model_Metadata', metadata: 'Metadata', smoothing: 'Smoothing'):
         helper.tmp_sumLoss += helper.loss
         if(helper.batchNumber % 32 == 0 and helper.batchNumber != 0):
             helperEpoch.statistics.addLoss(helper.tmp_sumLoss / 32)
             helper.tmp_sumLoss = 0.0
 
         if(bool(metadata.debugInfo) and dataMetadata.howOftenPrintTrain is not None and helper.batchNumber % dataMetadata.howOftenPrintTrain == 0):
-            averageWeights = smoothing.getWeights()
             calcLoss, current = helper.loss.item(), helper.batchNumber * len(helper.inputs)
-            averKey = list(averageWeights.keys())[-1]
+            metadata.stream.print(f"loss: {calcLoss:>7f}  [{current:>5d}/{helper.size:>5d}]")
+
+            averageWeights = smoothing.getWeights()
+            if(bool(averageWeights)):
+                averKey = list(averageWeights.keys())[-1]
+                metadata.stream.printTo(['debug', 'bash'], f"Average: {averageWeights[averKey]}")
             
             metadata.stream.print(f"loss: {calcLoss:>7f}  [{current:>5d}/{helper.size:>5d}]")
-            metadata.stream.printTo(['debug', 'bash'], f"Average: {averageWeights[averKey]}")
             if(helper.diff is None):
                 metadata.stream.print(f"No weight difference")
             else:
@@ -881,15 +904,17 @@ class Data(SaveClass):
                 metadata.stream.print(f"Weight difference of last layer average: {helper.diff[diffKey].sum() / helper.diff[diffKey].numel()} :: was divided by: {helper.diff[diffKey].numel()}")
                 metadata.stream.print('################################################')
 
-    def __afterTrainLoop__(self, helperEpoch, helper, model, dataMetadata, modelMetadata, metadata, smoothing):
-        diffKey = list(helper.diff.keys())[-1]
+    def __afterTrainLoop__(self, helperEpoch: 'EpochDataContainer', helper, model: 'Model', dataMetadata: 'Data_Metadata', modelMetadata: 'Model_Metadata', metadata: 'Metadata', smoothing: 'Smoothing'):
         metadata.stream.print("Train summary:")
         metadata.stream.print(f" Average train time ({helper.timer.getUnits()}): {helper.timer.getAverage()}")
         metadata.stream.print(f" Loop train time ({helper.timer.getUnits()}): {helper.loopTimer.getDiff()}")
-        metadata.stream.printFormated("trainLoop;\nAverage train time;Loop train time;Weight difference of last layer average;divided by;")
-        metadata.stream.printFormated(f"{helper.timer.getAverage()};{helper.loopTimer.getDiff()};{helper.diff[diffKey].sum() / helper.diff[diffKey].numel()};{helper.diff[diffKey].numel()}")
 
-    def trainLoop(self, model, helperEpoch, dataMetadata, modelMetadata, metadata, smoothing):
+        if(helper.diff is not None):
+            diffKey = list(helper.diff.keys())[-1]
+            metadata.stream.printFormated("trainLoop;\nAverage train time;Loop train time;Weight difference of last layer average;divided by;")
+            metadata.stream.printFormated(f"{helper.timer.getAverage()};{helper.loopTimer.getDiff()};{helper.diff[diffKey].sum() / helper.diff[diffKey].numel()};{helper.diff[diffKey].numel()}")
+
+    def trainLoop(self, model: 'Model', helperEpoch: 'EpochDataContainer', dataMetadata: 'Data_Metadata', modelMetadata: 'Model_Metadata', metadata: 'Metadata', smoothing: 'Smoothing'):
         if(self.trainHelper is None): # jeżeli nie było wznowione; nowe wywołanie
             self.trainHelper = self.setTrainLoop(model, modelMetadata, metadata)
         self.__beforeTrainLoop__(helperEpoch, self.trainHelper, model, dataMetadata, modelMetadata, metadata, smoothing)
@@ -917,10 +942,10 @@ class Data(SaveClass):
         self.__afterTrainLoop__(helperEpoch, self.trainHelper, model, dataMetadata, modelMetadata, metadata, smoothing)
         self.trainHelper = None
 
-    def __test__(self, helperEpoch, helper, model, dataMetadata, modelMetadata, metadata, smoothing):
+    def __test__(self, helperEpoch: 'EpochDataContainer', helper, model: 'Model', dataMetadata: 'Data_Metadata', modelMetadata: 'Model_Metadata', metadata: 'Metadata', smoothing: 'Smoothing'):
         helper.pred = model(helper.inputs)
 
-    def setTestLoop(self, model, modelMetadata, metadata):
+    def setTestLoop(self, model: 'Model', modelMetadata: 'Model_Metadata', metadata: 'Metadata'):
         helper = TestDataContainer()
         helper.size = len(self.testloader.dataset)
         helper.test_loss, helper.test_correct = 0, 0
@@ -930,18 +955,18 @@ class Data(SaveClass):
         helper.loopTimer = Timer()
         return helper
 
-    def __beforeTestLoop__(self, helperEpoch, helper, model, dataMetadata, modelMetadata, metadata, smoothing):
+    def __beforeTestLoop__(self, helperEpoch: 'EpochDataContainer', helper, model: 'Model', dataMetadata: 'Data_Metadata', modelMetadata: 'Model_Metadata', metadata: 'Metadata', smoothing: 'Smoothing'):
         metadata.stream.printFormated("testLoop;\nAverage test time;Loop test time;Accuracy;Avg loss")
 
-    def __beforeTest__(self, helperEpoch, helper, model, dataMetadata, modelMetadata, metadata, smoothing):
+    def __beforeTest__(self, helperEpoch: 'EpochDataContainer', helper, model: 'Model', dataMetadata: 'Data_Metadata', modelMetadata: 'Model_Metadata', metadata: 'Metadata', smoothing: 'Smoothing'):
         helper.inputs = helper.inputs.to(modelMetadata.device)
         helper.labels = helper.labels.to(modelMetadata.device)
 
-    def __afterTest__(self, helperEpoch, helper, model, dataMetadata, modelMetadata, metadata, smoothing):
+    def __afterTest__(self, helperEpoch: 'EpochDataContainer', helper, model: 'Model', dataMetadata: 'Data_Metadata', modelMetadata: 'Model_Metadata', metadata: 'Metadata', smoothing: 'Smoothing'):
         helper.test_loss += model.loss_fn(helper.pred, helper.labels).item()
         helper.test_correct += (helper.pred.argmax(1) == helper.labels).type(torch.float).sum().item()
 
-    def __afterTestLoop__(self, helperEpoch, helper, model, dataMetadata, modelMetadata, metadata, smoothing):
+    def __afterTestLoop__(self, helperEpoch: 'EpochDataContainer', helper, model: 'Model', dataMetadata: 'Data_Metadata', modelMetadata: 'Model_Metadata', metadata: 'Metadata', smoothing: 'Smoothing'):
         helper.test_loss /= helper.size
         helper.test_correct /= helper.size
         metadata.stream.print(f"Test summary: \n Accuracy: {(100*helper.test_correct):>0.1f}%, Avg loss: {helper.test_loss:>8f}")
@@ -950,7 +975,7 @@ class Data(SaveClass):
         metadata.stream.print("")
         metadata.stream.printFormated(f"{helper.timer.getAverage()};{helper.loopTimer.getDiff()};{(helper.test_correct):>0.0001f};{helper.test_loss:>8f}")
 
-    def testLoop(self, helperEpoch, model, dataMetadata, modelMetadata, metadata, smoothing):
+    def testLoop(self, helperEpoch: 'EpochDataContainer', model: 'Model', dataMetadata: 'Data_Metadata', modelMetadata: 'Model_Metadata', metadata: 'Metadata', smoothing: 'Smoothing'):
         if(self.testHelper is None): # jeżeli nie było wznowione; nowe wywołanie
             self.testHelper = self.setTestLoop(model, modelMetadata, metadata)
         self.__beforeTestLoop__(helperEpoch, self.testHelper, model, dataMetadata, modelMetadata, metadata, smoothing)
@@ -980,18 +1005,19 @@ class Data(SaveClass):
         self.__afterTestLoop__(helperEpoch, self.testHelper, model, dataMetadata, modelMetadata, metadata, smoothing)
         self.testHelper = None
 
-    def __beforeEpochLoop__(self, helperEpoch, model, dataMetadata, modelMetadata, metadata, smoothing):
+    def __beforeEpochLoop__(self, helperEpoch: 'EpochDataContainer', model: 'Model', dataMetadata: 'Data_Metadata', modelMetadata: 'Model_Metadata', metadata: 'Metadata', smoothing: 'Smoothing'):
         pass
 
-    def __afterEpochLoop__(self, helperEpoch, model, dataMetadata, modelMetadata, metadata, smoothing):
+    def __afterEpochLoop__(self, helperEpoch: 'EpochDataContainer', model: 'Model', dataMetadata: 'Data_Metadata', modelMetadata: 'Model_Metadata', metadata: 'Metadata', smoothing: 'Smoothing'):
         pass
 
-    def __epoch__(self, helperEpoch, model, dataMetadata, modelMetadata, metadata, smoothing):
+    def __epoch__(self, helperEpoch: 'EpochDataContainer', model: 'Model', dataMetadata: 'Data_Metadata', 
+        modelMetadata: 'Model_Metadata', metadata: 'Metadata', smoothing: 'Smoothing'):
         """
         Reprezentuje pojedynczy epoch.
         Znajduje się tu cała logika epocha. Aby wykorzystać możliwość wyjścia i zapisu w danym momencie stanu modelu, należy zastosować konstrukcję:
 
-        if(SAVE_AND_EXIT_FLAG):\n
+        if(enabledSaveAndExit()):\n
             return 
         """
         if(metadata.trainFlag):
@@ -1006,16 +1032,17 @@ class Data(SaveClass):
                 metadata.stream.writeFormated("Plain weights;")
                 self.testLoop(helperEpoch, model, dataMetadata, modelMetadata, metadata, smoothing)
                 smoothing.saveMainWeight(model)
-                model.setWeights(smoothing)
-                metadata.stream.write("Smoothing weights, ")
-                metadata.stream.writeFormated("Smoothing weights;")
-                self.testLoop(helperEpoch, model, dataMetadata, modelMetadata, metadata, smoothing)
-                # TODO dodać możliwość zmieniania wag
-
+                if(smoothing.getWeights()):
+                    model.setWeights(smoothing.getWeights())
+                    metadata.stream.write("Smoothing weights, ")
+                    metadata.stream.writeFormated("Smoothing weights;")
+                    self.testLoop(helperEpoch, model, dataMetadata, modelMetadata, metadata, smoothing)
+                else:
+                    print('Smoothing is not enabled. Test does not executed.')
             # model.linear1.weight = torch.nn.parameter.Parameter(model.average)
             # model.linear1.weight = model.average
 
-    def epochLoop(self, model, dataMetadata, modelMetadata, metadata, smoothing):
+    def epochLoop(self, model: 'Model', dataMetadata: 'Data_Metadata', modelMetadata: 'Model_Metadata', metadata: 'Metadata', smoothing: 'Smoothing'):
         '''smoothing = Smoothing()
         smoothing.setDictionary(model.named_parameters())'''
         metadata.prepareOutput()
@@ -1049,10 +1076,10 @@ class Data(SaveClass):
         self.resetEpochState()
         self.epochNumb = 0
 
-    def __update__(self, dataMetadata):
+    def __update__(self, dataMetadata: 'Data_Metadata'):
         self.trainset = torchvision.datasets.CIFAR10(root='~/.data', train=True, download=True, transform=self.transform)
         self.testset = torchvision.datasets.CIFAR10(root='~/.data', train=False, download=True, transform=self.transform)
-        self.setTransform()
+        self.__setInputTransform__()
         if(self.trainset is not None or self.trainSampler is not None):
             self.trainloader = torch.utils.data.DataLoader(self.trainset, batch_size=dataMetadata.batchTrainSize, sampler=self.trainSampler,
                                           shuffle=False, num_workers=2, pin_memory=dataMetadata.pin_memoryTrain, worker_init_fn=dataMetadata.worker_seed if DETERMINISTIC else None)
@@ -1061,15 +1088,19 @@ class Data(SaveClass):
             self.testloader = torch.utils.data.DataLoader(self.testset, batch_size=dataMetadata.batchTestSize, sampler=self.testSampler,
                                          shuffle=False, num_workers=2, pin_memory=dataMetadata.pin_memoryTest, worker_init_fn=dataMetadata.worker_seed if DETERMINISTIC else None)
 
-    def trySave(self, metadata, onlyKeyIngredients = False, temporaryLocation = False):
-        return super().trySave(metadata, StaticData.DATA_SUFFIX, Data.__name__, temporaryLocation)
+    def trySave(self, metadata: 'Metadata', onlyKeyIngredients = False, temporaryLocation = False):
+        return super().trySave(metadata, StaticData.DATA_SUFFIX, onlyKeyIngredients, temporaryLocation)
 
-    def tryLoad(metadata, dataMetadata, temporaryLocation = False):
-        return SaveClass.tryLoad(metadata.fileNameLoad, StaticData.DATA_SUFFIX, Data.__name__, temporaryLocation)
+    def getFileSuffix():
+        return StaticData.DATA_SUFFIX
+
+    def canUpdate():
+        return True
 
 class Smoothing(SaveClass):
     def __init__(self):
         super().__init__()
+        self.enabled = False # used only to prevent using smoothing when it is not set
         self.lossSum = 0.0
         self.lossCounter = 0
         self.lossList = []
@@ -1088,6 +1119,8 @@ class Smoothing(SaveClass):
         self.mainWeights = None
 
     def call(self, helperEpoch, helper, model, dataMetadata, modelMetadata, metadata):
+        if(self.enabled == False):
+            return
         self.counter += 1
         if(self.counter > self.numbOfBatchAfterSwitchOn):
             self.countWeights += 1
@@ -1100,7 +1133,13 @@ class Smoothing(SaveClass):
                 self.previousWeights[key].data.copy_(arg.data)
 
     def getWeights(self):
+        """
+        Zwraca słownik wag, który można użyć do załadowania ich do modelu. Wagi ładuje się standardową metodą torch.
+        Może zwrócić pusty słownik, jeżeli obiekt nie jest gotowy do podania wag.
+        """
         average = {}
+        if(self.countWeights == 0 or self.enabled == False):
+            return average
         for key, arg in self.sumWeights.items():
             average[key] = self.sumWeights[key] / self.countWeights
         return average
@@ -1109,10 +1148,50 @@ class Smoothing(SaveClass):
         '''
         Used to map future weights into internal sums.
         '''
+
         for key, values in dictionary:
             self.sumWeights[key] = torch.zeros_like(values, requires_grad=False)
             self.previousWeights[key] = torch.zeros_like(values, requires_grad=False)
 
+        self.enabled = True
+
+    def __getstate__(self):
+        state = self.__dict__.copy()
+        if(self.only_Key_Ingredients):
+            del state['previousWeights']
+            del state['countWeights']
+            del state['counter']
+            del state['mainWeights']
+            del state['sumWeights']
+            del state['enabled']
+
+        '''
+        del state['previousWeights']
+        del state['mainWeights']
+        state['tensors']
+        state['sumWeights'] = self.sumWeights.state_dict()
+        state['previousWeights'] = self.previousWeights.state_dict()
+        state['mainWeights'] = self.mainWeights.state_dict()'''
+        return state
+
+    def __setstate__(self, state):
+        self.__dict__.update(state)
+        if(self.only_Key_Ingredients):
+            self.previousWeights = {}
+            self.countWeights = 0
+            self.counter = 0
+            self.mainWeights = None
+            self.sumWeights = {}
+            self.enabled = False
+
+    def trySave(self, metadata, onlyKeyIngredients = False, temporaryLocation = False):
+        return super().trySave(metadata, StaticData.SMOOTHING_SUFFIX, onlyKeyIngredients, temporaryLocation)
+
+    def getFileSuffix():
+        return StaticData.SMOOTHING_SUFFIX
+
+    def canUpdate():
+        return False
 
 
 
@@ -1139,6 +1218,8 @@ class Smoothing(SaveClass):
         self.mainWeights = model.getWeights()
 
     def addToAverageWeights(self, model):
+        if(self.enabled == False):
+            return
         with torch.no_grad():
             for key, arg in model.named_parameters():
                 self.sumWeights[key].add_(arg)
@@ -1171,6 +1252,8 @@ class Smoothing(SaveClass):
         return substract
 
     def lastWeightDifference(self, model):
+        if(self.enabled == False):
+            return
         self.counter += 1
         if(self.counter > self.numbOfBatchAfterSwitchOn):
             self.countWeights += 1
@@ -1189,39 +1272,7 @@ class Smoothing(SaveClass):
             print(self.lossAverage[-1])
             print(variance)
 
-    def __getstate__(self):
-        state = self.__dict__.copy()
-        if(self.only_Key_Ingredients):
-            del state['previousWeights']
-            del state['countWeights']
-            del state['counter']
-            del state['mainWeights']
-            del state['sumWeights']
-        '''del state['sumWeights']
-        del state['previousWeights']
-        del state['mainWeights']
-        state['tensors']
-        state['sumWeights'] = self.sumWeights.state_dict()
-        state['previousWeights'] = self.previousWeights.state_dict()
-        state['mainWeights'] = self.mainWeights.state_dict()'''
-        return state
-
-    def __setstate__(self, state):
-        self.__dict__.update(state)
-        if(self.only_Key_Ingredients):
-            self.previousWeights = {}
-            self.countWeights = 0
-            self.counter = 0
-            self.mainWeights = None
-            self.sumWeights = {}
-
-    def trySave(self, metadata, onlyKeyIngredients = False, temporaryLocation = False):
-        return super().trySave(metadata, StaticData.SMOOTHING_SUFFIX, Smoothing.__name__, temporaryLocation)
-
-    def tryLoad(metadata, temporaryLocation = False):
-        return SaveClass.tryLoad(metadata.fileNameSave, StaticData.SMOOTHING_SUFFIX, Smoothing.__name__, temporaryLocation)
-
-    def __update__(self):
+    '''def __update__(self):
         if(bool(self.sumWeights)):
             for key, val in self.sumWeights.items():
                 val.to('cuda:0')
@@ -1229,7 +1280,7 @@ class Smoothing(SaveClass):
             for key, val in self.previousWeights.items():
                 val.to('cuda:0')
         if(self.mainWeights is not None):
-            self.mainWeights.to('cuda:0')
+            self.mainWeights.to('cuda:0')'''
 
 class Model(nn.Module, SaveClass):
     def __init__(self, modelMetadata):
@@ -1280,9 +1331,9 @@ class Model(nn.Module, SaveClass):
             self.weightsStateDict = weights
         self.weightsStateDictType = 'plain'''
 
-    def setWeights(self, smoothing):
+    def setWeights(self, weights):
         # inherent
-        self.load_state_dict(smoothing.getWeights())
+        self.load_state_dict(weights)
 
     def getWeights(self):
         return self.state_dict()
@@ -1302,14 +1353,6 @@ class Model(nn.Module, SaveClass):
             return 'smoothing'
         else:
             raise Exception("unknown command or unset variables")'''
-
-    def trySave(self, metadata, onlyKeyIngredients = False, temporaryLocation = False):
-        return super().trySave(metadata, StaticData.MODEL_SUFFIX, Model.__name__, temporaryLocation)
-
-    def tryLoad(metadata, modelMetadata, temporaryLocation = False):
-        obj = SaveClass.tryLoad(metadata.fileNameLoad, StaticData.MODEL_SUFFIX, Model.__name__, temporaryLocation)
-        obj.__update__(modelMetadata)
-        return obj
     
     def __update__(self, modelMetadata):
         '''
@@ -1322,90 +1365,98 @@ class Model(nn.Module, SaveClass):
         # Some optimizers like Adam will have problem with it, others like SGD wont.
         self.optimizer = optim.AdamW(self.parameters(), lr=modelMetadata.learning_rate)
 
+    def trySave(self, metadata, onlyKeyIngredients = False, temporaryLocation = False):
+        return super().trySave(metadata, StaticData.MODEL_SUFFIX, onlyKeyIngredients, temporaryLocation)
+
+    def getFileSuffix():
+        return StaticData.MODEL_SUFFIX
+
+    def canUpdate():
+        return True
 
 def tryLoad(tupleClasses: list, metadata, temporaryLocation = False):
     dictObjs = {}
     dictObjs[type(metadata).__name__] = metadata
-    if(dictObjs['MetaData'] is None):
+    if(dictObjs['Metadata'] is None):
         return None
 
     for mdcl, objcl in tupleClasses:
         # load class metadata
         if(mdcl is not None):
-            dictObjs[mdcl.__name__] = mdcl.tryLoad(metadata, temporaryLocation)
+            dictObjs[mdcl.__name__] = SaveClass.tryLoad(metadata, mdcl, temporaryLocation=temporaryLocation)
             if(dictObjs[mdcl.__name__] is None):
                 return None
             # load class
-            dictObjs[objcl.__name__] = objcl.tryLoad(metadata, dictObjs[mdcl.__name__], temporaryLocation)
+            dictObjs[objcl.__name__] = SaveClass.tryLoad(metadata, objcl, dictObjs[mdcl.__name__], temporaryLocation=temporaryLocation)
             if(dictObjs[objcl.__name__] is None):
                 return None
         else:
-            dictObjs[objcl.__name__] = objcl.tryLoad(metadata, temporaryLocation)
+            dictObjs[objcl.__name__] = SaveClass.tryLoad(metadata, objcl, temporaryLocation=temporaryLocation)
             if(dictObjs[objcl.__name__] is None):
                 return None
-        #update
-        if(mdcl is not None):
-            dictObjs[objcl.__name__].__update__(dictObjs[mdcl.__name__])
+        #update does not needed
+        '''if(mdcl is not None):
+            dictObjs[objcl.__name__].__update__(dictObjs[mdcl.__name__])'''
     return dictObjs
 
 def trySave(dictObjs: dict, onlyKeyIngredients = False, temporaryLocation = False):
-    dictObjs['MetaData'].trySave(onlyKeyIngredients, temporaryLocation)
-    md = dictObjs['MetaData']
+    dictObjs['Metadata'].trySave(onlyKeyIngredients, temporaryLocation)
+    md = dictObjs['Metadata']
     
     for key, obj in dictObjs.items():
-        if(key != 'MetaData'):
+        if(key != 'Metadata'):
             obj.trySave(md, onlyKeyIngredients, temporaryLocation)
 
-def model():
-    if(__name__ == '__main__'):
-        metadata = MetaData()
-        metadata.prepareOutput()
-        loadedSuccessful = False
+def modelRun(Metadata_Class, Data_Metadata_Class, Model_Metadata_Class, Data_Class, Model_Class, Smoothing_Class):
+    metadata = Metadata_Class()
+    metadata.prepareOutput()
+    loadedSuccessful = False
 
-        dictObjs = {'MetaData': metadata}
-        dictObjs['Data_Metadata'] = Data_Metadata()
-        dictObjs['Model_Metadata'] = Model_Metadata()
+    dictObjs = {Metadata_Class.__name__: metadata}
+    dictObjs[Data_Metadata_Class.__name__] = Data_Metadata_Class()
+    dictObjs[Model_Metadata_Class.__name__] = Model_Metadata_Class()
 
-        metadataTmp = metadata.commandLineArg(dictObjs['Data_Metadata'], dictObjs['Model_Metadata'], sys.argv[1:])
-        if(metadataTmp is not None): # if model should be loaded
-            metadata = metadataTmp
-            dictObjsTmp = tryLoad([(Data_Metadata, Data), (None, Smoothing), (Model_Metadata, Model)], metadata)
-            if(dictObjsTmp is None):
-                loadedSuccessful = False
-            else:
-                dictObjs = dictObjsTmp
-                metadata = dictObjs['MetaData']
-                dictObjs['Data'].__update__(dictObjs['Data_Metadata'])
-                loadedSuccessful = True
-                metadata.printContinueLoadedModel()
+    metadataTmp = metadata.commandLineArg(dictObjs[Data_Metadata_Class.__name__], dictObjs[Model_Metadata_Class.__name__], sys.argv[1:])
+    if(metadataTmp is not None): # if model should be loaded
+        metadata = metadataTmp
+        dictObjsTmp = tryLoad([(Data_Metadata_Class, Data_Class), (None, Smoothing_Class), (Model_Metadata_Class, Model_Class)], metadata)
+        if(dictObjsTmp is None):
+            loadedSuccessful = False
+        else:
+            dictObjs = dictObjsTmp
+            metadata = dictObjs[Metadata_Class.__name__]
+            loadedSuccessful = True
+            metadata.printContinueLoadedModel()
 
-        if(loadedSuccessful == False):
-            metadata.printStartNewModel()
-            dictObjs['Data'] = Data()
-            
-            dictObjs['Data'].prepare(dictObjs['Data_Metadata'])
-            
-            dictObjs['Smoothing'] = Smoothing()
-            dictObjs['Model'] = Model(dictObjs['Model_Metadata'])
+    if(loadedSuccessful == False):
+        metadata.printStartNewModel()
+        dictObjs[Data_Class.__name__] = Data_Class()
+        
+        dictObjs[Data_Class.__name__].__prepare__(dictObjs[Data_Metadata_Class.__name__])
+        
+        dictObjs[Smoothing_Class.__name__] = Smoothing_Class()
+        dictObjs[Model_Class.__name__] = Model_Class(dictObjs[Model_Metadata_Class.__name__])
 
-            dictObjs['Smoothing'].setDictionary(dictObjs['Model'].named_parameters())
+        dictObjs[Smoothing_Class.__name__].setDictionary(dictObjs[Model_Class.__name__].named_parameters())
 
-        stat = dictObjs['Data'].epochLoop(dictObjs['Model'], dictObjs['Data_Metadata'], dictObjs['Model_Metadata'], dictObjs['MetaData'], dictObjs['Smoothing'])
+    stat = dictObjs[Data_Class.__name__].epochLoop(
+        dictObjs[Model_Class.__name__], dictObjs[Data_Metadata_Class.__name__], dictObjs[Model_Metadata_Class.__name__], 
+        dictObjs[Metadata_Class.__name__], dictObjs[Smoothing_Class.__name__]
+        )
 
-        trySave(dictObjs, True)
-        plt.plot(stat.trainLossArray)
-        plt.xlabel('Train index')
-        plt.ylabel('Loss')
-        plt.show()
+    trySave(dictObjs, True)
 
+    return stat
+
+# test   
 def modelDeterm():
     stat = []
     for i in range(2):
-        metadata = MetaData()
+        metadata = Metadata()
         metadata.prepareOutput()
         loadedSuccessful = False
 
-        dictObjs = {'MetaData': metadata}
+        dictObjs = {'Metadata': metadata}
         dictObjs['Data_Metadata'] = Data_Metadata()
         dictObjs['Model_Metadata'] = Model_Metadata()
 
@@ -1414,7 +1465,7 @@ def modelDeterm():
         metadata.printStartNewModel()
         dictObjs['Data'] = Data()
         
-        dictObjs['Data'].prepare(dictObjs['Data_Metadata'])
+        dictObjs['Data'].__prepare__(dictObjs['Data_Metadata'])
         
         dictObjs['Smoothing'] = Smoothing()
         dictObjs['Model'] = Model(dictObjs['Model_Metadata'])
@@ -1422,7 +1473,7 @@ def modelDeterm():
         dictObjs['Smoothing'].setDictionary(dictObjs['Model'].named_parameters())
 
         stat.append(
-             dictObjs['Data'].epochLoop(dictObjs['Model'], dictObjs['Data_Metadata'], dictObjs['Model_Metadata'], dictObjs['MetaData'], dictObjs['Smoothing'])
+             dictObjs['Data'].epochLoop(dictObjs['Model'], dictObjs['Data_Metadata'], dictObjs['Model_Metadata'], dictObjs['Metadata'], dictObjs['Smoothing'])
         )
     equal = True
     for idx, (x) in enumerate(stat[0].trainLossArray):
@@ -1437,8 +1488,14 @@ def modelDeterm():
     print(stat[0].trainLossArray)
     print(stat[1].trainLossArray)
 
-useDeterministic()
-model()
+if(__name__ == '__main__'):
+    useDeterministic()
+    stat = modelRun(Metadata, Data_Metadata, Model_Metadata, Data, Model, Smoothing)
+
+    plt.plot(stat.trainLossArray)
+    plt.xlabel('Train index')
+    plt.ylabel('Loss')
+    plt.show()
 
 
 '''
