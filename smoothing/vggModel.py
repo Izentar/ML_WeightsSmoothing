@@ -6,11 +6,14 @@ import matplotlib.pyplot as plt
 import torchvision.transforms as transforms
 import torch.nn as nn
 import torch.nn.functional as F
+import torchvision.models as models
+
+
 
 class TestModel_Metadata(sf.Model_Metadata):
     def __init__(self):
         sf.Model_Metadata.__init__(self)
-        self.device = 'cuda:0'
+        self.device = 'cpu'
         self.learning_rate = 1e-3
         self.momentum = 0.9
         self.oscilationMax = 0.001
@@ -39,22 +42,15 @@ class TestData_Metadata(sf.Data_Metadata):
         # batch size * howOftenPrintTrain
         self.howOftenPrintTrain = 2000
 
-class TestModel(sf.Model):
-    def __init__(self, modelMetadata):
-        super().__init__(modelMetadata)
-        self.conv1 = nn.Conv2d(3, 6, 5)
-        self.pool = nn.MaxPool2d(2, 2)
-        self.conv2 = nn.Conv2d(6, 16, 5)
-        self.linear1 = nn.Linear(16 * 5 * 5, 120)
-        self.linear2 = nn.Linear(120, 84)
-        self.linear3 = nn.Linear(84, 10)
+class TestModel(sf.PredefinedModel):
+    def __init__(self, obj, modelMetadata):
+        super().__init__(obj, modelMetadata)
 
         self.loss_fn = nn.CrossEntropyLoss()
-        self.optimizer = optim.SGD(self.parameters(), lr=modelMetadata.learning_rate, momentum=modelMetadata.momentum)
+        self.optimizer = optim.SGD(self.getNNModelModule().parameters(), lr=modelMetadata.learning_rate, momentum=modelMetadata.momentum)
         #self.optimizer = optim.AdamW(self.parameters(), lr=modelMetadata.learning_rate)
 
-        self.__initializeWeights__()
-        self.to(modelMetadata.device)
+        self.getNNModelModule().to(modelMetadata.device)
 
     def forward(self, x):
         x = self.pool(F.hardswish(self.conv1(x)))
@@ -64,24 +60,10 @@ class TestModel(sf.Model):
         x = F.hardswish(self.linear2(x))
         x = self.linear3(x)
         return x
-    
-    def __initializeWeights__(self):
-        for mod in self.modules():
-            if(isinstance(mod, nn.Conv2d)):
-                nn.init.kaiming_normal_(mod.weight, mode='fan_out', nonlinearity='relu')
-                if mod.bias is not None:
-                    nn.init.constant_(mod.bias, 0)
-            elif isinstance(mod, nn.Linear):
-                nn.init.normal_(mod.weight, 0, 0.01)
-                nn.init.constant_(mod.bias, 0)
 
     def __update__(self, modelMetadata):
-        self.to(modelMetadata.device)
+        self.getNNModelModule().to(modelMetadata.device)
         self.optimizer = optim.SGD(self.parameters(), lr=modelMetadata.learning_rate, momentum=modelMetadata.momentum)
-
-        # must create new optimizer because we changed the model device. It must be set after setting model.
-        # Some optimizers like Adam will have problem with it, others like SGD wont.
-        #self.optimizer = optim.AdamW(self.parameters(), lr=modelMetadata.learning_rate)
 
 class TestSmoothing(sf.Smoothing):
     def __init__(self):
@@ -109,9 +91,9 @@ class TestSmoothing(sf.Smoothing):
             self.countWeights += 1
             helper.substract = {}
             with torch.no_grad():
-                for key, arg in model.named_parameters():
+                for key, arg in model.getNNModelModule().named_parameters():
                     self.sumWeights[key].add_(arg)
-            for key, arg in model.named_parameters():
+            for key, arg in model.getNNModelModule().named_parameters():
                 helper.substract[key] = arg.sub(self.previousWeights[key])
                 self.previousWeights[key].data.copy_(arg.data)
 
@@ -128,40 +110,6 @@ class TestSmoothing(sf.Smoothing):
         for key, values in dictionary:
             self.sumWeights[key] = torch.zeros_like(values, requires_grad=False)
             self.previousWeights[key] = torch.zeros_like(values, requires_grad=False)
-
-'''def fullAverageWeights(self, model):
-        self.counter += 1
-        self.countWeights += 1
-        return self.addToAverageWeights(model)
-      
-    def lateStartAverageWeights(self, model):
-        self.counter += 1
-        if(self.countWeights > self.numbOfBatchAfterSwitchOn):
-            self.countWeights += 1
-            return self.addToAverageWeights(model)
-        return dict(model)'''
-
-'''def setAllToCUDA(self):
-        if(bool(self.sumWeights)):
-            for key, val in self.sumWeights.items():
-                val.to('cuda:0')
-        if(bool(self.previousWeights)):
-            for key, val in self.previousWeights.items():
-                val.to('cuda:0')
-        if(self.mainWeights is not None):
-            self.mainWeights.to('cuda:0')'''
-
-'''def forwardLossFun(self, loss):
-        self.lossSum += loss
-        self.lossList.append(loss)
-        self.lossCounter += 1
-        if(self.lossCounter > self.flushLossSum):
-            self.lossAverage.append(self.lossSum / self.lossCounter)
-            self.lossSum = 0.0
-            self.lossCounter = 0
-            variance = statistics.variance(self.lossList, self.lossAverage[-1])
-            print(self.lossAverage[-1])
-            print(variance)'''
 
 class TestData(sf.Data):
     def __init__(self):
@@ -286,11 +234,11 @@ class TestData(sf.Data):
             # model.linear1.weight = model.average
 
 
-
 if(__name__ == '__main__'):
-    sf.useDeterministic()
-    #sf.modelDetermTest(sf.Metadata, TestData_Metadata, TestModel_Metadata, TestData, TestModel, TestSmoothing)
-    stat = sf.modelRun(sf.Metadata, TestData_Metadata, TestModel_Metadata, TestData, TestModel, TestSmoothing)
+    obj = models.vgg11()
+    #sf.useDeterministic()
+    #sf.modelDetermTest(sf.Metadata, TestData_Metadata, TestModel_Metadata, TestData, VGG16Model, TestSmoothing)
+    stat = sf.modelRun(sf.Metadata, TestData_Metadata, TestModel_Metadata, TestData, TestModel, TestSmoothing, obj)
 
     plt.plot(stat.trainLossArray)
     plt.xlabel('Train index')

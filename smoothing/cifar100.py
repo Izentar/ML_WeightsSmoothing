@@ -6,11 +6,11 @@ import matplotlib.pyplot as plt
 import torchvision.transforms as transforms
 import torch.nn as nn
 import torch.nn.functional as F
+import torchvision.models as models
 
 class TestModel_Metadata(sf.Model_Metadata):
     def __init__(self):
         sf.Model_Metadata.__init__(self)
-        self.device = 'cuda:0'
         self.learning_rate = 1e-3
         self.momentum = 0.9
         self.oscilationMax = 0.001
@@ -39,42 +39,15 @@ class TestData_Metadata(sf.Data_Metadata):
         # batch size * howOftenPrintTrain
         self.howOftenPrintTrain = 2000
 
-class TestModel(sf.Model):
+class VGG16Model(sf.Model, models.VGG):
     def __init__(self, modelMetadata):
-        super().__init__(modelMetadata)
-        self.conv1 = nn.Conv2d(3, 6, 5)
-        self.pool = nn.MaxPool2d(2, 2)
-        self.conv2 = nn.Conv2d(6, 16, 5)
-        self.linear1 = nn.Linear(16 * 5 * 5, 120)
-        self.linear2 = nn.Linear(120, 84)
-        self.linear3 = nn.Linear(84, 10)
-
+        super().__init__(self, modelMetadata)
+        
         self.loss_fn = nn.CrossEntropyLoss()
         self.optimizer = optim.SGD(self.parameters(), lr=modelMetadata.learning_rate, momentum=modelMetadata.momentum)
-        #self.optimizer = optim.AdamW(self.parameters(), lr=modelMetadata.learning_rate)
 
-        self.__initializeWeights__()
         self.to(modelMetadata.device)
-
-    def forward(self, x):
-        x = self.pool(F.hardswish(self.conv1(x)))
-        x = self.pool(F.hardswish(self.conv2(x)))
-        x = x.view(-1, 16 * 5 * 5)
-        x = F.hardswish(self.linear1(x))
-        x = F.hardswish(self.linear2(x))
-        x = self.linear3(x)
-        return x
     
-    def __initializeWeights__(self):
-        for mod in self.modules():
-            if(isinstance(mod, nn.Conv2d)):
-                nn.init.kaiming_normal_(mod.weight, mode='fan_out', nonlinearity='relu')
-                if mod.bias is not None:
-                    nn.init.constant_(mod.bias, 0)
-            elif isinstance(mod, nn.Linear):
-                nn.init.normal_(mod.weight, 0, 0.01)
-                nn.init.constant_(mod.bias, 0)
-
     def __update__(self, modelMetadata):
         self.to(modelMetadata.device)
         self.optimizer = optim.SGD(self.parameters(), lr=modelMetadata.learning_rate, momentum=modelMetadata.momentum)
@@ -129,40 +102,6 @@ class TestSmoothing(sf.Smoothing):
             self.sumWeights[key] = torch.zeros_like(values, requires_grad=False)
             self.previousWeights[key] = torch.zeros_like(values, requires_grad=False)
 
-'''def fullAverageWeights(self, model):
-        self.counter += 1
-        self.countWeights += 1
-        return self.addToAverageWeights(model)
-      
-    def lateStartAverageWeights(self, model):
-        self.counter += 1
-        if(self.countWeights > self.numbOfBatchAfterSwitchOn):
-            self.countWeights += 1
-            return self.addToAverageWeights(model)
-        return dict(model)'''
-
-'''def setAllToCUDA(self):
-        if(bool(self.sumWeights)):
-            for key, val in self.sumWeights.items():
-                val.to('cuda:0')
-        if(bool(self.previousWeights)):
-            for key, val in self.previousWeights.items():
-                val.to('cuda:0')
-        if(self.mainWeights is not None):
-            self.mainWeights.to('cuda:0')'''
-
-'''def forwardLossFun(self, loss):
-        self.lossSum += loss
-        self.lossList.append(loss)
-        self.lossCounter += 1
-        if(self.lossCounter > self.flushLossSum):
-            self.lossAverage.append(self.lossSum / self.lossCounter)
-            self.lossSum = 0.0
-            self.lossCounter = 0
-            variance = statistics.variance(self.lossList, self.lossAverage[-1])
-            print(self.lossAverage[-1])
-            print(variance)'''
-
 class TestData(sf.Data):
     def __init__(self):
         super().__init__()
@@ -183,8 +122,8 @@ class TestData(sf.Data):
     def __prepare__(self, dataMetadata):
         self.__setInputTransform__()
 
-        self.trainset = torchvision.datasets.CIFAR10(root=sf.StaticData.DATA_PATH, train=True, download=True, transform=self.transform)
-        self.testset = torchvision.datasets.CIFAR10(root=sf.StaticData.DATA_PATH, train=False, download=True, transform=self.transform)
+        self.trainset = torchvision.datasets.CIFAR100(root=sf.StaticData.DATA_PATH, train=True, download=True, transform=self.transform)
+        self.testset = torchvision.datasets.CIFAR100(root=sf.StaticData.DATA_PATH, train=False, download=True, transform=self.transform)
         self.trainSampler = sf.BaseSampler(len(self.trainset), dataMetadata.batchTrainSize)
         self.testSampler = sf.BaseSampler(len(self.testset), dataMetadata.batchTrainSize)
 
@@ -289,8 +228,8 @@ class TestData(sf.Data):
 
 if(__name__ == '__main__'):
     sf.useDeterministic()
-    #sf.modelDetermTest(sf.Metadata, TestData_Metadata, TestModel_Metadata, TestData, TestModel, TestSmoothing)
-    stat = sf.modelRun(sf.Metadata, TestData_Metadata, TestModel_Metadata, TestData, TestModel, TestSmoothing)
+    #sf.modelDetermTest(sf.Metadata, TestData_Metadata, TestModel_Metadata, TestData, VGG16Model, TestSmoothing)
+    stat = sf.modelRun(sf.Metadata, TestData_Metadata, TestModel_Metadata, TestData, VGG16Model, TestSmoothing)
 
     plt.plot(stat.trainLossArray)
     plt.xlabel('Train index')

@@ -1,0 +1,2 @@
+Przykład użycia:
+python smoothing/testModel.py -l test -s test --name testModel --test true --train true --pinTest false -d --debugOutput debug --modelOutput model --bashOutput true --formatedOutput formated

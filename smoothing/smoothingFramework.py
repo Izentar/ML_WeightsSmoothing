@@ -13,6 +13,7 @@ import time
 import copy as cp
 import random
 from torch.utils.data.dataloader import Sampler
+import torchvision.models as models
 
 import matplotlib.pyplot as plt
 import numpy
@@ -69,12 +70,13 @@ class StaticData:
     MODEL_METADATA_SUFFIX = '.mmd'
     NAME_CLASS_METADATA = 'Metadata'
     DATA_PATH = '~/.data'
+    PREDEFINED_MODEL_SUFFIX = '.pdmodel'
 
 class SaveClass:
     def __init__(self):
         self.only_Key_Ingredients = None
     """
-    Child class should implement its own trySave, getFileSuffix(), canUpdate() methods.
+    Child class should implement its own trySave, getFileSuffix(self = None), canUpdate() methods.
     """
 
     def tryLoad(metadata, Class, classMetadataObj = None, temporaryLocation = False):
@@ -222,7 +224,7 @@ class Metadata(SaveClass):
     def trySave(self, onlyKeyIngredients = False, temporaryLocation = False):
         return super().trySave(self, StaticData.METADATA_SUFFIX, onlyKeyIngredients, temporaryLocation)
 
-    def getFileSuffix():
+    def getFileSuffix(self = None):
         return StaticData.METADATA_SUFFIX
 
     def canUpdate():
@@ -295,7 +297,7 @@ class Timer(SaveClass):
     def trySave(self, metadata, onlyKeyIngredients = False, temporaryLocation = False):
         return super().trySave(metadata, StaticData.TIMER_SUFFIX, onlyKeyIngredients, temporaryLocation)
 
-    def getFileSuffix():
+    def getFileSuffix(self = None):
         return StaticData.TIMER_SUFFIX
 
     def canUpdate():
@@ -478,7 +480,7 @@ class Output(SaveClass):
     def trySave(self, metadata, onlyKeyIngredients = False, temporaryLocation = False):
         return super().trySave(metadata, StaticData.OUTPUT_SUFFIX, onlyKeyIngredients, temporaryLocation)
 
-    def getFileSuffix():
+    def getFileSuffix(self = None):
         return StaticData.OUTPUT_SUFFIX
 
     def canUpdate():
@@ -537,7 +539,7 @@ class Data_Metadata(SaveClass):
     def trySave(self, metadata, onlyKeyIngredients = False, temporaryLocation = False):
         return super().trySave(metadata, StaticData.DATA_METADATA_SUFFIX, onlyKeyIngredients, temporaryLocation)
 
-    def getFileSuffix():
+    def getFileSuffix(self = None):
         return StaticData.DATA_METADATA_SUFFIX
 
     def canUpdate():
@@ -556,7 +558,7 @@ class Model_Metadata(SaveClass):
     def trySave(self, metadata, onlyKeyIngredients = False, temporaryLocation = False):
         return super().trySave(metadata, StaticData.MODEL_METADATA_SUFFIX, onlyKeyIngredients, temporaryLocation)
 
-    def getFileSuffix():
+    def getFileSuffix(self = None):
         return StaticData.MODEL_METADATA_SUFFIX
 
     def canUpdate():
@@ -750,7 +752,7 @@ class Data(SaveClass):
         """
         
         # forward + backward + optimize
-        outputs = model(helper.inputs)
+        outputs = model.getNNModelModule()(helper.inputs)
         helper.loss = model.loss_fn(outputs, helper.labels)
         helper.loss.backward()
         model.optimizer.step()
@@ -761,7 +763,7 @@ class Data(SaveClass):
     def setTrainLoop(self, model: 'Model', modelMetadata: 'Model_Metadata', metadata: 'Metadata'):
         helper = TrainDataContainer()
         helper.size = len(self.trainloader.dataset)
-        model.train()
+        model.getNNModelModule().train()
         metadata.prepareOutput()
         helper.timer = Timer()
         helper.loopTimer = Timer()
@@ -820,13 +822,13 @@ class Data(SaveClass):
         Główna logika testu modelu. Następuje pomiar czasu dla wykonania danej metody.
         """
         
-        helper.pred = model(helper.inputs)
+        helper.pred = model.getNNModelModule()(helper.inputs)
 
     def setTestLoop(self, model: 'Model', modelMetadata: 'Model_Metadata', metadata: 'Metadata'):
         helper = TestDataContainer()
         helper.size = len(self.testloader.dataset)
         helper.test_loss, helper.test_correct = 0, 0
-        model.eval()
+        model.getNNModelModule().eval()
         metadata.prepareOutput()
         helper.timer = Timer()
         helper.loopTimer = Timer()
@@ -942,7 +944,7 @@ class Data(SaveClass):
     def trySave(self, metadata: 'Metadata', onlyKeyIngredients = False, temporaryLocation = False):
         return super().trySave(metadata, StaticData.DATA_SUFFIX, onlyKeyIngredients, temporaryLocation)
 
-    def getFileSuffix():
+    def getFileSuffix(self = None):
         return StaticData.DATA_SUFFIX
 
     def canUpdate():
@@ -977,7 +979,7 @@ class Smoothing(SaveClass):
             self.countWeights += 1
             helper.diff = {}
             with torch.no_grad():
-                for key, arg in model.named_parameters():
+                for key, arg in model.getNNModelModule().named_parameters():
                     self.sumWeights[key].add_(arg)
                     helper.diff[key] = arg.sub(self.previousWeights[key])
                     self.previousWeights[key].data.copy_(arg.data)
@@ -1029,7 +1031,7 @@ class Smoothing(SaveClass):
     def trySave(self, metadata, onlyKeyIngredients = False, temporaryLocation = False):
         return super().trySave(metadata, StaticData.SMOOTHING_SUFFIX, onlyKeyIngredients, temporaryLocation)
 
-    def getFileSuffix():
+    def getFileSuffix(self = None):
         return StaticData.SMOOTHING_SUFFIX
 
     def canUpdate():
@@ -1049,8 +1051,12 @@ class Smoothing(SaveClass):
 
 class Model(nn.Module, SaveClass):
     """
+        Klasa służąca do tworzenia nowych modeli.
+        Aby bezpiecznie skorzystać z metod nn.Module należy wywołać metodę getNNModelModule(), która zwróci obiekt typu nn.Module
+
         Metody, które wymagają przeciążenia bez wywołania super()
         __update__
+        __initializeWeights__
 
         Metody, które wymagają przeciążenia z wywołaniem super()
         __init__
@@ -1064,8 +1070,12 @@ class Model(nn.Module, SaveClass):
     """
     def __init__(self, modelMetadata):
         """
+        Metoda powinna posiadać zmienne\n
+        self.loss_fn = ...\n
+        self.optimizer = torch.optim...\n
+        \n
         Na końcu _\_init__ powinno się zainicjalizować wagi metodą\n
-        def __initializeWeights__(self)
+        def __initializeWeights__(self)\n
         """
         super().__init__()
 
@@ -1091,11 +1101,86 @@ class Model(nn.Module, SaveClass):
     def trySave(self, metadata, onlyKeyIngredients = False, temporaryLocation = False):
         return super().trySave(metadata, StaticData.MODEL_SUFFIX, onlyKeyIngredients, temporaryLocation)
 
-    def getFileSuffix():
+    def getFileSuffix(self = None):
         return StaticData.MODEL_SUFFIX
 
     def canUpdate():
         return True
+
+    def getNNModelModule(self):
+        """
+        Używany, gdy chcemy skorzystać z funckji modułu nn.Module. Zwraca obiekt dla którego jest pewność, że implementuje klasę nn.Module. 
+        """
+        return self
+
+class PredefinedModel(SaveClass):
+    """
+        Klasa używana do kapsułkowania istniejących już obiektów predefiniowanych modeli.
+        Aby bezpiecznie skorzystać z metod nn.Module należy wywołać metodę getNNModelModule(), która zwróci obiekt typu nn.Module
+
+        Metody, które wymagają przeciążenia bez wywołania super()
+        __update__
+
+        Metody, które wymagają przeciążenia z wywołaniem super()
+        __init__
+
+        Metody, które można przeciążyć i wymagają użycia super()
+        __getstate__
+        __setstate__
+
+        Klasa powinna posiadać zmienne
+        self.loss_fn = ...
+        self.optimizer = torch.optim...
+    """
+    def __init__(self, obj: 'modelObject', modelMetadata):
+        """
+        Metoda powinna posiadać zmienne\n
+        self.loss_fn = ...\n
+        self.optimizer = torch.optim...\n
+        """
+
+        if(not isinstance(obj, nn.Module)):
+            raise Exception("Object do not implement nn.Module class.")
+        super().__init__()
+        self.modelObj = obj
+
+    def __initializeWeights__(self):
+        self.modelObj._initialize_weights()
+
+    def __getstate__(self):
+        obj = self.__dict__.copy()
+        return {
+            'obj': obj,
+            'classType': type(self.modelObj)
+        }
+
+    def __setstate__(self, state):
+        obj = state['obj']
+        if(state['classType'] != type(self)):
+            raise Exception("Loaded object is not the same class as object in PredefinedModel class.")
+        self.__dict__.update(obj)
+        self.modelObj.eval()
+
+    def setWeights(self, weights):
+        self.modelObj.load_state_dict(weights)
+
+    def getWeights(self):
+        return self.modelObj.state_dict()
+
+    def __update__(self, modelMetadata):
+        raise Exception("Not implemented")
+
+    def trySave(self, metadata, onlyKeyIngredients = False, temporaryLocation = False):
+        return super().trySave(metadata, StaticData.PREDEFINED_MODEL_SUFFIX, onlyKeyIngredients, temporaryLocation)
+
+    def getFileSuffix(self = None):
+        return StaticData.PREDEFINED_MODEL_SUFFIX
+
+    def getNNModelModule(self):
+        """
+        Używany, gdy chcemy skorzystać z funckji modułu nn.Module. Zwraca obiekt dla którego jest pewność, że implementuje klasę nn.Module. 
+        """
+        return self.modelObj
 
 def tryLoad(tupleClasses: list, metadata, temporaryLocation = False):
     dictObjs = {}
@@ -1201,7 +1286,7 @@ def commandLineArg(metadata, dataMetadata, modelMetadata, argv, enableLoad = Tru
     
     return metadata, False
 
-def modelRun(Metadata_Class, Data_Metadata_Class, Model_Metadata_Class, Data_Class, Model_Class, Smoothing_Class):
+def modelRun(Metadata_Class, Data_Metadata_Class, Model_Metadata_Class, Data_Class, Model_Class, Smoothing_Class, modelObj = None):
     dictObjs = {}
     dictObjs[Metadata_Class.__name__] = Metadata_Class()
     dictObjs[Metadata_Class.__name__].prepareOutput()
@@ -1231,9 +1316,15 @@ def modelRun(Metadata_Class, Data_Metadata_Class, Model_Metadata_Class, Data_Cla
         dictObjs[Data_Class.__name__].__prepare__(dictObjs[Data_Metadata_Class.__name__])
         
         dictObjs[Smoothing_Class.__name__] = Smoothing_Class()
-        dictObjs[Model_Class.__name__] = Model_Class(dictObjs[Model_Metadata_Class.__name__])
+        if(issubclass(Model_Class, PredefinedModel)):
+            if(modelObj is not None):
+                dictObjs[Model_Class.__name__] = Model_Class(modelObj, dictObjs[Model_Metadata_Class.__name__])
+            else:
+                raise Exception("Predefined model to be created needs object.")
+        else:
+            dictObjs[Model_Class.__name__] = Model_Class(dictObjs[Model_Metadata_Class.__name__])
 
-        dictObjs[Smoothing_Class.__name__].setDictionary(dictObjs[Model_Class.__name__].named_parameters())
+        dictObjs[Smoothing_Class.__name__].setDictionary(dictObjs[Model_Class.__name__].getNNModelModule().named_parameters())
 
     stat = dictObjs[Data_Class.__name__].epochLoop(
         dictObjs[Model_Class.__name__], dictObjs[Data_Metadata_Class.__name__], dictObjs[Model_Metadata_Class.__name__], 
@@ -1270,7 +1361,7 @@ def selectCPU(device, metadata):
 #########################################
 # test   
 
-def modelDetermTest(Metadata_Class, Data_Metadata_Class, Model_Metadata_Class, Data_Class, Model_Class, Smoothing_Class):
+def modelDetermTest(Metadata_Class, Data_Metadata_Class, Model_Metadata_Class, Data_Class, Model_Class, Smoothing_Class, modelObj = None):
     """
     Można użyć do przetestowania, czy dany model jest deterministyczny.
     Zmiana z CPU na GPU nadal zachowuje determinizm.
@@ -1294,9 +1385,15 @@ def modelDetermTest(Metadata_Class, Data_Metadata_Class, Model_Metadata_Class, D
         dictObjs[Data_Class.__name__].__prepare__(dictObjs[Data_Metadata_Class.__name__])
         
         dictObjs[Smoothing_Class.__name__] = Smoothing_Class()
-        dictObjs[Model_Class.__name__] = Model_Class(dictObjs[Model_Metadata_Class.__name__])
+        if(issubclass(Model_Class, PredefinedModel)):
+            if(modelObj is not None):
+                dictObjs[Model_Class.__name__] = Model_Class(modelObj, dictObjs[Model_Metadata_Class.__name__])
+            else:
+                raise Exception("Predefined model to be created needs object.")
+        else:
+            dictObjs[Model_Class.__name__] = Model_Class(dictObjs[Model_Metadata_Class.__name__])
 
-        dictObjs[Smoothing_Class.__name__].setDictionary(dictObjs[Model_Class.__name__].named_parameters())
+        dictObjs[Smoothing_Class.__name__].setDictionary(dictObjs[Model_Class.__name__].getNNModelModule().named_parameters())
 
         stat.append(
              dictObjs[Data_Class.__name__].epochLoop(dictObjs[Model_Class.__name__], dictObjs[Data_Metadata_Class.__name__], dictObjs[Model_Metadata_Class.__name__], dictObjs[Metadata_Class.__name__], dictObjs[Smoothing_Class.__name__])
