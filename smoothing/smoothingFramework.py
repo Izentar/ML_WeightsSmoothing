@@ -19,6 +19,7 @@ import numpy
 
 SAVE_AND_EXIT_FLAG = False
 DETERMINISTIC = False
+DATA_LOADED = False
 
 
 def saveWorkAndExit(signumb, frame):
@@ -31,10 +32,13 @@ def terminate(signumb, frame):
     exit(2)
 
 def enabledDeterminism():
-    return DETERMINISTIC
+    return bool(DETERMINISTIC)
 
 def enabledSaveAndExit():
-    return SAVE_AND_EXIT_FLAG
+    return bool(SAVE_AND_EXIT_FLAG)
+
+def enabledDataLoaded():
+    return bool(DATA_LOADED)
 
 signal.signal(signal.SIGTSTP, saveWorkAndExit)
 
@@ -123,9 +127,10 @@ class SaveClass:
         return False
 
 class BaseSampler:
-    '''
-    Returns a sequence of the next indices
-    ''' 
+    """
+    Returns a sequence of the next indices.
+    Supports saving and loading.
+    """ 
     def __init__(self, dataSize, batchSize, startIndex = 0, seed = 984):
         self.sequence = list(range(dataSize))[startIndex * batchSize:]
         random.shuffle(self.sequence)
@@ -143,19 +148,6 @@ class BaseSampler:
     def __setstate__(self, state):
         self.__dict__.update(state)
 
-# nieużywane
-class Hyperparameters(SaveClass):
-    def __init__(self):
-        self.learning_rate = 1e-3
-        self.momentum = 0.9
-        self.oscilationMax = 0.001
-
-    def __str__(self):
-        tmp_str = '\n/Hyperparameters class\n-----------------------------------------------------------------------\n'
-        tmp_str += ('Learning rate:\t{}\n'.format(self.learning_rate))
-        tmp_str += ('Momentum:\t{}\n'.format(self.momentum))
-        tmp_str += ('-----------------------------------------------------------------------\nEnd Hyperparameters class\n')
-        return tmp_str
 
 class Metadata(SaveClass):
     def __init__(self):
@@ -310,6 +302,12 @@ class Metadata(SaveClass):
 
     def canUpdate():
         return False
+
+    def shouldTrain(self):
+        return bool(self.trainFlag)
+
+    def shouldTest(self):
+        return bool(self.testFlag)
 
 class Timer(SaveClass):
     def __init__(self):
@@ -563,10 +561,12 @@ class Output(SaveClass):
 
 
 class Data_Metadata(SaveClass):
-    DATA_PATH = '~/.data'
+    DATA_PATH = '~/.data' # path to data
 
     def __init__(self):
         super().__init__()
+
+        # default values:
         self.worker_seed = 841874
         
         self.train = True
@@ -578,35 +578,22 @@ class Data_Metadata(SaveClass):
         self.batchTrainSize = 4
         self.batchTestSize = 4
 
-        # batch size * howOftenPrintTrain
+        # print = batch size * howOftenPrintTrain
         self.howOftenPrintTrain = 2000
 
     def tryPinMemoryTrain(self, metadata, modelMetadata):
         if(torch.cuda.is_available()):
             self.pin_memoryTrain = True
+            if(metadata.debugInfo):
+                print('Train data pinned to GPU: {}'.format(self.pin_memoryTrain))
         return bool(self.pin_memoryTrain)
-        '''if modelMetadata.device == 'cpu': modelMetadata.trySelectCUDA(metadata)
-        if(Model_Metadata.checkCUDA(modelMetadata.device)):
-            self.pin_memoryTrain = True
-        if(metadata.debugInfo):
-            print('Train data pinned to GPU: {}'.format(self.pin_memoryTrain))
-        return bool(self.pin_memoryTrain)'''
 
     def tryPinMemoryTest(self, metadata, modelMetadata):
         if(torch.cuda.is_available()):
             self.pin_memoryTest = True
+            if(metadata.debugInfo):
+                print('Test data pinned to GPU: {}'.format(self.pin_memoryTest))
         return bool(self.pin_memoryTest)
-        '''
-        if modelMetadata.device == 'cpu': modelMetadata.trySelectCUDA(metadata)
-        if(Model_Metadata.checkCUDA(modelMetadata.device)):
-            self.pin_memoryTest = True
-        if(metadata.debugInfo):
-            print('Test data pinned to GPU: {}'.format(self.pin_memoryTest))
-        return bool(self.pin_memoryTest)'''
-
-    # unused
-    def tryPinMemoryAll(self, metadata, modelMetadata):
-        return self.tryPinMemoryTrain(metadata, modelMetadata), self.tryPinMemoryTest(metadata, modelMetadata)
 
     def __str__(self):
         tmp_str = ('Should train data:\t{}\n'.format(self.train))
@@ -616,6 +603,7 @@ class Data_Metadata(SaveClass):
         tmp_str += ('Batch train size:\t{}\n'.format(self.batchTrainSize))
         tmp_str += ('Batch test size:\t{}\n'.format(self.batchTestSize))
         tmp_str += ('Number of epochs:\t{}\n'.format(self.epoch))
+        tmp_str += ('How often print:\t{}\n'.format(self.howOftenPrintTrain))
 
     def _getstate__(self):
         return self.__dict__.copy()
@@ -638,9 +626,6 @@ class Model_Metadata(SaveClass):
         self.learning_rate = 1e-3 # TODO usunąć, bo to klasa podstawowa
         self.device = 'cuda:0'
         
-    def checkCUDA(string):
-        return string.startswith('cuda')
-
     def trySelectCUDA(self, metadata):
         self.device = 'cuda' if torch.cuda.is_available() else 'cpu'
         if(metadata.debugInfo):
@@ -668,26 +653,6 @@ class Model_Metadata(SaveClass):
     def canUpdate():
         return False
 
-# nieużywane
-class Weight(SaveClass):
-    def __init__(self, weightDict):
-        super().__init__()
-        self.weight = weightDict
-
-    def __getstate__(self):
-        return self.__dict__.copy()
-
-    def __setstate__(self, state):
-        self.__dict__.update(state)
-
-    def trySave(self, metadata, onlyKeyIngredients = False, temporaryLocation = False):
-        return super().trySave(metadata, StaticData.WEIGHT_SUFFIX, onlyKeyIngredients, temporaryLocation)
-
-    def getFileSuffix():
-        return StaticData.WEIGHT_SUFFIX
-
-    def canUpdate():
-        return False
 
 class TrainDataContainer():
     def __init__(self):
@@ -740,6 +705,36 @@ class Statistics():
 
 
 class Data(SaveClass):
+    """
+        Metody konieczne do przeciążenia.
+        __init__
+
+        Metody konieczne do przeciążenia, dla których nie używa się super().
+        __setInputTransform__
+        __prepare__
+        __update__
+        __epoch__
+
+        Metody możliwe do przeciążenia, które wymagają użycia super().
+        __customizeState__
+        __setstate__
+        __str__
+
+        Metody możliwe do przeciążenia, które nie wymagają użycia super(). Użycie go spowoduje zawarcie domyślnej treści danej metody (o ile taka istnieje), 
+        która nie jest wymagana.
+        __train__
+        __beforeTrainLoop__
+        __beforeTrain__
+        __afterTrain__
+        __afterTrainLoop__
+        __test__
+        __beforeTestLoop__
+        __beforeTest__
+        __afterTest__
+        __afterTestLoop__
+        __beforeEpochLoop__
+        __afterEpochLoop__
+    """
     def __init__(self):
         super().__init__()
         self.trainset = None
@@ -815,40 +810,11 @@ class Data(SaveClass):
         self.transform = None
         self.__setInputTransform__()
 
-    '''def setTrainData(self, trainset, trainSampler, dataMetadata):
-        self.trainset = trainset
-        self.trainSampler = trainSampler
-        self.trainloader = torch.utils.data.DataLoader(self.trainset, batch_size=dataMetadata.batchTrainSize, sampler=self.trainSampler,
-                                          shuffle=False, num_workers=2, pin_memory=dataMetadata.pin_memoryTrain)
-        return self.trainset, self.trainloader
-
-    def setTestData(self, testset, testSampler, dataMetadata):
-        self.testset = testset
-        self.testSampler = testSampler
-        self.testloader = torch.utils.data.DataLoader(self.testset, batch_size=dataMetadata.batchTestSize, sampler=self.testSampler,
-                                         shuffle=False, num_workers=2, pin_memory=dataMetadata.pin_memoryTest)
-        return self.testset, self.testloader'''
-
     def __setInputTransform__(self):
-        self.transform = transforms.Compose(
-            [transforms.ToTensor(),
-            transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))]
-        )
-        return self.transform
+        raise Exception("Not implemented")
 
     def __prepare__(self, dataMetadata: 'Data_Metadata'):
-        self.__setInputTransform__()
-
-        self.trainset = torchvision.datasets.CIFAR10(root='~/.data', train=True, download=True, transform=self.transform)
-        self.testset = torchvision.datasets.CIFAR10(root='~/.data', train=False, download=True, transform=self.transform)
-        self.trainSampler = BaseSampler(len(self.trainset), dataMetadata.batchTrainSize)
-        self.testSampler = BaseSampler(len(self.testset), dataMetadata.batchTrainSize)
-
-        self.trainloader = torch.utils.data.DataLoader(self.trainset, batch_size=dataMetadata.batchTrainSize, sampler=self.trainSampler,
-                                          shuffle=False, num_workers=2, pin_memory=dataMetadata.pin_memoryTrain, worker_init_fn=dataMetadata.worker_seed if DETERMINISTIC else None)
-
-        self.testloader = torch.utils.data.DataLoader(self.testset, batch_size=dataMetadata.batchTestSize, sampler=self.testSampler,
-                                         shuffle=False, num_workers=2, pin_memory=dataMetadata.pin_memoryTest, worker_init_fn=dataMetadata.worker_seed if DETERMINISTIC else None)
+        raise Exception("Not implemented")
 
     def __train__(self, helperEpoch: 'EpochDataContainer', helper, model: 'Model', dataMetadata: 'Data_Metadata', modelMetadata, metadata: 'Metadata', smoothing: 'Smoothing'):
         # forward + backward + optimize
@@ -858,7 +824,6 @@ class Data(SaveClass):
         model.optimizer.step()
 
         # run smoothing
-        helper.diff = smoothing.lastWeightDifference(model)
         smoothing.call(helperEpoch, helper, model, dataMetadata, modelMetadata, metadata)
 
     def setTrainLoop(self, model: 'Model', modelMetadata: 'Model_Metadata', metadata: 'Metadata'):
@@ -874,45 +839,18 @@ class Data(SaveClass):
         return helper
 
     def __beforeTrainLoop__(self, helperEpoch: 'EpochDataContainer', helper, model: 'Model', dataMetadata: 'Data_Metadata', modelMetadata: 'Model_Metadata', metadata: 'Metadata', smoothing: 'Smoothing'):
-        helper.tmp_sumLoss = 0.0
+        pass
 
     def __beforeTrain__(self, helperEpoch: 'EpochDataContainer', helper, model: 'Model', dataMetadata: 'Data_Metadata', modelMetadata: 'Model_Metadata', metadata: 'Metadata', smoothing: 'Smoothing'):
-        helper.inputs, helper.labels = helper.inputs.to(modelMetadata.device), helper.labels.to(modelMetadata.device)
-        model.optimizer.zero_grad()
+        pass
 
     def __afterTrain__(self, helperEpoch: 'EpochDataContainer', helper, model: 'Model', dataMetadata: 'Data_Metadata', modelMetadata: 'Model_Metadata', metadata: 'Metadata', smoothing: 'Smoothing'):
-        helper.tmp_sumLoss += helper.loss
-        if(helper.batchNumber % 32 == 0 and helper.batchNumber != 0):
-            helperEpoch.statistics.addLoss(helper.tmp_sumLoss / 32)
-            helper.tmp_sumLoss = 0.0
-
-        if(bool(metadata.debugInfo) and dataMetadata.howOftenPrintTrain is not None and helper.batchNumber % dataMetadata.howOftenPrintTrain == 0):
-            calcLoss, current = helper.loss.item(), helper.batchNumber * len(helper.inputs)
-            metadata.stream.print(f"loss: {calcLoss:>7f}  [{current:>5d}/{helper.size:>5d}]")
-
-            averageWeights = smoothing.getWeights()
-            if(bool(averageWeights)):
-                averKey = list(averageWeights.keys())[-1]
-                metadata.stream.printTo(['debug', 'bash'], f"Average: {averageWeights[averKey]}")
-            
-            metadata.stream.print(f"loss: {calcLoss:>7f}  [{current:>5d}/{helper.size:>5d}]")
-            if(helper.diff is None):
-                metadata.stream.print(f"No weight difference")
-            else:
-                diffKey = list(helper.diff.keys())[-1]
-                metadata.stream.printTo(['debug', 'bash'], f"Weight difference: {helper.diff[diffKey]}")
-                metadata.stream.print(f"Weight difference of last layer average: {helper.diff[diffKey].sum() / helper.diff[diffKey].numel()} :: was divided by: {helper.diff[diffKey].numel()}")
-                metadata.stream.print('################################################')
+        pass
 
     def __afterTrainLoop__(self, helperEpoch: 'EpochDataContainer', helper, model: 'Model', dataMetadata: 'Data_Metadata', modelMetadata: 'Model_Metadata', metadata: 'Metadata', smoothing: 'Smoothing'):
         metadata.stream.print("Train summary:")
         metadata.stream.print(f" Average train time ({helper.timer.getUnits()}): {helper.timer.getAverage()}")
         metadata.stream.print(f" Loop train time ({helper.timer.getUnits()}): {helper.loopTimer.getDiff()}")
-
-        if(helper.diff is not None):
-            diffKey = list(helper.diff.keys())[-1]
-            metadata.stream.printFormated("trainLoop;\nAverage train time;Loop train time;Weight difference of last layer average;divided by;")
-            metadata.stream.printFormated(f"{helper.timer.getAverage()};{helper.loopTimer.getDiff()};{helper.diff[diffKey].sum() / helper.diff[diffKey].numel()};{helper.diff[diffKey].numel()}")
 
     def trainLoop(self, model: 'Model', helperEpoch: 'EpochDataContainer', dataMetadata: 'Data_Metadata', modelMetadata: 'Model_Metadata', metadata: 'Metadata', smoothing: 'Smoothing'):
         if(self.trainHelper is None): # jeżeli nie było wznowione; nowe wywołanie
@@ -927,7 +865,7 @@ class Data(SaveClass):
             self.batchNumbTrain = batch
             if(SAVE_AND_EXIT_FLAG):
                 return
-            
+
             self.__beforeTrain__(helperEpoch, self.trainHelper, model, dataMetadata, modelMetadata, metadata, smoothing)
 
             self.trainHelper.timer.clearTime()
@@ -956,24 +894,16 @@ class Data(SaveClass):
         return helper
 
     def __beforeTestLoop__(self, helperEpoch: 'EpochDataContainer', helper, model: 'Model', dataMetadata: 'Data_Metadata', modelMetadata: 'Model_Metadata', metadata: 'Metadata', smoothing: 'Smoothing'):
-        metadata.stream.printFormated("testLoop;\nAverage test time;Loop test time;Accuracy;Avg loss")
+        pass
 
     def __beforeTest__(self, helperEpoch: 'EpochDataContainer', helper, model: 'Model', dataMetadata: 'Data_Metadata', modelMetadata: 'Model_Metadata', metadata: 'Metadata', smoothing: 'Smoothing'):
-        helper.inputs = helper.inputs.to(modelMetadata.device)
-        helper.labels = helper.labels.to(modelMetadata.device)
+        pass
 
     def __afterTest__(self, helperEpoch: 'EpochDataContainer', helper, model: 'Model', dataMetadata: 'Data_Metadata', modelMetadata: 'Model_Metadata', metadata: 'Metadata', smoothing: 'Smoothing'):
-        helper.test_loss += model.loss_fn(helper.pred, helper.labels).item()
-        helper.test_correct += (helper.pred.argmax(1) == helper.labels).type(torch.float).sum().item()
+        pass
 
     def __afterTestLoop__(self, helperEpoch: 'EpochDataContainer', helper, model: 'Model', dataMetadata: 'Data_Metadata', modelMetadata: 'Model_Metadata', metadata: 'Metadata', smoothing: 'Smoothing'):
-        helper.test_loss /= helper.size
-        helper.test_correct /= helper.size
-        metadata.stream.print(f"Test summary: \n Accuracy: {(100*helper.test_correct):>0.1f}%, Avg loss: {helper.test_loss:>8f}")
-        metadata.stream.print(f" Average test time ({helper.timer.getUnits()}): {helper.timer.getAverage()}")
-        metadata.stream.print(f" Loop test time ({helper.timer.getUnits()}): {helper.loopTimer.getDiff()}")
-        metadata.stream.print("")
-        metadata.stream.printFormated(f"{helper.timer.getAverage()};{helper.loopTimer.getDiff()};{(helper.test_correct):>0.0001f};{helper.test_loss:>8f}")
+        pass
 
     def testLoop(self, helperEpoch: 'EpochDataContainer', model: 'Model', dataMetadata: 'Data_Metadata', modelMetadata: 'Model_Metadata', metadata: 'Metadata', smoothing: 'Smoothing'):
         if(self.testHelper is None): # jeżeli nie było wznowione; nowe wywołanie
@@ -1017,30 +947,11 @@ class Data(SaveClass):
         Reprezentuje pojedynczy epoch.
         Znajduje się tu cała logika epocha. Aby wykorzystać możliwość wyjścia i zapisu w danym momencie stanu modelu, należy zastosować konstrukcję:
 
-        if(enabledSaveAndExit()):\n
-            return 
-        """
-        if(metadata.trainFlag):
-            self.trainLoop(model, helperEpoch, dataMetadata, modelMetadata, metadata, smoothing)
-        
-        if(SAVE_AND_EXIT_FLAG):
+        if(enabledSaveAndExit()):
             return 
 
-        with torch.no_grad():
-            if(metadata.testFlag):
-                metadata.stream.write("Plain weights, ")
-                metadata.stream.writeFormated("Plain weights;")
-                self.testLoop(helperEpoch, model, dataMetadata, modelMetadata, metadata, smoothing)
-                smoothing.saveMainWeight(model)
-                if(smoothing.getWeights()):
-                    model.setWeights(smoothing.getWeights())
-                    metadata.stream.write("Smoothing weights, ")
-                    metadata.stream.writeFormated("Smoothing weights;")
-                    self.testLoop(helperEpoch, model, dataMetadata, modelMetadata, metadata, smoothing)
-                else:
-                    print('Smoothing is not enabled. Test does not executed.')
-            # model.linear1.weight = torch.nn.parameter.Parameter(model.average)
-            # model.linear1.weight = model.average
+        """
+        raise Exception("Not implemented")
 
     def epochLoop(self, model: 'Model', dataMetadata: 'Data_Metadata', modelMetadata: 'Model_Metadata', metadata: 'Metadata', smoothing: 'Smoothing'):
         '''smoothing = Smoothing()
@@ -1077,16 +988,7 @@ class Data(SaveClass):
         self.epochNumb = 0
 
     def __update__(self, dataMetadata: 'Data_Metadata'):
-        self.trainset = torchvision.datasets.CIFAR10(root='~/.data', train=True, download=True, transform=self.transform)
-        self.testset = torchvision.datasets.CIFAR10(root='~/.data', train=False, download=True, transform=self.transform)
-        self.__setInputTransform__()
-        if(self.trainset is not None or self.trainSampler is not None):
-            self.trainloader = torch.utils.data.DataLoader(self.trainset, batch_size=dataMetadata.batchTrainSize, sampler=self.trainSampler,
-                                          shuffle=False, num_workers=2, pin_memory=dataMetadata.pin_memoryTrain, worker_init_fn=dataMetadata.worker_seed if DETERMINISTIC else None)
-
-        if(self.testset is not None or self.testSampler is not None):
-            self.testloader = torch.utils.data.DataLoader(self.testset, batch_size=dataMetadata.batchTestSize, sampler=self.testSampler,
-                                         shuffle=False, num_workers=2, pin_memory=dataMetadata.pin_memoryTest, worker_init_fn=dataMetadata.worker_seed if DETERMINISTIC else None)
+        raise Exception("Not implemented")
 
     def trySave(self, metadata: 'Metadata', onlyKeyIngredients = False, temporaryLocation = False):
         return super().trySave(metadata, StaticData.DATA_SUFFIX, onlyKeyIngredients, temporaryLocation)
@@ -1124,13 +1026,12 @@ class Smoothing(SaveClass):
         self.counter += 1
         if(self.counter > self.numbOfBatchAfterSwitchOn):
             self.countWeights += 1
-            helper.substract = {}
+            helper.diff = {}
             with torch.no_grad():
                 for key, arg in model.named_parameters():
                     self.sumWeights[key].add_(arg)
-            for key, arg in model.named_parameters():
-                helper.substract[key] = arg.sub(self.previousWeights[key])
-                self.previousWeights[key].data.copy_(arg.data)
+                    helper.diff[key] = arg.sub(self.previousWeights[key])
+                    self.previousWeights[key].data.copy_(arg.data)
 
     def getWeights(self):
         """
@@ -1193,123 +1094,22 @@ class Smoothing(SaveClass):
     def canUpdate():
         return False
 
-
-
-
-    def beforeParamUpdate(self, model):
-        return
-
-    def afteParamUpdate(self, model):
-        return
-
-    def shapeLike(self, model):
-        return
-
-    def getWeightsAverage(self):
-        return
-
-    def getString(self):
-        return
-
-    def getStringDebug(self):
-        return
-
     def saveMainWeight(self, model):
         self.mainWeights = model.getWeights()
-
-    def addToAverageWeights(self, model):
-        if(self.enabled == False):
-            return
-        with torch.no_grad():
-            for key, arg in model.named_parameters():
-                self.sumWeights[key].add_(arg)
         
     # ważne
     def getStateDict(self):
+        #inheritance
         average = {}
         for key, arg in self.sumWeights.items():
             average[key] = self.sumWeights[key] / self.countWeights
         return average
 
-    '''def fullAverageWeights(self, model):
-        self.counter += 1
-        self.countWeights += 1
-        return self.addToAverageWeights(model)
-      
-    def lateStartAverageWeights(self, model):
-        self.counter += 1
-        if(self.countWeights > self.numbOfBatchAfterSwitchOn):
-            self.countWeights += 1
-            return self.addToAverageWeights(model)
-        return dict(model)'''
-
-    def comparePrevWeights(self, model):
-        substract = {}
-        self.addToAverageWeights(model)
-        for key, arg in model.named_parameters():
-            substract[key] = arg.sub(self.previousWeights[key])
-            self.previousWeights[key].data.copy_(arg.data)
-        return substract
-
-    def lastWeightDifference(self, model):
-        if(self.enabled == False):
-            return
-        self.counter += 1
-        if(self.counter > self.numbOfBatchAfterSwitchOn):
-            self.countWeights += 1
-            return self.comparePrevWeights(model)
-        return None
-
-    def forwardLossFun(self, loss):
-        self.lossSum += loss
-        self.lossList.append(loss)
-        self.lossCounter += 1
-        if(self.lossCounter > self.flushLossSum):
-            self.lossAverage.append(self.lossSum / self.lossCounter)
-            self.lossSum = 0.0
-            self.lossCounter = 0
-            variance = statistics.variance(self.lossList, self.lossAverage[-1])
-            print(self.lossAverage[-1])
-            print(variance)
-
-    '''def __update__(self):
-        if(bool(self.sumWeights)):
-            for key, val in self.sumWeights.items():
-                val.to('cuda:0')
-        if(bool(self.previousWeights)):
-            for key, val in self.previousWeights.items():
-                val.to('cuda:0')
-        if(self.mainWeights is not None):
-            self.mainWeights.to('cuda:0')'''
 
 class Model(nn.Module, SaveClass):
     def __init__(self, modelMetadata):
         nn.Module.__init__(self)
         SaveClass.__init__(self)
-        self.conv1 = nn.Conv2d(3, 6, 5)
-        self.pool = nn.MaxPool2d(2, 2)
-        self.conv2 = nn.Conv2d(6, 16, 5)
-        self.linear1 = nn.Linear(16 * 5 * 5, 120)
-        self.linear2 = nn.Linear(120, 84)
-        self.linear3 = nn.Linear(84, 10)
-
-        self.loss_fn = nn.CrossEntropyLoss()
-        self.optimizer = optim.AdamW(self.parameters(), lr=modelMetadata.learning_rate)
-        #self.optimizer = optim.SGD(self.parameters(), lr=metadata.hiperparam.learning_rate, momentum=metadata.hiperparam.momentum)
-
-        #self.weightsStateDict: dict = None
-        #self.weightsStateDictType = None
-
-        self.to(modelMetadata.device)
-
-    def forward(self, x):
-        x = self.pool(F.hardswish(self.conv1(x)))
-        x = self.pool(F.hardswish(self.conv2(x)))
-        x = x.view(-1, 16 * 5 * 5)
-        x = F.hardswish(self.linear1(x))
-        x = F.hardswish(self.linear2(x))
-        x = self.linear3(x)
-        return x
 
     def __getstate__(self):
         return self.__dict__.copy()
@@ -1318,52 +1118,17 @@ class Model(nn.Module, SaveClass):
         self.__dict__.update(state)
         self.eval()
 
-    '''def cloneStateDict(weights: dict):
-        newDict = dict()
-        for key, val in weights.items():
-            newDict[key] = torch.clone(val)
-        return newDict'''
-
-    '''def pinAverageWeights(self, weights: dict, copy = False):
-        if(copy):
-            self.weightsStateDict = Model.cloneStateDict(weights)
-        else:
-            self.weightsStateDict = weights
-        self.weightsStateDictType = 'plain'''
-
     def setWeights(self, weights):
-        # inherent
         self.load_state_dict(weights)
 
     def getWeights(self):
         return self.state_dict()
-
-    '''def swapWeights(self):
-        if(self.weightsStateDictType == 'smoothing' and self.weightsStateDict is not None):
-            tmp = self.state_dict()
-            self.load_state_dict(self.weightsStateDict)
-            self.weightsStateDict = tmp
-            self.weightsStateDictType = 'plain'
-            return 'plain'
-        elif(self.weightsStateDictType == 'plain' and self.weightsStateDict is not None):
-            tmp = self.state_dict()
-            self.load_state_dict(self.weightsStateDict)
-            self.weightsStateDict = tmp
-            self.weightsStateDictType = 'smoothing'
-            return 'smoothing'
-        else:
-            raise Exception("unknown command or unset variables")'''
     
     def __update__(self, modelMetadata):
         '''
         Updates the model against the metadata and binds the metadata to the model
         '''
         self.to(modelMetadata.device)
-        #self.loss_fn.to(metadata.device)
-
-        # must create new optimizer because we changed the model device. It must be set after setting model.
-        # Some optimizers like Adam will have problem with it, others like SGD wont.
-        self.optimizer = optim.AdamW(self.parameters(), lr=modelMetadata.learning_rate)
 
     def trySave(self, metadata, onlyKeyIngredients = False, temporaryLocation = False):
         return super().trySave(metadata, StaticData.MODEL_SUFFIX, onlyKeyIngredients, temporaryLocation)
@@ -1444,10 +1209,22 @@ def modelRun(Metadata_Class, Data_Metadata_Class, Model_Metadata_Class, Data_Cla
         dictObjs[Metadata_Class.__name__], dictObjs[Smoothing_Class.__name__]
         )
 
-    trySave(dictObjs, True)
+    trySave(dictObjs)
 
     return stat
 
+#########################################
+# other functions
+def cloneTorchDict(weights: dict):
+    newDict = dict()
+    for key, val in weights.items():
+        newDict[key] = torch.clone(val)
+    return newDict
+
+def checkStrCUDA(string):
+        return string.startswith('cuda')
+
+#########################################
 # test   
 def modelDeterm():
     stat = []

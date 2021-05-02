@@ -1,7 +1,7 @@
 #!/bin/bash 
 
 declare -a commands=(
-    "python smoothing/smoothingFramework.py -l test -s test --name testModel --test true --train true --pinTest false -d --debugOutput debug --modelOutput model --bashOutput true --formatedOutput formated"
+    "python smoothing/testModel.py -l test -s test --name testModel --test true --train true --pinTest false -d --debugOutput debug --modelOutput model --bashOutput true --formatedOutput formated"
 )
 
 declare -a names=(
