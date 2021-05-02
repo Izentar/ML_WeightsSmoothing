@@ -4,3 +4,4 @@
 *.cpy
 learning/
 TODO
+__pycache__/

@@ -738,12 +738,32 @@ class Data(SaveClass):
         self.__setInputTransform__()
 
     def __setInputTransform__(self):
+        """
+        Wymaga przypisania wartości \n
+            self.transform = ...
+        """
         raise Exception("Not implemented")
 
     def __prepare__(self, dataMetadata: 'Data_Metadata'):
+        """
+        Używane przy pierwszym strojeniu.\n 
+        Wymaga wywołania lub analogicznej akcji \n
+            self.__setInputTransform__()\n\n
+        Wymaga przypisania wartości \n
+            self.trainset = ... \n
+            self.testset = ...\n
+            self.trainSampler = ...\n
+            self.testSampler = ...\n
+            self.trainloader = ...\n
+            self.testloader = ...\n
+        """
         raise Exception("Not implemented")
 
     def __train__(self, helperEpoch: 'EpochDataContainer', helper, model: 'Model', dataMetadata: 'Data_Metadata', modelMetadata, metadata: 'Metadata', smoothing: 'Smoothing'):
+        """
+        Główna logika treningu modelu. Następuje pomiar czasu dla wykonania danej metody.
+        """
+        
         # forward + backward + optimize
         outputs = model(helper.inputs)
         helper.loss = model.loss_fn(outputs, helper.labels)
@@ -765,7 +785,7 @@ class Data(SaveClass):
 
         return helper
 
-    def __beforeTrainLoop__(self, helperEpoch: 'EpochDataContainer', helper, model: 'Model', dataMetadata: 'Data_Metadata', modelMetadata: 'Model_Metadata', metadata: 'Metadata', smoothing: 'Smoothing'):
+    def __beforeTrainLoop__(self, helperEpoch: 'EpochDataContainer', helper, model: 'Model', dataMetadata: 'Data_Metadata', modelMetadata: 'Model_Metadata', metadata: 'Metadata', smoothing: 'Smoothing'):      
         pass
 
     def __beforeTrain__(self, helperEpoch: 'EpochDataContainer', helper, model: 'Model', dataMetadata: 'Data_Metadata', modelMetadata: 'Model_Metadata', metadata: 'Metadata', smoothing: 'Smoothing'):
@@ -780,6 +800,9 @@ class Data(SaveClass):
         metadata.stream.print(f" Loop train time ({helper.timer.getUnits()}): {helper.loopTimer.getDiff()}")
 
     def trainLoop(self, model: 'Model', helperEpoch: 'EpochDataContainer', dataMetadata: 'Data_Metadata', modelMetadata: 'Model_Metadata', metadata: 'Metadata', smoothing: 'Smoothing'):
+        """
+        Główna logika pętli treningowej.
+        """
         if(self.trainHelper is None): # jeżeli nie było wznowione; nowe wywołanie
             self.trainHelper = self.setTrainLoop(model, modelMetadata, metadata)
         self.__beforeTrainLoop__(helperEpoch, self.trainHelper, model, dataMetadata, modelMetadata, metadata, smoothing)
@@ -808,6 +831,10 @@ class Data(SaveClass):
         self.trainHelper = None
 
     def __test__(self, helperEpoch: 'EpochDataContainer', helper, model: 'Model', dataMetadata: 'Data_Metadata', modelMetadata: 'Model_Metadata', metadata: 'Metadata', smoothing: 'Smoothing'):
+        """
+        Główna logika testu modelu. Następuje pomiar czasu dla wykonania danej metody.
+        """
+        
         helper.pred = model(helper.inputs)
 
     def setTestLoop(self, model: 'Model', modelMetadata: 'Model_Metadata', metadata: 'Metadata'):
@@ -913,6 +940,18 @@ class Data(SaveClass):
         self.epochNumb = 0
 
     def __update__(self, dataMetadata: 'Data_Metadata'):
+        """
+        Używane przy wczytaniu obiektu.\n 
+        Wymaga wywołania lub analogicznej akcji \n
+            self.__setInputTransform__()\n\n
+        Wymaga przypisania wartości \n
+            self.trainset = ... \n
+            self.testset = ...\n
+            self.trainSampler = ...\n
+            self.testSampler = ...\n
+            self.trainloader = ...\n
+            self.testloader = ...\n
+        """
         raise Exception("Not implemented")
 
     def trySave(self, metadata: 'Metadata', onlyKeyIngredients = False, temporaryLocation = False):
