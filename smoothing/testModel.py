@@ -183,7 +183,7 @@ class TestData(sf.Data):
                                          shuffle=False, num_workers=2, pin_memory=dataMetadata.pin_memoryTest, worker_init_fn=dataMetadata.worker_seed if sf.enabledDeterminism() else None)
 
     def __update__(self, dataMetadata):
-        self.__prepare__()
+        self.__prepare__(dataMetadata)
 
     def __beforeTrainLoop__(self, helperEpoch: 'EpochDataContainer', helper, model: 'Model', dataMetadata: 'Data_Metadata', modelMetadata: 'Model_Metadata', metadata: 'Metadata', smoothing: 'Smoothing'):
         helper.tmp_sumLoss = 0.0
@@ -194,9 +194,11 @@ class TestData(sf.Data):
 
     def __afterTrain__(self, helperEpoch: 'EpochDataContainer', helper, model: 'Model', dataMetadata: 'Data_Metadata', modelMetadata: 'Model_Metadata', metadata: 'Metadata', smoothing: 'Smoothing'):
         helper.tmp_sumLoss += helper.loss
-        if(helper.batchNumber % 32 == 0 and helper.batchNumber != 0):
-            helperEpoch.statistics.addLoss(helper.tmp_sumLoss / 32)
-            helper.tmp_sumLoss = 0.0
+        #if(helper.batchNumber % 32 == 0 and helper.batchNumber != 0):
+        #    helperEpoch.statistics.addLoss(helper.tmp_sumLoss / 32)
+        #    helper.tmp_sumLoss = 0.0
+
+        helperEpoch.statistics.addLoss(helper.loss)
 
         if(bool(metadata.debugInfo) and dataMetadata.howOftenPrintTrain is not None and helper.batchNumber % dataMetadata.howOftenPrintTrain == 0):
             calcLoss, current = helper.loss.item(), helper.batchNumber * len(helper.inputs)

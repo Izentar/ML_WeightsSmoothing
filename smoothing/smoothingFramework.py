@@ -1220,7 +1220,7 @@ def modelRun(Metadata_Class, Data_Metadata_Class, Model_Metadata_Class, Data_Cla
         dictObjs[Metadata_Class.__name__], dictObjs[Data_Metadata_Class.__name__], dictObjs[Model_Metadata_Class.__name__], sys.argv[1:]
         )
     if(metadataLoaded): # if model should be loaded
-        dictObjsTmp = tryLoad([(Data_Metadata_Class, Data_Class), (None, Smoothing_Class), (Model_Metadata_Class, Model_Class)], metadata)
+        dictObjsTmp = tryLoad([(Data_Metadata_Class, Data_Class), (None, Smoothing_Class), (Model_Metadata_Class, Model_Class)], dictObjs[Metadata_Class.__name__])
         if(dictObjsTmp is None):
             loadedSuccessful = False
         else:
