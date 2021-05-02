@@ -19,7 +19,6 @@ import numpy
 
 SAVE_AND_EXIT_FLAG = False
 DETERMINISTIC = False
-DATA_LOADED = False
 
 
 def saveWorkAndExit(signumb, frame):
@@ -36,9 +35,6 @@ def enabledDeterminism():
 
 def enabledSaveAndExit():
     return bool(SAVE_AND_EXIT_FLAG)
-
-def enabledDataLoaded():
-    return bool(DATA_LOADED)
 
 signal.signal(signal.SIGTSTP, saveWorkAndExit)
 
@@ -76,10 +72,9 @@ class StaticData:
 class SaveClass:
     def __init__(self):
         self.only_Key_Ingredients = None
-    '''
-    Should implement __setstate__ and __getstate__
-    and children should implement its own static class methods tryLoad and trySave that invoke those.
-    '''
+    """
+    Child class should implement its own trySave, getFileSuffix(), canUpdate() methods.
+    """
 
     def tryLoad(metadata, Class, classMetadataObj = None, temporaryLocation = False):
         suffix = Class.getFileSuffix()
@@ -216,77 +211,6 @@ class Metadata(SaveClass):
             self.stream.open('bash')
         if(self.formatedOutput is not None):
             self.stream.open('formatedLog', self.formatedOutput)
-
-    def commandLineArg(self, dataMetadata, modelMetadata, argv):
-        """
-        Returns new Metadata object if loading was successful. In that case loaded object ignores any provided flags.
-        Otherwise None.
-        """
-        help = 'Help:\n'
-        help += os.path.basename(__file__) + ' -h <help> [-s,--save] <file name to save> [-l,--load] <file name to load>'
-
-        shortOptions = 'hs:l:d'
-        longOptions = [
-            'save=', 'load=', 'test=', 'train=', 'pinTest=', 'pinTrain=', 'debug', 
-            'debugOutput=',
-            'modelOutput=',
-            'bashOutput=',
-            'name=',
-            'formatedOutput='
-            ]
-
-        try:
-            opts, args = getopt.getopt(argv, shortOptions, longOptions)
-        except getopt.GetoptError:
-            Metadata.exitError(help)
-
-        for opt, arg in opts:
-            if opt in ('-h', '--help'):
-                print(help)
-                sys.exit()
-            elif opt in ('-s', '--save'):
-                self.fileNameSave = arg
-            elif opt in ('-l', '--load'):
-                self.fileNameLoad = arg
-            elif opt in ('--test'):
-                boolean = Metadata.onOff(arg)
-                self.testFlag = boolean if boolean is not None else Metadata.exitError(help)
-            elif opt in ('--train'):
-                boolean = Metadata.onOff(arg)
-                self.trainFlag = boolean if boolean is not None else Metadata.exitError(help)
-            elif opt in ('--pinTest'):
-                boolean = Metadata.onOff(arg)
-                dataMetadata.tryPinMemoryTest(self, modelMetadata) if boolean is not None else Metadata.exitError(help)
-            elif opt in ('--pinTrain'):
-                boolean = Metadata.onOff(arg)
-                dataMetadata.tryPinMemoryTrain(self, modelMetadata) if boolean is not None else Metadata.exitError(help)
-            elif opt in ('-d', '--debug'):
-                self.debugInfo = True
-            elif opt in ('--debugOutput'):
-                self.debugOutput = arg # debug output file path
-            elif opt in ('--modelOutput'):
-                self.modelOutput = arg # model output file path
-            elif opt in ('--bashOutput'):
-                boolean = Metadata.onOff(arg)
-                self.bashFlag = boolean if boolean is not None else Metadata.exitError(help)
-            elif opt in ('--formatedOutput'):
-                self.formatedOutput = arg # formated output file path
-            elif opt in ('--name'):
-                self.name = arg
-
-        if(self.modelOutput is None):
-            self.modelOutput = 'default.log'
-
-        if(self.debugOutput is None):
-            self.debugOutput = 'default.log'  
-        
-        if(self.fileNameLoad is not None):
-            d = SaveClass.tryLoad(self, Metadata)
-            if(d is None):
-                return None
-            print("Command line options mostly ignored.")
-            return d
-        return self
 
     def __getstate__(self):
         return self.__dict__.copy()
@@ -734,6 +658,9 @@ class Data(SaveClass):
         __afterTestLoop__
         __beforeEpochLoop__
         __afterEpochLoop__
+
+        Metody, których nie powinno się przeciążać
+        __getstate__
     """
     def __init__(self):
         super().__init__()
@@ -954,8 +881,6 @@ class Data(SaveClass):
         raise Exception("Not implemented")
 
     def epochLoop(self, model: 'Model', dataMetadata: 'Data_Metadata', modelMetadata: 'Model_Metadata', metadata: 'Metadata', smoothing: 'Smoothing'):
-        '''smoothing = Smoothing()
-        smoothing.setDictionary(model.named_parameters())'''
         metadata.prepareOutput()
         self.epochHelper = EpochDataContainer()
 
@@ -1046,9 +971,9 @@ class Smoothing(SaveClass):
         return average
 
     def setDictionary(self, dictionary):
-        '''
+        """
         Used to map future weights into internal sums.
-        '''
+        """
 
         for key, values in dictionary:
             self.sumWeights[key] = torch.zeros_like(values, requires_grad=False)
@@ -1065,14 +990,6 @@ class Smoothing(SaveClass):
             del state['mainWeights']
             del state['sumWeights']
             del state['enabled']
-
-        '''
-        del state['previousWeights']
-        del state['mainWeights']
-        state['tensors']
-        state['sumWeights'] = self.sumWeights.state_dict()
-        state['previousWeights'] = self.previousWeights.state_dict()
-        state['mainWeights'] = self.mainWeights.state_dict()'''
         return state
 
     def __setstate__(self, state):
@@ -1107,6 +1024,16 @@ class Smoothing(SaveClass):
 
 
 class Model(nn.Module, SaveClass):
+    """
+        Metody, które wymagają przeciążenia bez wywołania super()
+        __update__
+
+        Metody, które wymagają przeciążenia z wywołaniem super()
+        __init__
+
+        Metody, które można przeciążyć i wymagają użycia super()
+        __setstate__
+    """
     def __init__(self, modelMetadata):
         nn.Module.__init__(self)
         SaveClass.__init__(self)
@@ -1125,10 +1052,7 @@ class Model(nn.Module, SaveClass):
         return self.state_dict()
     
     def __update__(self, modelMetadata):
-        '''
-        Updates the model against the metadata and binds the metadata to the model
-        '''
-        self.to(modelMetadata.device)
+        raise Exception("Not implemented")
 
     def trySave(self, metadata, onlyKeyIngredients = False, temporaryLocation = False):
         return super().trySave(metadata, StaticData.MODEL_SUFFIX, onlyKeyIngredients, temporaryLocation)
@@ -1159,9 +1083,6 @@ def tryLoad(tupleClasses: list, metadata, temporaryLocation = False):
             dictObjs[objcl.__name__] = SaveClass.tryLoad(metadata, objcl, temporaryLocation=temporaryLocation)
             if(dictObjs[objcl.__name__] is None):
                 return None
-        #update does not needed
-        '''if(mdcl is not None):
-            dictObjs[objcl.__name__].__update__(dictObjs[mdcl.__name__])'''
     return dictObjs
 
 def trySave(dictObjs: dict, onlyKeyIngredients = False, temporaryLocation = False):
@@ -1172,29 +1093,105 @@ def trySave(dictObjs: dict, onlyKeyIngredients = False, temporaryLocation = Fals
         if(key != 'Metadata'):
             obj.trySave(md, onlyKeyIngredients, temporaryLocation)
 
-def modelRun(Metadata_Class, Data_Metadata_Class, Model_Metadata_Class, Data_Class, Model_Class, Smoothing_Class):
-    metadata = Metadata_Class()
-    metadata.prepareOutput()
-    loadedSuccessful = False
+def commandLineArg(metadata, dataMetadata, modelMetadata, argv, enableLoad = True):
+    help = 'Help:\n'
+    help += os.path.basename(__file__) + ' -h <help> [-s,--save] <file name to save> [-l,--load] <file name to load>'
 
-    dictObjs = {Metadata_Class.__name__: metadata}
+    loadedMetadata = None
+
+    shortOptions = 'hs:l:d'
+    longOptions = [
+        'save=', 'load=', 'test=', 'train=', 'pinTest=', 'pinTrain=', 'debug', 
+        'debugOutput=',
+        'modelOutput=',
+        'bashOutput=',
+        'name=',
+        'formatedOutput='
+        ]
+
+    try:
+        opts, args = getopt.getopt(argv, shortOptions, longOptions)
+    except getopt.GetoptError:
+        Metadata.exitError(help)
+
+    for opt, arg in opts:
+        if opt in ('-l', '--load') and enableLoad:
+            metadata.fileNameLoad = arg
+            loadedMetadata = SaveClass.tryLoad(metadata, Metadata)
+            if(loadedMetadata is None):
+                break
+            print("Command line options ignored because class Metadata was loaded.")
+            return loadedMetadata, True
+
+    for opt, arg in opts:
+        if opt in ('-h', '--help'):
+            print(help)
+            sys.exit()
+        elif opt in ('-s', '--save'):
+            metadata.fileNameSave = arg
+        elif opt in ('-l', '--load'):
+            continue
+        elif opt in ('--test'):
+            boolean = Metadata.onOff(arg)
+            metadata.testFlag = boolean if boolean is not None else Metadata.exitError(help)
+        elif opt in ('--train'):
+            boolean = Metadata.onOff(arg)
+            metadata.trainFlag = boolean if boolean is not None else Metadata.exitError(help)
+        elif opt in ('--pinTest'):
+            boolean = Metadata.onOff(arg)
+            dataMetadata.tryPinMemoryTest(metadata, modelMetadata) if boolean is not None else Metadata.exitError(help)
+        elif opt in ('--pinTrain'):
+            boolean = Metadata.onOff(arg)
+            dataMetadata.tryPinMemoryTrain(metadata, modelMetadata) if boolean is not None else Metadata.exitError(help)
+        elif opt in ('-d', '--debug'):
+            metadata.debugInfo = True
+        elif opt in ('--debugOutput'):
+            metadata.debugOutput = arg # debug output file path
+        elif opt in ('--modelOutput'):
+            metadata.modelOutput = arg # model output file path
+        elif opt in ('--bashOutput'):
+            boolean = Metadata.onOff(arg)
+            metadata.bashFlag = boolean if boolean is not None else Metadata.exitError(help)
+        elif opt in ('--formatedOutput'):
+            metadata.formatedOutput = arg # formated output file path
+        elif opt in ('--name'):
+            metadata.name = arg
+        else:
+            print("Unknown flag provided to program: {}.".format(opt))
+
+    if(metadata.modelOutput is None):
+        metadata.modelOutput = 'default.log'
+
+    if(metadata.debugOutput is None):
+        metadata.debugOutput = 'default.log'  
+    
+    return metadata, False
+
+def modelRun(Metadata_Class, Data_Metadata_Class, Model_Metadata_Class, Data_Class, Model_Class, Smoothing_Class):
+    dictObjs = {}
+    dictObjs[Metadata_Class.__name__] = Metadata_Class()
+    dictObjs[Metadata_Class.__name__].prepareOutput()
+    loadedSuccessful = False
+    metadataLoaded = None
+
     dictObjs[Data_Metadata_Class.__name__] = Data_Metadata_Class()
     dictObjs[Model_Metadata_Class.__name__] = Model_Metadata_Class()
 
-    metadataTmp = metadata.commandLineArg(dictObjs[Data_Metadata_Class.__name__], dictObjs[Model_Metadata_Class.__name__], sys.argv[1:])
-    if(metadataTmp is not None): # if model should be loaded
-        metadata = metadataTmp
+    dictObjs[Metadata_Class.__name__], metadataLoaded = commandLineArg(
+        dictObjs[Metadata_Class.__name__], dictObjs[Data_Metadata_Class.__name__], dictObjs[Model_Metadata_Class.__name__], sys.argv[1:]
+        )
+    if(metadataLoaded): # if model should be loaded
         dictObjsTmp = tryLoad([(Data_Metadata_Class, Data_Class), (None, Smoothing_Class), (Model_Metadata_Class, Model_Class)], metadata)
         if(dictObjsTmp is None):
             loadedSuccessful = False
         else:
             dictObjs = dictObjsTmp
-            metadata = dictObjs[Metadata_Class.__name__]
+            dictObjs[Metadata_Class.__name__] = dictObjs[Metadata_Class.__name__]
             loadedSuccessful = True
-            metadata.printContinueLoadedModel()
+            dictObjs[Metadata_Class.__name__].printContinueLoadedModel()
 
     if(loadedSuccessful == False):
-        metadata.printStartNewModel()
+        dictObjs[Metadata_Class.__name__].printStartNewModel()
         dictObjs[Data_Class.__name__] = Data_Class()
         
         dictObjs[Data_Class.__name__].__prepare__(dictObjs[Data_Metadata_Class.__name__])
@@ -1226,31 +1223,31 @@ def checkStrCUDA(string):
 
 #########################################
 # test   
-def modelDeterm():
+def modelDetermTest(Metadata_Class, Data_Metadata_Class, Model_Metadata_Class, Data_Class, Model_Class, Smoothing_Class):
     stat = []
     for i in range(2):
-        metadata = Metadata()
-        metadata.prepareOutput()
+        dictObjs = {}
+        dictObjs[Metadata_Class.__name__] = Metadata_Class()
+        dictObjs[Metadata_Class.__name__].prepareOutput()
         loadedSuccessful = False
 
-        dictObjs = {'Metadata': metadata}
-        dictObjs['Data_Metadata'] = Data_Metadata()
-        dictObjs['Model_Metadata'] = Model_Metadata()
+        dictObjs[Data_Metadata_Class.__name__] = Data_Metadata_Class()
+        dictObjs[Model_Metadata_Class.__name__] = Model_Metadata_Class()
 
-        metadata.commandLineArg(dictObjs['Data_Metadata'], dictObjs['Model_Metadata'], sys.argv[1:])
+        dictObjs[Metadata_Class.__name__], _ = commandLineArg(dictObjs[Metadata_Class.__name__], dictObjs[Data_Metadata_Class.__name__], dictObjs[Model_Metadata_Class.__name__], sys.argv[1:], False)
 
-        metadata.printStartNewModel()
-        dictObjs['Data'] = Data()
+        dictObjs[Metadata_Class.__name__].printStartNewModel()
+        dictObjs[Data_Class.__name__] = Data_Class()
         
-        dictObjs['Data'].__prepare__(dictObjs['Data_Metadata'])
+        dictObjs[Data_Class.__name__].__prepare__(dictObjs[Data_Metadata_Class.__name__])
         
-        dictObjs['Smoothing'] = Smoothing()
-        dictObjs['Model'] = Model(dictObjs['Model_Metadata'])
+        dictObjs[Smoothing_Class.__name__] = Smoothing_Class()
+        dictObjs[Model_Class.__name__] = Model_Class(dictObjs[Model_Metadata_Class.__name__])
 
-        dictObjs['Smoothing'].setDictionary(dictObjs['Model'].named_parameters())
+        dictObjs[Smoothing_Class.__name__].setDictionary(dictObjs[Model_Class.__name__].named_parameters())
 
         stat.append(
-             dictObjs['Data'].epochLoop(dictObjs['Model'], dictObjs['Data_Metadata'], dictObjs['Model_Metadata'], dictObjs['Metadata'], dictObjs['Smoothing'])
+             dictObjs[Data_Class.__name__].epochLoop(dictObjs[Model_Class.__name__], dictObjs[Data_Metadata_Class.__name__], dictObjs[Model_Metadata_Class.__name__], dictObjs[Metadata_Class.__name__], dictObjs[Smoothing_Class.__name__])
         )
     equal = True
     for idx, (x) in enumerate(stat[0].trainLossArray):
@@ -1273,62 +1270,3 @@ if(__name__ == '__main__'):
     plt.xlabel('Train index')
     plt.ylabel('Loss')
     plt.show()
-
-
-'''
-dataDict = {
-    0: 'a0',
-    1: 'b1',
-    2: 'c2',
-    3: 'd3',
-    4: 'e4',
-    5: 'f5',
-    6: 'g6',
-    7: 'h7',
-    8: 'i8',
-    9: 'j9'
-}
-
-transform = transforms.Compose(
-    [transforms.ToTensor(),
-    transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))]
-)
-testset = torchvision.datasets.CIFAR10(root='~/.data', train=False, download=True, transform=transform)
-sampler = BaseSampler(testset, 4, seed=6893647)
-testloader = torch.utils.data.DataLoader(testset, batch_size=4, sampler=sampler,
-                                    shuffle=False, num_workers=2, pin_memory=True)
-
-
-
-
-for i, (x, y) in enumerate(testloader):
-    print(x, y)
-    if(i == 1):
-        break'''
-'''
-stats = ((0.5074,0.4867,0.4411),(0.2011,0.1987,0.2025))
-train_transform = transforms.Compose(
-            [transforms.ToTensor(),
-            transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))]
-        )
-
-train_data = torchvision.datasets.CIFAR100(download=True,root="~/.data",transform=train_transform)
-train_dl = torch.utils.data.DataLoader(train_data,128,num_workers=4,pin_memory=True,shuffle=True)
-
-for image,label in train_data:
-    print("Image shape: ",image.shape)
-    print("Image tensor: ", image)
-    print("Label: ", label)
-    break
-
-def show_batch(dl):
-    for batch in dl:
-        images,labels = batch
-        fig, ax = plt.subplots(figsize=(7.5,7.5))
-        ax.set_yticks([])
-        ax.set_xticks([])
-        ax.imshow(torchvision.utils.make_grid(images[:20],nrow=5, normalize=True).permute(1,2,0))
-        plt.show()
-        break
-
-show_batch(train_dl)'''

@@ -64,7 +64,7 @@ class TestModel(sf.Model):
         return x
     
     def __update__(self, modelMetadata):
-        super().__update__(modelMetadata)
+        self.to(modelMetadata.device)
         self.optimizer = optim.SGD(self.parameters(), lr=modelMetadata.learning_rate, momentum=modelMetadata.momentum)
 
         # must create new optimizer because we changed the model device. It must be set after setting model.
@@ -286,6 +286,7 @@ class TestData(sf.Data):
 
 if(__name__ == '__main__'):
     sf.useDeterministic()
+    #sf.modelDetermTest(sf.Metadata, TestData_Metadata, TestModel_Metadata, TestData, TestModel, TestSmoothing)
     stat = sf.modelRun(sf.Metadata, TestData_Metadata, TestModel_Metadata, TestData, TestModel, TestSmoothing)
 
     plt.plot(stat.trainLossArray)
