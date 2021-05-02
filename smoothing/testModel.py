@@ -10,6 +10,7 @@ import torch.nn.functional as F
 class TestModel_Metadata(sf.Model_Metadata):
     def __init__(self):
         sf.Model_Metadata.__init__(self)
+        self.device = 'cuda:0'
         self.learning_rate = 1e-3
         self.momentum = 0.9
         self.oscilationMax = 0.001
@@ -52,6 +53,7 @@ class TestModel(sf.Model):
         self.optimizer = optim.SGD(self.parameters(), lr=modelMetadata.learning_rate, momentum=modelMetadata.momentum)
         #self.optimizer = optim.AdamW(self.parameters(), lr=modelMetadata.learning_rate)
 
+        self.__initializeWeights__()
         self.to(modelMetadata.device)
 
     def forward(self, x):
@@ -63,6 +65,16 @@ class TestModel(sf.Model):
         x = self.linear3(x)
         return x
     
+    def __initializeWeights__(self):
+        for mod in self.modules():
+            if(isinstance(mod, nn.Conv2d)):
+                nn.init.kaiming_normal_(mod.weight, mode='fan_out', nonlinearity='relu')
+                if mod.bias is not None:
+                    nn.init.constant_(mod.bias, 0)
+            elif isinstance(mod, nn.Linear):
+                nn.init.normal_(mod.weight, 0, 0.01)
+                nn.init.constant_(mod.bias, 0)
+
     def __update__(self, modelMetadata):
         self.to(modelMetadata.device)
         self.optimizer = optim.SGD(self.parameters(), lr=modelMetadata.learning_rate, momentum=modelMetadata.momentum)
@@ -171,8 +183,8 @@ class TestData(sf.Data):
     def __prepare__(self, dataMetadata):
         self.__setInputTransform__()
 
-        self.trainset = torchvision.datasets.CIFAR10(root='~/.data', train=True, download=True, transform=self.transform)
-        self.testset = torchvision.datasets.CIFAR10(root='~/.data', train=False, download=True, transform=self.transform)
+        self.trainset = torchvision.datasets.CIFAR10(root=sf.StaticData.DATA_PATH, train=True, download=True, transform=self.transform)
+        self.testset = torchvision.datasets.CIFAR10(root=sf.StaticData.DATA_PATH, train=False, download=True, transform=self.transform)
         self.trainSampler = sf.BaseSampler(len(self.trainset), dataMetadata.batchTrainSize)
         self.testSampler = sf.BaseSampler(len(self.testset), dataMetadata.batchTrainSize)
 
@@ -277,10 +289,10 @@ class TestData(sf.Data):
 
 if(__name__ == '__main__'):
     sf.useDeterministic()
-    #sf.modelDetermTest(sf.Metadata, TestData_Metadata, TestModel_Metadata, TestData, TestModel, TestSmoothing)
-    stat = sf.modelRun(sf.Metadata, TestData_Metadata, TestModel_Metadata, TestData, TestModel, TestSmoothing)
+    sf.modelDetermTest(sf.Metadata, TestData_Metadata, TestModel_Metadata, TestData, TestModel, TestSmoothing)
+    '''stat = sf.modelRun(sf.Metadata, TestData_Metadata, TestModel_Metadata, TestData, TestModel, TestSmoothing)
 
     plt.plot(stat.trainLossArray)
     plt.xlabel('Train index')
     plt.ylabel('Loss')
-    plt.show()
+    plt.show()'''

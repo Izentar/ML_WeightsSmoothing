@@ -68,6 +68,7 @@ class StaticData:
     DATA_METADATA_SUFFIX = '.dmd'
     MODEL_METADATA_SUFFIX = '.mmd'
     NAME_CLASS_METADATA = 'Metadata'
+    DATA_PATH = '~/.data'
 
 class SaveClass:
     def __init__(self):
@@ -485,8 +486,6 @@ class Output(SaveClass):
 
 
 class Data_Metadata(SaveClass):
-    DATA_PATH = '~/.data' # path to data
-
     def __init__(self):
         super().__init__()
 
@@ -547,20 +546,6 @@ class Data_Metadata(SaveClass):
 class Model_Metadata(SaveClass):
     def __init__(self):
         super().__init__()
-        self.learning_rate = 1e-3 # TODO usunąć, bo to klasa podstawowa
-        self.device = 'cuda:0'
-        
-    def trySelectCUDA(self, metadata):
-        self.device = 'cuda' if torch.cuda.is_available() else 'cpu'
-        if(metadata.debugInfo):
-            print('Using {} torch CUDA device version\nCUDA avaliable: {}\nCUDA selected: {}'.format(torch.version.cuda, torch.cuda.is_available(), self.device == 'cuda'))
-        return self.device
-
-    def selectCPU(self, metadata):
-        self.device = 'cpu'
-        if(metadata.debugInfo):
-            print('Using {} torch CUDA device version\nCUDA avaliable: {}\nCUDA selected: False'.format(torch.version.cuda, torch.cuda.is_available()))
-        return self.device
 
     def _getstate__(self):
         return self.__dict__.copy()
@@ -1072,10 +1057,20 @@ class Model(nn.Module, SaveClass):
 
         Metody, które można przeciążyć i wymagają użycia super()
         __setstate__
+
+        Klasa powinna posiadać zmienne
+        self.loss_fn = ...
+        self.optimizer = torch.optim...
     """
     def __init__(self, modelMetadata):
-        nn.Module.__init__(self)
-        SaveClass.__init__(self)
+        """
+        Na końcu _\_init__ powinno się zainicjalizować wagi metodą\n
+        def __initializeWeights__(self)
+        """
+        super().__init__()
+
+    def __initializeWeights__(self):
+        raise Exception("Not implemented")
 
     def __getstate__(self):
         return self.__dict__.copy()
@@ -1260,11 +1255,29 @@ def cloneTorchDict(weights: dict):
 def checkStrCUDA(string):
         return string.startswith('cuda')
 
+def trySelectCUDA(device, metadata):
+    device = 'cuda' if torch.cuda.is_available() else 'cpu'
+    if(metadata.debugInfo):
+        print('Using {} torch CUDA device version\nCUDA avaliable: {}\nCUDA selected: {}'.format(torch.version.cuda, torch.cuda.is_available(), self.device == 'cuda'))
+    return device
+
+def selectCPU(device, metadata):
+    device = 'cpu'
+    if(metadata.debugInfo):
+        print('Using {} torch CUDA device version\nCUDA avaliable: {}\nCUDA selected: False'.format(torch.version.cuda, torch.cuda.is_available()))
+    return device
+
 #########################################
 # test   
+
 def modelDetermTest(Metadata_Class, Data_Metadata_Class, Model_Metadata_Class, Data_Class, Model_Class, Smoothing_Class):
+    """
+    Można użyć do przetestowania, czy dany model jest deterministyczny.
+    Zmiana z CPU na GPU nadal zachowuje determinizm.
+    """
     stat = []
     for i in range(2):
+        useDeterministic()
         dictObjs = {}
         dictObjs[Metadata_Class.__name__] = Metadata_Class()
         dictObjs[Metadata_Class.__name__].prepareOutput()
@@ -1288,21 +1301,18 @@ def modelDetermTest(Metadata_Class, Data_Metadata_Class, Model_Metadata_Class, D
         stat.append(
              dictObjs[Data_Class.__name__].epochLoop(dictObjs[Model_Class.__name__], dictObjs[Data_Metadata_Class.__name__], dictObjs[Model_Metadata_Class.__name__], dictObjs[Metadata_Class.__name__], dictObjs[Smoothing_Class.__name__])
         )
+
     equal = True
     for idx, (x) in enumerate(stat[0].trainLossArray):
-        print(idx)
-        if(torch.all(x.eq(stat[1].trainLossArray[idx])) == False):
+        if(torch.is_tensor(x) and torch.equal(x, stat[1].trainLossArray[idx]) == False):
             equal = False
             print(idx)
             print(x)
             print(stat[1].trainLossArray[idx])
             break
     print('Arrays are: ', equal)
-    print(stat[0].trainLossArray)
-    print(stat[1].trainLossArray)
 
 if(__name__ == '__main__'):
-    useDeterministic()
     stat = modelRun(Metadata, Data_Metadata, Model_Metadata, Data, Model, Smoothing)
 
     plt.plot(stat.trainLossArray)
