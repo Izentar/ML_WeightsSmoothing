@@ -14,12 +14,15 @@ import copy as cp
 import random
 from torch.utils.data.dataloader import Sampler
 import torchvision.models as models
+import traceback
 
 import matplotlib.pyplot as plt
 import numpy
 
 SAVE_AND_EXIT_FLAG = False
 DETERMINISTIC = False
+PRINT_WARNINGS = True
+FORCE_PRINT_WARNINGS = False
 
 
 def saveWorkAndExit(signumb, frame):
@@ -56,6 +59,8 @@ def useDeterministic(torchSeed = 0, randomSeed = 0):
     os.environ['PYTHONHASHSEED'] = str(randomSeed)
     os.environ['CUBLAS_WORKSPACE_CONFIG'] = ':16:8'
 
+def warnings():
+    return FORCE_PRINT_WARNINGS or PRINT_WARNINGS
 
 class StaticData:
     PATH = expanduser("~") + '/.data/models/'
@@ -148,6 +153,7 @@ class BaseSampler:
 
 class test_mode():
     TEST_MODE = False
+    MAX_LOOPS = 31
     def __init__(self):
         self.prev = False
 
@@ -207,27 +213,42 @@ class Metadata(SaveClass):
         if(self.stream is None):
             raise Exception("Stream not initialized")
         if(self.name is not None):
-            self.stream.print(f"\n@@@@\nContinuing loaded model: " + self.name + "\nTime: " + str(datetime.now()) + "\n@@@@\n")
+            self.stream.print(f"\n@@@@\nContinuing loaded model: '" + self.name + "'\nTime: " + str(datetime.now()) + "\n@@@@\n")
         else:
             self.stream.print(f"\n@@@@\nContinuing loaded model without name\nTime: " + str(datetime.now()) + "\n@@@@\n")
+
+    def printEndModel(self):
+        if(self.stream is None):
+            raise Exception("Stream not initialized")
+        if(self.name is not None):
+            self.stream.print(f"\n@@@@\nEnding model: " + self.name + "\nTime: " + str(datetime.now()) + "\n@@@@\n")
+        else:
+            self.stream.print(f"\n@@@@\nEnding model\nTime: " + str(datetime.now()) + "\n@@@@\n")
 
     def exitError(help):
         print(help) 
         sys.exit(2)
 
     def prepareOutput(self):
+        """
+        Spróbowano stworzyć aliasy:\n
+        debug:0\n
+        model:0\n
+        stat\n
+        oraz spróbowano otworzyć tryb 'bash'
+        """
         if(self.stream is None):
             self.stream = Output()
 
         if(self.debugInfo == True):
             if(self.debugOutput is not None):
-                self.stream.open('debug', self.debugOutput)
+                self.stream.open('debug', 'debug:0', self.debugOutput)
         if(self.modelOutput is not None):
-            self.stream.open('model', self.modelOutput)
+            self.stream.open('model', 'model:0', self.modelOutput)
         if(self.bashFlag == True):
             self.stream.open('bash')
         if(self.formatedOutput is not None):
-            self.stream.open('formatedLog', self.formatedOutput)
+            self.stream.open('formatedLog', 'stat', self.formatedOutput)
 
     def __getstate__(self):
         return self.__dict__.copy()
@@ -318,177 +339,140 @@ class Timer(SaveClass):
         return False
 
 class Output(SaveClass):
+    class FileHandler():
+        def __init__(self, fullPathName, mode):
+            self.handler = open(fullPathName, mode)
+            self.counter = 1
+            self.pathName = fullPathName
+            self.mode = mode
+
+        def __getstate__(self):
+            state = self.__dict__.copy()
+            del state['handler']
+            return state
+
+        def __setstate__(self, state):
+            self.__dict__.update(state)
+            self.handler = open(self.fullPathName, self.mode)
+
+        def counterUp(self):
+            self.counter +=1
+
+        def get(self):
+            if(self.handler is None):
+                raise Exception("Tried to get to the file that is already closed.")
+            return self.handler
+
+        def exist(self):
+            return bool(self.handler is not None)
+
+        def close(self):
+            if(self.counter <= 1):
+                self.handler.close()
+                self.handler = None
+            self.counter -= 1
+
+        def flush(self):
+            if(self.handler is not None):
+                self.handler.flush()
+
+        def __del__(self):
+            if(self.handler is not None):
+                self.handler.close()
+                self.counter = 0
+
     def __init__(self):
         super().__init__()
-        self.debugF = None
-        self.modelF = None
-        self.debugPath = None
-        self.modelPath = None
+        self.filesDict = {}
+        self.fLogPaths = []
+        self.aliasToFH = {}
+
         self.bash = False
-        self.formatedLogF = None
-        self.formatedLogPath = None
 
     def __getstate__(self):
         state = self.__dict__.copy()
-        if(self.only_Key_Ingredients):
-            del state['debugPath']
-            del state['modelPath']
-            del state['bash']
-            del state['formatedLogPath']
-        del state['debugF']
-        del state['modelF']
-        del state['formatedLogF']
         return state
 
     def __setstate__(self, state):
         self.__dict__.update(state)
-        self.formatedLogF = None
-        self.debugF = None
-        self.modelF = None
 
-        if(self.only_Key_Ingredients):
-            self.debugPath = None
-            self.modelPath = None
-            self.bash = None
-            self.formatedLogPath = None
-
-        if(self.debugPath is not None):
-            self.debugF = open(self.debugPath + ".log", 'a')
-        if(self.modelPath is not None):
-            if(self.modelPath == self.debugPath):
-                self.modelF = self.debugF
-            else:
-                self.modelF = open(self.modelPath + ".log", 'a')
-        if(self.formatedLogPath is not None):
-            if(self.formatedLogPath == self.debugPath):
-                self.formatedLogF = self.debugF
-            elif(self.formatedLogPath == self.modelPath):
-                self.formatedLogF = self.modelF
-            else:
-                self.formatedLogF = open(self.formatedLogPath + ".log", 'a')
-
-    def open(self, outputType, path = None):
-            if(outputType != 'debug' and outputType != 'model' and outputType != 'bash' and outputType != 'formatedLog'):
-                raise Exception("unknown command")
-
-            if(outputType == 'bash'):
-                self.bash = True
-                return
-
-            # if you want to open file with other path
-            if(outputType == 'debug' and path != self.debugPath and self.debugPath is not None and path is not None):
-                self.debugF.close()
-                self.debugPath = None
-                self.debugF = None
-            elif(outputType == 'model' and path != self.modelPath and self.modelPath is not None and path is not None):
-                self.modelF.close()
-                self.modelPath = None
-                self.modelF = None
-            elif(outputType == 'formatedLog' and path != self.formatedLogPath and self.formatedLogPath is not None and path is not None):
-                self.formatedLogF.close()
-                self.formatedLogF = None
-                self.formatedLogPath = None
-
-            # if file is already open in different outputType
-            if(outputType == 'debug' and path is not None ):
-                if(path == self.modelPath):
-                    self.debugPath = path
-                    self.debugF = self.modelF
-                elif(path == self.formatedLogPath):
-                    self.debugPath = path
-                    self.debugF = self.formatedLogF
-            elif(outputType == 'model' and path is not None):
-                if(path == self.debugPath):
-                    self.modelPath = path
-                    self.modelF = self.debugF
-                elif(path == self.formatedLogPath):
-                    self.modelPath = path
-                    self.modelF = self.formatedLogF
-            elif(outputType == 'formatedLog' and path is not None and path == self.debugPath):
-                if(path == self.debugPath):
-                    self.formatedLogPath = path
-                    self.formatedLogF = self.debugF
-                elif(path == self.modelPath):
-                    self.formatedLogPath = path
-                    self.formatedLogF = self.modelF
-
-            # if file was not opened
-            if(outputType == 'debug' and path is not None and self.debugPath is None):
-                self.debugF = open(path + ".log", 'a')
-                self.debugPath = path
-            elif(outputType == 'model' and path is not None and self.modelPath is None):
-                self.modelF = open(path + ".log", 'a')
-                self.modelPath = path
-            elif(outputType == 'formatedLog' and path is not None and self.formatedLogPath is None):
-                self.formatedLogF = open(path + ".log", 'a')
-                self.formatedLogPath = path
-
-    def write(self, arg):
-        if(self.bash is True):
-            print(arg, end='')
-
-        if(self.debugF is self.modelF and self.debugF is not None):
-            self.debugF.write(arg)
-        elif(self.debugF is not None):
-            self.debugF.write(arg)
-        elif(self.modelF is not None):
-            self.modelF.write(arg)
-
-    def print(self, arg):
-        if(self.bash is True):
-            print(arg)
-
-        if(self.debugF is self.modelF and self.debugF is not None):
-            self.debugF.write(arg + '\n')
+    def open(self, outputType: str, alias: str = None, pathName: str = None):
+        if((outputType != 'debug' and outputType != 'model' and outputType != 'bash' and outputType != 'formatedLog') or outputType is None):
+            if(warnings()):
+                print("WARNING: Unknown command in open for Output class.")
             return
-        if(self.debugF is not None):
-            self.debugF.write(arg + '\n')
-        if(self.modelF is not None):
-            self.modelF.write(arg + '\n')
 
-    def writeFormated(self, arg):
-        if(self.formatedLogPath is not None):
-            self.formatedLogF.write(arg)
+        if(alias == 'debug' or alias == 'model' or alias == 'bash' or alias == 'formatedLog'):
+            if(warnings()):
+                print("WARNING: Alias cannot have the same name as output configuration in open for Output class.")
+            return
 
-    def printFormated(self, arg):
-        if(self.formatedLogPath is not None):
-            self.formatedLogF.write(arg + '\n')
+        if(outputType == 'bash'):
+            self.bash = True
+            return
 
-    def writeTo(self, outputType, arg):
-        if self.bash == True:
+        if(alias is None):
+            if(warnings()):
+                print("WARNING: Alias is None but the output is not 'bash'; it is: {}.".format(outputType))
+            return
+
+        if(pathName is not None):
+            if(pathName in self.filesDict):
+                if(outputType in self.filesDict[pathName] and self.filesDict[pathName][outputType].exist()):
+                    pass # do nothing, already opened
+                elif(self.filesDict[pathName][outputType] is None):
+                    if(outputType == 'formatedLog'):
+                        raise Exception("Output for type 'formatedLog' for provided pathName can have only one instance. For this pathName file in different mode is already opened.")
+                    self.filesDict[pathName][outputType] = self.filesDict[pathName][self.filesDict[pathName].keys()[-1]] 
+                    self.filesDict[pathName][outputType].counterUp()
+                    self.fLogPaths.append(pathName)
+                else: # self.filesDict[pathName][outputType].exist() == False
+                    fh = self.FileHandler(pathName + ".log", 'a')
+                    self.filesDict[pathName] = {outputType: fh}
+                    self.aliasToFH[alias] = fh
+            else:
+                fh = self.FileHandler(pathName + ".log", 'a')
+                self.filesDict[pathName] = {outputType: fh}
+                self.aliasToFH[alias] = fh
+        else:
+            if(warnings()):
+                print("WARNING: For this '{}' Output type pathName should not be None.".format(outputType))
+            return
+    
+    def write(self, arg, *alias: str, ignore = True):
+        """
+        Przekazuje argument do wszystkich możliwych, aktywnych strumieni wyjściowych.\n
+        Na końcu argumentu nie daje znaku nowej linii.
+        """
+        if(self.bash is True):
             print(arg, end='')
 
-        for t in outputType:
-            if t == 'debug' and self.debugF is not None:
-                self.debugF.write(arg)
-            if t == 'model' and self.modelF is not None:
-                self.modelF.write(arg)
+        if(alias is None):
+            for _, val in self.filesDict.items():
+                if(val is not None and val[0] is not None and val.keys()[0] != 'formatedLog' and val[0].exist()):
+                    val[0].get().write(arg)
+        else:
+            for al in alias:
+                if(al in self.aliasToFH and self.aliasToFH[al].exist()):
+                    self.aliasToFH[al].get().write(arg)
+                elif(warnings() and not ignore):
+                    print("WARNING: Output alias for 'write / print' not found: '{}'".format(al))
+                    traceback.print_exc()
 
-    def printTo(self, outputType, arg):
-        if self.bash == True:
-            print(arg)
-
-        for t in outputType:
-            if t == 'debug' and self.debugF is not None:
-                self.debugF.write(arg + '\n')
-            if t == 'model' and self.modelF is not None:
-                self.modelF.write(arg + '\n')
+    def print(self, arg, *alias: str, ignore = True):
+        """
+        Przekazuje argument do wszystkich możliwych, aktywnych strumieni wyjściowych.\n
+        Na końcu argumentu dodaje znak nowej linii.
+        """
+        self.write(arg + '\n', alias, ignore)
 
     def __del__(self):
-        if(self.debugF is not None):
-            self.debugF.close()
-        if(self.modelF is not None): 
-            self.modelF.close()# if closed this do nothing
-        if(self.formatedLogF is not None): 
-            self.formatedLogF.close()# if closed this do nothing
+        for _, fh in self.aliasToFH.items():
+            del fh
 
     def flushAll(self):
-        if(self.debugF is not None):
-            self.debugF.flush()
-        if(self.modelF is not None):
-            self.modelF.flush()
-        if(self.formatedLogF is not None):
-            self.formatedLogF.flush()
+        for _, fh in self.aliasToFH.items():
+            fh.flush()
         sys.stdout.flush()
 
     def trySave(self, metadata, onlyKeyIngredients = False, temporaryLocation = False):
@@ -500,6 +484,24 @@ class Output(SaveClass):
     def canUpdate(self = None):
         return False
 
+# nieużywane
+class Printer():
+    def __init__(self):
+        self.labels = []
+        self.values = []
+
+    def __getstate__(self):
+        obj = self.__dict__.copy()
+        return obj
+
+    def __setstate__(self, state):
+        self.__dict__.update(state)
+
+    def addLabel(self, label: str):
+        self.labels.append(label)
+
+    def print(self, *values):
+        self.values.append(values)
 
 class Data_Metadata(SaveClass):
     def __init__(self):
@@ -652,6 +654,7 @@ class Data(SaveClass):
         __beforeTrain__
         __afterTrain__
         __afterTrainLoop__
+        __trainLoopExit__
         __test__
         __beforeTestLoop__
         __beforeTest__
@@ -659,6 +662,8 @@ class Data(SaveClass):
         __afterTestLoop__
         __beforeEpochLoop__
         __afterEpochLoop__
+        __testLoopExit__
+        __epochLoopExit__
 
         Metody, których nie powinno się przeciążać
         __getstate__
@@ -805,6 +810,9 @@ class Data(SaveClass):
         metadata.stream.print(f" Average train time ({helper.timer.getUnits()}): {helper.timer.getAverage()}")
         metadata.stream.print(f" Loop train time ({helper.timer.getUnits()}): {helper.loopTimer.getDiff()}")
 
+    def __trainLoopExit__(self, helperEpoch: 'EpochDataContainer', helper, model: 'Model', dataMetadata: 'Data_Metadata', modelMetadata: 'Model_Metadata', metadata: 'Metadata', smoothing: 'Smoothing'):
+        pass
+
     def trainLoop(self, model: 'Model', helperEpoch: 'EpochDataContainer', dataMetadata: 'Data_Metadata', modelMetadata: 'Model_Metadata', metadata: 'Metadata', smoothing: 'Smoothing'):
         """
         Główna logika pętli treningowej.
@@ -825,10 +833,11 @@ class Data(SaveClass):
             self.trainHelper.batchNumber = batch
             self.batchNumbTrain = batch
             if(SAVE_AND_EXIT_FLAG):
+                self.__trainLoopExit__(helperEpoch, self.trainHelper, model, dataMetadata, modelMetadata, metadata, smoothing)
                 return
 
-            if(test_mode.TEST_MODE and batch == 31):
-                return
+            if(test_mode.TEST_MODE and batch >= test_mode.MAX_LOOPS):
+                break
             
             self.__beforeTrain__(helperEpoch, self.trainHelper, model, dataMetadata, modelMetadata, metadata, smoothing)
             
@@ -848,6 +857,7 @@ class Data(SaveClass):
 
         self.trainHelper.loopTimer.end()
         self.__afterTrainLoop__(helperEpoch, self.trainHelper, model, dataMetadata, modelMetadata, metadata, smoothing)
+        self.__trainLoopExit__(helperEpoch, self.trainHelper, model, dataMetadata, modelMetadata, metadata, smoothing)
         self.trainHelper = None
         
     def __test__(self, helperEpoch: 'EpochDataContainer', helper, model: 'Model', dataMetadata: 'Data_Metadata', modelMetadata: 'Model_Metadata', metadata: 'Metadata', smoothing: 'Smoothing'):
@@ -879,6 +889,9 @@ class Data(SaveClass):
     def __afterTestLoop__(self, helperEpoch: 'EpochDataContainer', helper, model: 'Model', dataMetadata: 'Data_Metadata', modelMetadata: 'Model_Metadata', metadata: 'Metadata', smoothing: 'Smoothing'):
         pass
 
+    def __testLoopExit__(self, helperEpoch: 'EpochDataContainer', helper, model: 'Model', dataMetadata: 'Data_Metadata', modelMetadata: 'Model_Metadata', metadata: 'Metadata', smoothing: 'Smoothing'):
+        pass
+
     def testLoop(self, helperEpoch: 'EpochDataContainer', model: 'Model', dataMetadata: 'Data_Metadata', modelMetadata: 'Model_Metadata', metadata: 'Metadata', smoothing: 'Smoothing'):
         if(self.testHelper is None): # jeżeli nie było wznowione; nowe wywołanie
             self.testHelper = self.setTestLoop(model, modelMetadata, metadata)
@@ -894,10 +907,11 @@ class Data(SaveClass):
                 self.testHelper.batchNumber = batch
                 self.batchNumbTest = batch
                 if(SAVE_AND_EXIT_FLAG):
+                    self.__testLoopExit__(helperEpoch, self.testHelper, model, dataMetadata, modelMetadata, metadata, smoothing)
                     return
 
-                if(test_mode.TEST_MODE and batch == 31):
-                    return
+                if(test_mode.TEST_MODE and batch >= test_mode.MAX_LOOPS):
+                    break
 
                 self.__beforeTest__(helperEpoch, self.testHelper, model, dataMetadata, modelMetadata, metadata, smoothing)
 
@@ -913,6 +927,7 @@ class Data(SaveClass):
             self.testHelper.loopTimer.end()
 
         self.__afterTestLoop__(helperEpoch, self.testHelper, model, dataMetadata, modelMetadata, metadata, smoothing)
+        self.__testLoopExit__(helperEpoch, self.testHelper, model, dataMetadata, modelMetadata, metadata, smoothing)
         self.testHelper = None
 
     def __beforeEpochLoop__(self, helperEpoch: 'EpochDataContainer', model: 'Model', dataMetadata: 'Data_Metadata', modelMetadata: 'Model_Metadata', metadata: 'Metadata', smoothing: 'Smoothing'):
@@ -933,6 +948,9 @@ class Data(SaveClass):
         """
         raise Exception("Not implemented")
 
+    def __epochLoopExit__(self, helperEpoch: 'EpochDataContainer', model: 'Model', dataMetadata: 'Data_Metadata', modelMetadata: 'Model_Metadata', metadata: 'Metadata', smoothing: 'Smoothing'):
+        pass
+
     def epochLoop(self, model: 'Model', dataMetadata: 'Data_Metadata', modelMetadata: 'Model_Metadata', metadata: 'Metadata', smoothing: 'Smoothing'):
         metadata.prepareOutput()
         self.epochHelper = EpochDataContainer()
@@ -946,14 +964,16 @@ class Data(SaveClass):
             
             self.__epoch__(self.epochHelper, model, dataMetadata, modelMetadata, metadata, smoothing)
             if(SAVE_AND_EXIT_FLAG):
+                self.__epochLoopExit__(self.epochHelper, model, dataMetadata, modelMetadata, metadata, smoothing)
                 return
 
             if(test_mode.TEST_MODE and ep == 3):
-                return
+                break
 
             self.resetEpochState()
 
         self.__afterEpochLoop__(self.epochHelper, model, dataMetadata, modelMetadata, metadata, smoothing)
+        self.__epochLoopExit__(self.epochHelper, model, dataMetadata, modelMetadata, metadata, smoothing)
         self.resetFullEpochState()
         metadata.stream.flushAll()
         stat = self.epochHelper.statistics
@@ -1378,6 +1398,7 @@ def modelRun(Metadata_Class, Data_Metadata_Class, Model_Metadata_Class, Data_Cla
         dictObjs[Model_Class.__name__], dictObjs[Data_Metadata_Class.__name__], dictObjs[Model_Metadata_Class.__name__], 
         dictObjs[Metadata_Class.__name__], dictObjs[Smoothing_Class.__name__]
         )
+    dictObjs[Metadata_Class.__name__].printEndModel()
 
     trySave(dictObjs)
 
@@ -1452,6 +1473,7 @@ def modelDetermTest(Metadata_Class, Data_Metadata_Class, Model_Metadata_Class, D
         stat.append(
              dictObjs[Data_Class.__name__].epochLoop(dictObjs[Model_Class.__name__], dictObjs[Data_Metadata_Class.__name__], dictObjs[Model_Metadata_Class.__name__], dictObjs[Metadata_Class.__name__], dictObjs[Smoothing_Class.__name__])
         )
+        dictObjs[Metadata_Class.__name__].printEndModel()
 
     equal = True
     for idx, (x) in enumerate(stat[0].trainLossArray):

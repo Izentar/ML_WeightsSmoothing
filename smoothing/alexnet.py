@@ -9,11 +9,10 @@ import torch.nn.functional as F
 import torchvision.models as models
 
 
-
 class TestModel_Metadata(sf.Model_Metadata):
     def __init__(self):
         sf.Model_Metadata.__init__(self)
-        self.device = 'cpu'
+        self.device = 'cuda:0'
         self.learning_rate = 1e-3
         self.momentum = 0.9
         self.oscilationMax = 0.001
@@ -36,8 +35,8 @@ class TestData_Metadata(sf.Data_Metadata):
         self.pin_memoryTest = False
 
         self.epoch = 1
-        self.batchTrainSize = 4
-        self.batchTestSize = 4
+        self.batchTrainSize = 32
+        self.batchTestSize = 32
 
         # batch size * howOftenPrintTrain
         self.howOftenPrintTrain = 2000
@@ -63,7 +62,7 @@ class TestModel(sf.PredefinedModel):
 
     def __update__(self, modelMetadata):
         self.getNNModelModule().to(modelMetadata.device)
-        self.optimizer = optim.SGD(self.parameters(), lr=modelMetadata.learning_rate, momentum=modelMetadata.momentum)
+        self.optimizer = optim.SGD(self.getNNModelModule().parameters(), lr=modelMetadata.learning_rate, momentum=modelMetadata.momentum)
 
 class TestSmoothing(sf.Smoothing):
     def __init__(self):
@@ -73,7 +72,7 @@ class TestSmoothing(sf.Smoothing):
         self.lossList = []
         self.lossAverage = []
 
-        self.numbOfBatchAfterSwitchOn = 2000
+        self.numbOfBatchAfterSwitchOn = 0
 
         self.flushLossSum = 1000
 
@@ -89,18 +88,22 @@ class TestSmoothing(sf.Smoothing):
         self.counter += 1
         if(self.counter > self.numbOfBatchAfterSwitchOn):
             self.countWeights += 1
+            if(hasattr(helper, 'substract')):
+                del helper.substract
             helper.substract = {}
             with torch.no_grad():
                 for key, arg in model.getNNModelModule().named_parameters():
-                    self.sumWeights[key].add_(arg)
-            for key, arg in model.getNNModelModule().named_parameters():
-                helper.substract[key] = arg.sub(self.previousWeights[key])
-                self.previousWeights[key].data.copy_(arg.data)
+                    cpuArg = arg.to('cpu')
+                    self.sumWeights[key].to('cpu').add_(cpuArg)
+                    #helper.substract[key] = arg.sub(self.previousWeights[key])
+                    helper.substract[key] = self.previousWeights[key].sub_(cpuArg).multiply_(-1)
+                    self.previousWeights[key].detach().copy_(cpuArg.detach())
 
     def getWeights(self):
         average = {}
         for key, arg in self.sumWeights.items():
-            average[key] = self.sumWeights[key] / self.countWeights
+            average[key] = self.sumWeights[key].to('cpu') / self.countWeights
+        torch.cuda.empty_cache()
         return average
 
     def setDictionary(self, dictionary):
@@ -108,8 +111,8 @@ class TestSmoothing(sf.Smoothing):
         Used to map future weights into internal sums.
         '''
         for key, values in dictionary:
-            self.sumWeights[key] = torch.zeros_like(values, requires_grad=False)
-            self.previousWeights[key] = torch.zeros_like(values, requires_grad=False)
+            self.sumWeights[key] = torch.zeros_like(values, requires_grad=False, device='cpu')
+            self.previousWeights[key] = torch.zeros_like(values, requires_grad=False, device='cpu')
 
 class TestData(sf.Data):
     def __init__(self):
@@ -122,17 +125,28 @@ class TestData(sf.Data):
         super().__setstate__(state)
 
     def __setInputTransform__(self):
-        self.transform = transforms.Compose(
+        ''' self.transform = transforms.Compose(
             [transforms.ToTensor(),
             transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))]
         )
-        return self.transform
+        '''
+        self.trainTransform = transforms.Compose([
+            transforms.Resize(224),
+            transforms.RandomHorizontalFlip(),
+            transforms.ToTensor(),
+            transforms.Normalize((0.4914, 0.4822, 0.4465), (0.2023, 0.1994, 0.2010)),
+        ])
+        self.testTransform = transforms.Compose([
+            transforms.Resize(224),
+            transforms.ToTensor(),
+            transforms.Normalize((0.4914, 0.4822, 0.4465), (0.2023, 0.1994, 0.2010)),
+        ])
 
     def __prepare__(self, dataMetadata):
         self.__setInputTransform__()
 
-        self.trainset = torchvision.datasets.CIFAR10(root=sf.StaticData.DATA_PATH, train=True, download=True, transform=self.transform)
-        self.testset = torchvision.datasets.CIFAR10(root=sf.StaticData.DATA_PATH, train=False, download=True, transform=self.transform)
+        self.trainset = torchvision.datasets.CIFAR10(root=sf.StaticData.DATA_PATH, train=True, download=True, transform=self.trainTransform)
+        self.testset = torchvision.datasets.CIFAR10(root=sf.StaticData.DATA_PATH, train=False, download=True, transform=self.testTransform)
         self.trainSampler = sf.BaseSampler(len(self.trainset), dataMetadata.batchTrainSize)
         self.testSampler = sf.BaseSampler(len(self.testset), dataMetadata.batchTrainSize)
 
@@ -153,43 +167,45 @@ class TestData(sf.Data):
         model.optimizer.zero_grad()
 
     def __afterTrain__(self, helperEpoch: 'EpochDataContainer', helper, model: 'Model', dataMetadata: 'Data_Metadata', modelMetadata: 'Model_Metadata', metadata: 'Metadata', smoothing: 'Smoothing'):
-        helper.tmp_sumLoss += helper.loss
-        #if(helper.batchNumber % 32 == 0 and helper.batchNumber != 0):
-        #    helperEpoch.statistics.addLoss(helper.tmp_sumLoss / 32)
-        #    helper.tmp_sumLoss = 0.0
+        with torch.no_grad():
+            helper.tmp_sumLoss += helper.loss.item()
 
-        helperEpoch.statistics.addLoss(helper.loss)
+            helperEpoch.statistics.addLoss(helper.loss.item())
 
-        if(bool(metadata.debugInfo) and dataMetadata.howOftenPrintTrain is not None and helper.batchNumber % dataMetadata.howOftenPrintTrain == 0):
-            calcLoss, current = helper.loss.item(), helper.batchNumber * len(helper.inputs)
-            metadata.stream.print(f"loss: {calcLoss:>7f}  [{current:>5d}/{helper.size:>5d}]")
+            if(bool(metadata.debugInfo) and dataMetadata.howOftenPrintTrain is not None and (helper.batchNumber % dataMetadata.howOftenPrintTrain == 0 or sf.test_mode.isActivated())):
+                calcLoss, current = helper.loss.item(), helper.batchNumber * len(helper.inputs)
+                metadata.stream.print(f"loss: {calcLoss:>7f}  [{current:>5d}/{helper.size:>5d}]")
+                del calcLoss
+                del current
+        
+                averageWeights = smoothing.getWeights()
+                #if(bool(averageWeights)):
+                    #averKey = list(averageWeights.keys())[-1]
+                    #metadata.stream.print(f"Average: {averageWeights[averKey]}", 'debug', 'bash')
+                    #del averKey
+                
 
-            averageWeights = smoothing.getWeights()
-            if(bool(averageWeights)):
-                averKey = list(averageWeights.keys())[-1]
-                metadata.stream.printTo(['debug', 'bash'], f"Average: {averageWeights[averKey]}")
-            
-            metadata.stream.print(f"loss: {calcLoss:>7f}  [{current:>5d}/{helper.size:>5d}]")
-            if(helper.diff is None):
-                metadata.stream.print(f"No weight difference")
-            else:
-                diffKey = list(helper.diff.keys())[-1]
-                metadata.stream.printTo(['debug', 'bash'], f"Weight difference: {helper.diff[diffKey]}")
-                metadata.stream.print(f"Weight difference of last layer average: {helper.diff[diffKey].sum() / helper.diff[diffKey].numel()} :: was divided by: {helper.diff[diffKey].numel()}")
-                metadata.stream.print('################################################')
+                if(helper.diff is None):
+                    metadata.stream.print(f"No weight difference")
+                else:
+                    diffKey = list(helper.diff.keys())[-1]
+                    metadata.stream.print(f"Weight difference: {helper.diff[diffKey]}", 'debug:0', 'bash:0')
+                    metadata.stream.print(f"Weight difference of last layer average: {helper.diff[diffKey].sum() / helper.diff[diffKey].numel()} :: was divided by: {helper.diff[diffKey].numel()}")
+                    metadata.stream.print('################################################')
+                    del diffKey
 
     def __afterTrainLoop__(self, helperEpoch: 'EpochDataContainer', helper, model: 'Model', dataMetadata: 'Data_Metadata', modelMetadata: 'Model_Metadata', metadata: 'Metadata', smoothing: 'Smoothing'):
         super().__afterTrainLoop__(helperEpoch, helper, model, dataMetadata, modelMetadata, metadata, smoothing)
-
-        if(helper.diff is not None):
-            diffKey = list(helper.diff.keys())[-1]
-            metadata.stream.printFormated("trainLoop;\nAverage train time;Loop train time;Weight difference of last layer average;divided by;")
-            metadata.stream.printFormated(f"{helper.timer.getAverage()};{helper.loopTimer.getDiff()};{helper.diff[diffKey].sum() / helper.diff[diffKey].numel()};{helper.diff[diffKey].numel()}")
-
+        with torch.no_grad():
+            if(helper.diff is not None):
+                diffKey = list(helper.diff.keys())[-1]
+                metadata.stream.print("trainLoop;\nAverage train time;Loop train time;Weight difference of last layer average;divided by;", 'stat')
+                metadata.stream.print(f"{helper.timer.getAverage()};{helper.loopTimer.getDiff()};{helper.diff[diffKey].sum() / helper.diff[diffKey].numel()};{helper.diff[diffKey].numel()}", 'stat')
+                del diffKey
 
 
     def __beforeTestLoop__(self, helperEpoch: 'EpochDataContainer', helper, model: 'Model', dataMetadata: 'Data_Metadata', modelMetadata: 'Model_Metadata', metadata: 'Metadata', smoothing: 'Smoothing'):
-        metadata.stream.printFormated("testLoop;\nAverage test time;Loop test time;Accuracy;Avg loss")
+        metadata.stream.print("testLoop;\nAverage test time;Loop test time;Accuracy;Avg loss", 'stat')
 
     def __beforeTest__(self, helperEpoch: 'EpochDataContainer', helper, model: 'Model', dataMetadata: 'Data_Metadata', modelMetadata: 'Model_Metadata', metadata: 'Metadata', smoothing: 'Smoothing'):
         helper.inputs = helper.inputs.to(modelMetadata.device)
@@ -206,7 +222,7 @@ class TestData(sf.Data):
         metadata.stream.print(f" Average test time ({helper.timer.getUnits()}): {helper.timer.getAverage()}")
         metadata.stream.print(f" Loop test time ({helper.timer.getUnits()}): {helper.loopTimer.getDiff()}")
         metadata.stream.print("")
-        metadata.stream.printFormated(f"{helper.timer.getAverage()};{helper.loopTimer.getDiff()};{(helper.test_correct):>0.0001f};{helper.test_loss:>8f}")
+        metadata.stream.print(f"{helper.timer.getAverage()};{helper.loopTimer.getDiff()};{(helper.test_correct):>0.0001f};{helper.test_loss:>8f}", 'stat')
 
 
     def __epoch__(self, helperEpoch: 'EpochDataContainer', model: 'Model', dataMetadata: 'Data_Metadata', 
@@ -220,13 +236,13 @@ class TestData(sf.Data):
         with torch.no_grad():
             if(metadata.shouldTest()):
                 metadata.stream.write("Plain weights, ")
-                metadata.stream.writeFormated("Plain weights;")
+                metadata.stream.write("Plain weights;", 'stat')
                 self.testLoop(helperEpoch, model, dataMetadata, modelMetadata, metadata, smoothing)
                 smoothing.saveMainWeight(model)
                 if(smoothing.getWeights()):
                     model.setWeights(smoothing.getWeights())
                     metadata.stream.write("Smoothing weights, ")
-                    metadata.stream.writeFormated("Smoothing weights;")
+                    metadata.stream.write("Smoothing weights;", 'stat')
                     self.testLoop(helperEpoch, model, dataMetadata, modelMetadata, metadata, smoothing)
                 else:
                     print('Smoothing is not enabled. Test does not executed.')
@@ -235,12 +251,16 @@ class TestData(sf.Data):
 
 
 if(__name__ == '__main__'):
-    obj = models.vgg11()
-    #sf.useDeterministic()
-    #sf.modelDetermTest(sf.Metadata, TestData_Metadata, TestModel_Metadata, TestData, VGG16Model, TestSmoothing)
-    stat = sf.modelRun(sf.Metadata, TestData_Metadata, TestModel_Metadata, TestData, TestModel, TestSmoothing, obj)
+    with sf.test_mode():
+        torch.backends.cudnn.benchmark = False
+        obj = models.alexnet()
 
-    plt.plot(stat.trainLossArray)
-    plt.xlabel('Train index')
-    plt.ylabel('Loss')
-    plt.show()
+        #sf.useDeterministic()
+        #sf.modelDetermTest(sf.Metadata, TestData_Metadata, TestModel_Metadata, TestData, VGG16Model, TestSmoothing)
+        stat = sf.modelRun(sf.Metadata, TestData_Metadata, TestModel_Metadata, TestData, TestModel, TestSmoothing, obj)
+
+        plt.plot(stat.trainLossArray)
+        plt.xlabel('Train index')
+        plt.ylabel('Loss')
+        plt.show()
+
