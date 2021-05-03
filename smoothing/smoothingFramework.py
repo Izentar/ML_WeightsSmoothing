@@ -146,6 +146,20 @@ class BaseSampler:
     def __setstate__(self, state):
         self.__dict__.update(state)
 
+class test_mode():
+    TEST_MODE = False
+    def __init__(self):
+        self.prev = False
+
+    def __enter__(self):
+        self.prev = test_mode.TEST_MODE
+        test_mode.TEST_MODE = True
+
+    def __exit__(self, exc_type, exc_val, exc_traceback):
+        test_mode.TEST_MODE = self.prev
+
+    def isActivated(self = None):
+        return bool(test_mode.TEST_MODE)
 
 class Metadata(SaveClass):
     def __init__(self):
@@ -227,7 +241,7 @@ class Metadata(SaveClass):
     def getFileSuffix(self = None):
         return StaticData.METADATA_SUFFIX
 
-    def canUpdate():
+    def canUpdate(self = None):
         return False
 
     def shouldTrain(self):
@@ -300,7 +314,7 @@ class Timer(SaveClass):
     def getFileSuffix(self = None):
         return StaticData.TIMER_SUFFIX
 
-    def canUpdate():
+    def canUpdate(self = None):
         return False
 
 class Output(SaveClass):
@@ -483,7 +497,7 @@ class Output(SaveClass):
     def getFileSuffix(self = None):
         return StaticData.OUTPUT_SUFFIX
 
-    def canUpdate():
+    def canUpdate(self = None):
         return False
 
 
@@ -542,7 +556,7 @@ class Data_Metadata(SaveClass):
     def getFileSuffix(self = None):
         return StaticData.DATA_METADATA_SUFFIX
 
-    def canUpdate():
+    def canUpdate(self = None):
         return False
 
 class Model_Metadata(SaveClass):
@@ -561,7 +575,7 @@ class Model_Metadata(SaveClass):
     def getFileSuffix(self = None):
         return StaticData.MODEL_METADATA_SUFFIX
 
-    def canUpdate():
+    def canUpdate(self = None):
         return False
 
 
@@ -727,7 +741,9 @@ class Data(SaveClass):
     def __setInputTransform__(self):
         """
         Wymaga przypisania wartości \n
-            self.transform = ...
+            self.trainTransform = ...\n
+            self.testTransform = ...
+
         """
         raise Exception("Not implemented")
 
@@ -754,7 +770,10 @@ class Data(SaveClass):
         # forward + backward + optimize
         outputs = model.getNNModelModule()(helper.inputs)
         helper.loss = model.loss_fn(outputs, helper.labels)
+        del outputs
+        #print(torch.cuda.memory_summary())
         helper.loss.backward()
+        #print(torch.cuda.memory_summary())
         model.optimizer.step()
 
         # run smoothing
@@ -792,10 +811,15 @@ class Data(SaveClass):
         """
         if(self.trainHelper is None): # jeżeli nie było wznowione; nowe wywołanie
             self.trainHelper = self.setTrainLoop(model, modelMetadata, metadata)
+
+        torch.cuda.empty_cache()
         self.__beforeTrainLoop__(helperEpoch, self.trainHelper, model, dataMetadata, modelMetadata, metadata, smoothing)
 
         self.trainHelper.loopTimer.start()
         for batch, (inputs, labels) in enumerate(self.trainloader, start=self.batchNumbTrain):
+            del self.trainHelper.inputs
+            del self.trainHelper.labels
+
             self.trainHelper.inputs = inputs
             self.trainHelper.labels = labels
             self.trainHelper.batchNumber = batch
@@ -803,20 +827,29 @@ class Data(SaveClass):
             if(SAVE_AND_EXIT_FLAG):
                 return
 
+            if(test_mode.TEST_MODE and batch == 31):
+                return
+            
             self.__beforeTrain__(helperEpoch, self.trainHelper, model, dataMetadata, modelMetadata, metadata, smoothing)
+            
+            del self.trainHelper.loss
 
             self.trainHelper.timer.clearTime()
             self.trainHelper.timer.start()
+            
+
             self.__train__(helperEpoch, self.trainHelper, model, dataMetadata, modelMetadata, metadata, smoothing)
+
             self.trainHelper.timer.end()
             self.trainHelper.timer.addToStatistics()
 
             self.__afterTrain__(helperEpoch, self.trainHelper, model, dataMetadata, modelMetadata, metadata, smoothing)
+            torch.cuda.empty_cache()
 
         self.trainHelper.loopTimer.end()
         self.__afterTrainLoop__(helperEpoch, self.trainHelper, model, dataMetadata, modelMetadata, metadata, smoothing)
         self.trainHelper = None
-
+        
     def __test__(self, helperEpoch: 'EpochDataContainer', helper, model: 'Model', dataMetadata: 'Data_Metadata', modelMetadata: 'Model_Metadata', metadata: 'Metadata', smoothing: 'Smoothing'):
         """
         Główna logika testu modelu. Następuje pomiar czasu dla wykonania danej metody.
@@ -849,6 +882,8 @@ class Data(SaveClass):
     def testLoop(self, helperEpoch: 'EpochDataContainer', model: 'Model', dataMetadata: 'Data_Metadata', modelMetadata: 'Model_Metadata', metadata: 'Metadata', smoothing: 'Smoothing'):
         if(self.testHelper is None): # jeżeli nie było wznowione; nowe wywołanie
             self.testHelper = self.setTestLoop(model, modelMetadata, metadata)
+
+        torch.cuda.empty_cache()
         self.__beforeTestLoop__(helperEpoch, self.testHelper, model, dataMetadata, modelMetadata, metadata, smoothing)
 
         with torch.no_grad():
@@ -861,6 +896,9 @@ class Data(SaveClass):
                 if(SAVE_AND_EXIT_FLAG):
                     return
 
+                if(test_mode.TEST_MODE and batch == 31):
+                    return
+
                 self.__beforeTest__(helperEpoch, self.testHelper, model, dataMetadata, modelMetadata, metadata, smoothing)
 
                 self.testHelper.timer.clearTime()
@@ -870,6 +908,7 @@ class Data(SaveClass):
                 self.testHelper.timer.addToStatistics()
 
                 self.__afterTest__(helperEpoch, self.testHelper, model, dataMetadata, modelMetadata, metadata, smoothing)
+                torch.cuda.empty_cache()
 
             self.testHelper.loopTimer.end()
 
@@ -907,6 +946,9 @@ class Data(SaveClass):
             
             self.__epoch__(self.epochHelper, model, dataMetadata, modelMetadata, metadata, smoothing)
             if(SAVE_AND_EXIT_FLAG):
+                return
+
+            if(test_mode.TEST_MODE and ep == 3):
                 return
 
             self.resetEpochState()
@@ -947,7 +989,7 @@ class Data(SaveClass):
     def getFileSuffix(self = None):
         return StaticData.DATA_SUFFIX
 
-    def canUpdate():
+    def canUpdate(self = None):
         return True
 
 class Smoothing(SaveClass):
@@ -977,12 +1019,14 @@ class Smoothing(SaveClass):
         self.counter += 1
         if(self.counter > self.numbOfBatchAfterSwitchOn):
             self.countWeights += 1
+            del helper.diff
             helper.diff = {}
             with torch.no_grad():
                 for key, arg in model.getNNModelModule().named_parameters():
-                    self.sumWeights[key].add_(arg)
-                    helper.diff[key] = arg.sub(self.previousWeights[key])
-                    self.previousWeights[key].data.copy_(arg.data)
+                    cpuArg = arg.to('cpu')
+                    self.sumWeights[key].add_(cpuArg)
+                    helper.diff[key] = cpuArg.sub(self.previousWeights[key])
+                    self.previousWeights[key].data.copy_(cpuArg.data)
 
     def getWeights(self):
         """
@@ -992,18 +1036,19 @@ class Smoothing(SaveClass):
         average = {}
         if(self.countWeights == 0 or self.enabled == False):
             return average
-        for key, arg in self.sumWeights.items():
-            average[key] = self.sumWeights[key] / self.countWeights
+        with torch.no_grad():
+            for key, arg in self.sumWeights.items():
+                average[key] = self.sumWeights[key] / self.countWeights
         return average
 
     def setDictionary(self, dictionary):
         """
         Used to map future weights into internal sums.
         """
-
-        for key, values in dictionary:
-            self.sumWeights[key] = torch.zeros_like(values, requires_grad=False)
-            self.previousWeights[key] = torch.zeros_like(values, requires_grad=False)
+        with torch.no_grad():
+            for key, values in dictionary:
+                self.sumWeights[key] = torch.zeros_like(values, requires_grad=False)
+                self.previousWeights[key] = torch.zeros_like(values, requires_grad=False)
 
         self.enabled = True
 
@@ -1034,7 +1079,7 @@ class Smoothing(SaveClass):
     def getFileSuffix(self = None):
         return StaticData.SMOOTHING_SUFFIX
 
-    def canUpdate():
+    def canUpdate(self = None):
         return False
 
     def saveMainWeight(self, model):
@@ -1104,7 +1149,7 @@ class Model(nn.Module, SaveClass):
     def getFileSuffix(self = None):
         return StaticData.MODEL_SUFFIX
 
-    def canUpdate():
+    def canUpdate(self = None):
         return True
 
     def getNNModelModule(self):
@@ -1151,13 +1196,13 @@ class PredefinedModel(SaveClass):
         obj = self.__dict__.copy()
         return {
             'obj': obj,
-            'classType': type(self.modelObj)
+            'classType': type(self)
         }
 
     def __setstate__(self, state):
         obj = state['obj']
         if(state['classType'] != type(self)):
-            raise Exception("Loaded object is not the same class as object in PredefinedModel class.")
+            raise Exception("Loaded object '{}' is not the same class as PredefinedModel class '{}'.".format(str(state['classType']), str(type(self))))
         self.__dict__.update(obj)
         self.modelObj.eval()
 
@@ -1181,6 +1226,9 @@ class PredefinedModel(SaveClass):
         Używany, gdy chcemy skorzystać z funckji modułu nn.Module. Zwraca obiekt dla którego jest pewność, że implementuje klasę nn.Module. 
         """
         return self.modelObj
+
+    def canUpdate(self = None):
+        return True
 
 def tryLoad(tupleClasses: list, metadata, temporaryLocation = False):
     dictObjs = {}
@@ -1357,6 +1405,12 @@ def selectCPU(device, metadata):
     if(metadata.debugInfo):
         print('Using {} torch CUDA device version\nCUDA avaliable: {}\nCUDA selected: False'.format(torch.version.cuda, torch.cuda.is_available()))
     return device
+
+def tryTo(tensor, device):
+    if(checkStrCUDA(device)): # cuda
+        pass
+    else:
+        pass
 
 #########################################
 # test   
