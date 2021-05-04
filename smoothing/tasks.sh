@@ -16,17 +16,17 @@ saveAndExit=0
 exitOnly=0
 
 saveScriptState() {
-    printf "bash: Saving script state\n" &>> $bashLogFile
+    printf "BASH: Saving script state\n" &>> $bashLogFile
     printf "$counter\n" &>> $bashLogFile
     printf "$counter" > "$fileBashStateName"
-    printf "bash: Script state saved\n" &>> $bashLogFile
+    printf "BASH: Script state saved\n" &>> $bashLogFile
 }
 
 loadScriptState() {
     if [ -f "$fileBashStateName" ]; then
-        printf "bash: Loading script state\n" &>> $bashLogFile
+        printf "BASH: Loading script state\n" &>> $bashLogFile
         localCounter=($(<$fileBashStateName))
-        printf "bash: Script state loaded\n" &>> $bashLogFile
+        printf "BASH: Script state loaded\n" &>> $bashLogFile
         return $localCounter
     else
         return "0"
@@ -40,15 +40,15 @@ exitScript() {
 }
 
 kllChild() {
-    printf "bash: Caught SIGINT. Ending child process\n" &>> $bashLogFile
+    printf "BASH: Caught SIGINT. Ending child process\n" &>> $bashLogFile
     exitOnly=1
     kill -SIGINT "$child" 2>/dev/null
     wait $child
-    printf "bash: Child process ended\n" &>> $bashLogFile
+    printf "BASH: Child process ended\n" &>> $bashLogFile
 }
 
 catchSIG() {
-    printf "bash: Caught SIGTSTP\n" &>> $bashLogFile
+    printf "BASH: Caught SIGTSTP\n" &>> $bashLogFile
     saveAndExit=1
 }
 
@@ -57,6 +57,7 @@ trap kllChild SIGINT
 
 if  [ -n "$1" ] && [[ "$1" -eq "rmLogs" ]]; then
     rm *.log
+    rm *.csv # może później usunąć, na razie do testów
     exit
 fi
 

@@ -75,6 +75,9 @@ class StaticData:
     NAME_CLASS_METADATA = 'Metadata'
     DATA_PATH = '~/.data'
     PREDEFINED_MODEL_SUFFIX = '.pdmodel'
+    IGNORE_IO_WARNINGS = False
+    TEST_MODE = False
+    MAX_LOOPS = 31
 
 class SaveClass:
     def __init__(self):
@@ -151,20 +154,18 @@ class BaseSampler:
         self.__dict__.update(state)
 
 class test_mode():
-    TEST_MODE = False
-    MAX_LOOPS = 31
     def __init__(self):
         self.prev = False
 
     def __enter__(self):
-        self.prev = test_mode.TEST_MODE
-        test_mode.TEST_MODE = True
+        self.prev = StaticData.TEST_MODE
+        StaticData.TEST_MODE = True
 
     def __exit__(self, exc_type, exc_val, exc_traceback):
-        test_mode.TEST_MODE = self.prev
+        StaticData.TEST_MODE = self.prev
 
     def isActivated(self = None):
-        return bool(test_mode.TEST_MODE)
+        return bool(StaticData.TEST_MODE)
 
 class Metadata(SaveClass):
     def __init__(self):
@@ -183,7 +184,7 @@ class Metadata(SaveClass):
         self.name = None
         self.formatedOutput = None
 
-        self.defaultOutputPrepared = False
+        self.noPrepareOutput = False
 
     def __str__(self):
         tmp_str = ('\n/Metadata class\n-----------------------------------------------------------------------\n')
@@ -218,11 +219,11 @@ class Metadata(SaveClass):
         if(self.stream is None):
             raise Exception("Stream not initialized")
         if(self.name is not None):
-            string = f"\n@@@@\Continuation of the loaded model: '" + self.name + "'\nTime: " + str(datetime.now()) + "\n@@@@\n"
+            string = f"\n@@@@\nContinuation of the loaded model: '" + self.name + "'\nTime: " + str(datetime.now()) + "\n@@@@\n"
             self.stream.print(string)
             Output.printBash(string)
         else:
-            string = f"\n@@@@\Continuation of loaded model without name\nTime: " + str(datetime.now()) + "\n@@@@\n"
+            string = f"\n@@@@\nContinuation of loaded model without name\nTime: " + str(datetime.now()) + "\n@@@@\n"
             self.stream.print(string)
             Output.printBash(string)
 
@@ -250,7 +251,7 @@ class Metadata(SaveClass):
         stat\n
         oraz spróbowano otworzyć tryb 'bash'
         """
-        if(self.defaultOutputPrepared):
+        if(self.noPrepareOutput):
             return
         Output.printBash('Preparing default output.', 'info')
         if(self.stream is None):
@@ -267,14 +268,14 @@ class Metadata(SaveClass):
             self.stream.open('formatedLog', 'stat', self.formatedOutput)
         Output.printBash('Default outputs prepared.', 'info')
 
-        self.defaultOutputPrepared = True
+        self.noPrepareOutput = True
 
     def __getstate__(self):
         return self.__dict__.copy()
 
     def __setstate__(self, state):
         self.__dict__.update(state)
-        self.defaultOutputPrepared = False
+        self.noPrepareOutput = False
         self.prepareOutput()
 
     def trySave(self, onlyKeyIngredients = False, temporaryLocation = False):
@@ -360,7 +361,6 @@ class Timer(SaveClass):
         return False
 
 class Output(SaveClass):
-    IGNORE_IO_WARNINGS = False
 
     class FileHandler():
         def __init__(self, fullPathName, mode, OType):
@@ -450,7 +450,6 @@ class Output(SaveClass):
 
         if(outputType == 'bash'):
             self.bash = True
-
             return
 
         if(alias is None):
@@ -510,7 +509,7 @@ class Output(SaveClass):
                     self.aliasToFH[al].get().write(str(arg) + end)
                     if('formatedLog' in self.aliasToFH[al].OType):
                         prBash = False
-                elif(warnings() and not (ignore or Output.IGNORE_IO_WARNINGS)):
+                elif(warnings() and not (ignore or StaticData.IGNORE_IO_WARNINGS)):
                     print("WARNING: Output alias for 'write / print' not found: '{}'".format(al), end=end)
                     print(al, self.aliasToFH.keys())
                 
@@ -912,7 +911,7 @@ class Data(SaveClass):
                 self.__trainLoopExit__(helperEpoch, self.trainHelper, model, dataMetadata, modelMetadata, metadata, smoothing)
                 return
 
-            if(test_mode.TEST_MODE and batch >= test_mode.MAX_LOOPS):
+            if(StaticData.TEST_MODE and batch >= StaticData.MAX_LOOPS):
                 break
             
             self.__beforeTrain__(helperEpoch, self.trainHelper, model, dataMetadata, modelMetadata, metadata, smoothing)
@@ -989,7 +988,7 @@ class Data(SaveClass):
                     self.__testLoopExit__(helperEpoch, self.testHelper, model, dataMetadata, modelMetadata, metadata, smoothing)
                     return
 
-                if(test_mode.TEST_MODE and batch >= test_mode.MAX_LOOPS):
+                if(StaticData.TEST_MODE and batch >= StaticData.MAX_LOOPS):
                     break
 
                 self.__beforeTest__(helperEpoch, self.testHelper, model, dataMetadata, modelMetadata, metadata, smoothing)
@@ -1046,7 +1045,7 @@ class Data(SaveClass):
                 self.__epochLoopExit__(self.epochHelper, model, dataMetadata, modelMetadata, metadata, smoothing)
                 return
 
-            if(test_mode.TEST_MODE and ep == 3):
+            if(StaticData.TEST_MODE and ep == 3):
                 break
 
             self.resetEpochState()
@@ -1401,6 +1400,8 @@ def commandLineArg(metadata, dataMetadata, modelMetadata, argv, enableLoad = Tru
     if(metadata.debugOutput is None):
         metadata.debugOutput = 'default.log'  
     
+    metadata.noPrepareOutput = False
+
     return metadata, False
 
 def modelRun(Metadata_Class, Data_Metadata_Class, Model_Metadata_Class, Data_Class, Model_Class, Smoothing_Class, modelObj = None):
