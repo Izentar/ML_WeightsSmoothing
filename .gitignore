@@ -5,3 +5,4 @@
 learning/
 TODO
 __pycache__/
+*.csv

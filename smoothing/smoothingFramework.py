@@ -14,7 +14,6 @@ import copy as cp
 import random
 from torch.utils.data.dataloader import Sampler
 import torchvision.models as models
-import traceback
 
 import matplotlib.pyplot as plt
 import numpy
@@ -98,18 +97,18 @@ class SaveClass:
             obj = toLoad['obj']
             obj.only_Key_Ingredients = None
             if(loadedClassNameStr == Class.__name__):
-                print(Class.__name__ + ' loaded successfully')
+                Output.printBash(Class.__name__ + ' loaded successfully', 'info')
                 if(Class.canUpdate() == True):
                     obj.__update__(classMetadataObj)
                 elif(classMetadataObj is not None):
-                    print('There may be an error. Class: {} does not have corresponding metadata.'.format(Class.__name__))
+                    Output.printBash('There may be an error. Class: {} does not have corresponding metadata.'.format(Class.__name__), 'warn')
                 return obj
-        print(Class.__name__ + ' load failure')
+        Output.printBash(Class.__name__ + ' load failure', 'info')
         return None
 
     def trySave(self, metadata, suffix: str, onlyKeyIngredients = False, temporaryLocation = False) -> bool:
         if(metadata.fileNameSave is None):
-            print(type(self).__name__ + ' save not enabled')
+            Output.printBash(type(self).__name__ + ' save not enabled', 'info')
             return False
         if metadata.fileNameSave is not None and os.path.exists(StaticData.PATH) and os.path.exists(StaticData.TMP_PATH):
             path = None
@@ -124,9 +123,9 @@ class SaveClass:
             }
             torch.save(toSave, path)
             self.only_Key_Ingredients = None
-            print(type(self).__name__ + ' saved successfully')
+            Output.printBash(type(self).__name__ + ' saved successfully', 'info')
             return True
-        print(type(self).__name__ + ' save failure')
+        Output.printBash(type(self).__name__ + ' save failure', 'info')
         return False
 
 class BaseSampler:
@@ -184,6 +183,8 @@ class Metadata(SaveClass):
         self.name = None
         self.formatedOutput = None
 
+        self.defaultOutputPrepared = False
+
     def __str__(self):
         tmp_str = ('\n/Metadata class\n-----------------------------------------------------------------------\n')
         tmp_str += ('Save path:\t{}\n'.format(StaticData.PATH + self.fileNameSave if self.fileNameSave is not None else 'Not set'))
@@ -205,25 +206,37 @@ class Metadata(SaveClass):
         if(self.stream is None):
             raise Exception("Stream not initialized")
         if(self.name is not None):
-            self.stream.print(f"\n@@@@\nStarting new model: " + self.name + "\nTime: " + str(datetime.now()) + "\n@@@@\n")
+            string = f"\n@@@@\nStarting new model: " + self.name + "\nTime: " + str(datetime.now()) + "\n@@@@\n"
+            self.stream.print(string)
+            Output.printBash(string, 'info')
         else:
-            self.stream.print(f"\n@@@@\nStarting new model without name\nTime: " + str(datetime.now()) + "\n@@@@\n")
+            string = f"\n@@@@\nStarting new model without name\nTime: " + str(datetime.now()) + "\n@@@@\n"
+            self.stream.print(string)
+            Output.printBash(string, 'info')
 
     def printContinueLoadedModel(self):
         if(self.stream is None):
             raise Exception("Stream not initialized")
         if(self.name is not None):
-            self.stream.print(f"\n@@@@\nContinuing loaded model: '" + self.name + "'\nTime: " + str(datetime.now()) + "\n@@@@\n")
+            string = f"\n@@@@\Continuation of the loaded model: '" + self.name + "'\nTime: " + str(datetime.now()) + "\n@@@@\n"
+            self.stream.print(string)
+            Output.printBash(string)
         else:
-            self.stream.print(f"\n@@@@\nContinuing loaded model without name\nTime: " + str(datetime.now()) + "\n@@@@\n")
+            string = f"\n@@@@\Continuation of loaded model without name\nTime: " + str(datetime.now()) + "\n@@@@\n"
+            self.stream.print(string)
+            Output.printBash(string)
 
     def printEndModel(self):
         if(self.stream is None):
             raise Exception("Stream not initialized")
         if(self.name is not None):
-            self.stream.print(f"\n@@@@\nEnding model: " + self.name + "\nTime: " + str(datetime.now()) + "\n@@@@\n")
+            string = f"\n@@@@\nEnding model: " + self.name + "\nTime: " + str(datetime.now()) + "\n@@@@\n"
+            self.stream.print(string)
+            Output.printBash(string)
         else:
-            self.stream.print(f"\n@@@@\nEnding model\nTime: " + str(datetime.now()) + "\n@@@@\n")
+            string = f"\n@@@@\nEnding model\nTime: " + str(datetime.now()) + "\n@@@@\n"
+            self.stream.print(string)
+            Output.printBash(string)
 
     def exitError(help):
         print(help) 
@@ -237,6 +250,9 @@ class Metadata(SaveClass):
         stat\n
         oraz spróbowano otworzyć tryb 'bash'
         """
+        if(self.defaultOutputPrepared):
+            return
+        Output.printBash('Preparing default output.', 'info')
         if(self.stream is None):
             self.stream = Output()
 
@@ -249,12 +265,17 @@ class Metadata(SaveClass):
             self.stream.open('bash')
         if(self.formatedOutput is not None):
             self.stream.open('formatedLog', 'stat', self.formatedOutput)
+        Output.printBash('Default outputs prepared.', 'info')
+
+        self.defaultOutputPrepared = True
 
     def __getstate__(self):
         return self.__dict__.copy()
 
     def __setstate__(self, state):
         self.__dict__.update(state)
+        self.defaultOutputPrepared = False
+        self.prepareOutput()
 
     def trySave(self, onlyKeyIngredients = False, temporaryLocation = False):
         return super().trySave(self, StaticData.METADATA_SUFFIX, onlyKeyIngredients, temporaryLocation)
@@ -339,12 +360,15 @@ class Timer(SaveClass):
         return False
 
 class Output(SaveClass):
+    IGNORE_IO_WARNINGS = False
+
     class FileHandler():
-        def __init__(self, fullPathName, mode):
+        def __init__(self, fullPathName, mode, OType):
             self.handler = open(fullPathName, mode)
             self.counter = 1
             self.pathName = fullPathName
             self.mode = mode
+            self.OType = [OType]
 
         def __getstate__(self):
             state = self.__dict__.copy()
@@ -353,15 +377,20 @@ class Output(SaveClass):
 
         def __setstate__(self, state):
             self.__dict__.update(state)
-            self.handler = open(self.fullPathName, self.mode)
+            self.handler = open(self.pathName, self.mode)
 
         def counterUp(self):
             self.counter +=1
+            return self
 
         def get(self):
             if(self.handler is None):
                 raise Exception("Tried to get to the file that is already closed.")
             return self.handler
+
+        def addOType(self, OType):
+            self.OType.append(OType)
+            return self
 
         def exist(self):
             return bool(self.handler is not None)
@@ -375,6 +404,7 @@ class Output(SaveClass):
         def flush(self):
             if(self.handler is not None):
                 self.handler.flush()
+            return self
 
         def __del__(self):
             if(self.handler is not None):
@@ -384,7 +414,6 @@ class Output(SaveClass):
     def __init__(self):
         super().__init__()
         self.filesDict = {}
-        self.fLogPaths = []
         self.aliasToFH = {}
 
         self.bash = False
@@ -395,6 +424,18 @@ class Output(SaveClass):
 
     def __setstate__(self, state):
         self.__dict__.update(state)
+
+    def __open(self, alias, pathName, outputType):
+        if(alias in self.aliasToFH and self.aliasToFH[alias].exist()):
+            if(warnings()):
+                print("WARNING: Provided alias '{}' with opened file already exist: {}.".format(alias, outputType), 'This may be due to loaded Metadata object.')
+            return
+        suffix = '.log'
+        if(outputType == 'formatedLog'):
+            suffix = '.csv'
+        fh = self.FileHandler(pathName + suffix, 'a', outputType)
+        self.filesDict[pathName] = {outputType: fh}
+        self.aliasToFH[alias] = fh
 
     def open(self, outputType: str, alias: str = None, pathName: str = None):
         if((outputType != 'debug' and outputType != 'model' and outputType != 'bash' and outputType != 'formatedLog') or outputType is None):
@@ -409,6 +450,7 @@ class Output(SaveClass):
 
         if(outputType == 'bash'):
             self.bash = True
+
             return
 
         if(alias is None):
@@ -421,50 +463,63 @@ class Output(SaveClass):
                 if(outputType in self.filesDict[pathName] and self.filesDict[pathName][outputType].exist()):
                     pass # do nothing, already opened
                 elif(self.filesDict[pathName][outputType] is None):
-                    if(outputType == 'formatedLog'):
-                        raise Exception("Output for type 'formatedLog' for provided pathName can have only one instance. For this pathName file in different mode is already opened.")
-                    self.filesDict[pathName][outputType] = self.filesDict[pathName][self.filesDict[pathName].keys()[-1]] 
-                    self.filesDict[pathName][outputType].counterUp()
-                    self.fLogPaths.append(pathName)
-                else: # self.filesDict[pathName][outputType].exist() == False
-                    fh = self.FileHandler(pathName + ".log", 'a')
-                    self.filesDict[pathName] = {outputType: fh}
-                    self.aliasToFH[alias] = fh
-            else:
-                fh = self.FileHandler(pathName + ".log", 'a')
-                self.filesDict[pathName] = {outputType: fh}
-                self.aliasToFH[alias] = fh
+                    for _, val in self.filesDict[pathName]:
+                        if(val.exist()): # copy reference
+                            if(outputType == 'formatedLog'):
+                                raise Exception("Output for type 'formatedLog' for provided pathName can have only one instance. For this pathName file in different mode is already opened.")
+                            self.filesDict[pathName][outputType] = self.filesDict[pathName][self.filesDict[pathName].keys()[-1]].counterUp().addOType(outputType)
+                            return
+                        else:
+                            del val
+            self.__open(alias, pathName, outputType)
         else:
             if(warnings()):
                 print("WARNING: For this '{}' Output type pathName should not be None.".format(outputType))
             return
     
-    def write(self, arg, *alias: str, ignore = True):
+    def __getPrefix(mode):
+        prefix = ''
+        if(mode is None):
+            pass
+        elif(mode == 'info'):
+            prefix = 'INFO:'
+        elif(mode == 'debug'):
+            prefix = 'DEBUG:'
+        elif(mode == 'warn'):
+            prefix = 'WARNING:'
+        elif(warnings()):
+            print("WARNING: Unrecognized mode in Output.printBash method. Printing without prefix.")
+        return prefix
+
+    def write(self, arg, alias: list = None, ignore = False, end = '', mode: str = None):
         """
         Przekazuje argument do wszystkich możliwych, aktywnych strumieni wyjściowych.\n
         Na końcu argumentu nie daje znaku nowej linii.
         """
-        if(self.bash is True):
-            print(arg, end='')
+        prefix = Output.__getPrefix(mode)
 
         if(alias is None):
-            for _, val in self.filesDict.items():
-                if(val is not None and val[0] is not None and val.keys()[0] != 'formatedLog' and val[0].exist()):
-                    val[0].get().write(arg)
+            for fh in self.aliasToFH.values():
+                if(fh.exist() and 'formatedLog' not in fh.OType):
+                    fh.get().write(str(arg) + end)
         else:
             for al in alias:
-                if(al in self.aliasToFH and self.aliasToFH[al].exist()):
-                    self.aliasToFH[al].get().write(arg)
-                elif(warnings() and not ignore):
-                    print("WARNING: Output alias for 'write / print' not found: '{}'".format(al))
-                    traceback.print_exc()
-
-    def print(self, arg, *alias: str, ignore = True):
+                if(al == 'bash'):
+                    print(arg, end=end)
+                if(al in self.aliasToFH.keys() and self.aliasToFH[al].exist()):
+                    self.aliasToFH[al].get().write(str(arg) + end)
+                    if('formatedLog' in self.aliasToFH[al].OType):
+                        prBash = False
+                elif(warnings() and not (ignore or Output.IGNORE_IO_WARNINGS)):
+                    print("WARNING: Output alias for 'write / print' not found: '{}'".format(al), end=end)
+                    print(al, self.aliasToFH.keys())
+                
+    def print(self, arg, alias: list = None, ignore = False, mode: str = None):
         """
         Przekazuje argument do wszystkich możliwych, aktywnych strumieni wyjściowych.\n
         Na końcu argumentu dodaje znak nowej linii.
         """
-        self.write(arg + '\n', alias, ignore)
+        self.write(arg, alias, ignore, '\n', mode)
 
     def __del__(self):
         for _, fh in self.aliasToFH.items():
@@ -484,24 +539,45 @@ class Output(SaveClass):
     def canUpdate(self = None):
         return False
 
-# nieużywane
-class Printer():
-    def __init__(self):
-        self.labels = []
-        self.values = []
+    def printBash(arg, mode: str = None):
+        """
+        Tryby:\n
+        'info'
+        'debug'
+        'warn'
+        None
+        """
+        prefix = Output.__getPrefix(mode)
+        print(prefix, arg)
 
-    def __getstate__(self):
-        obj = self.__dict__.copy()
-        return obj
+class DefaultMethods():
+    def printLoss(metadata, helper, alias: list = None):
+        """
+        Potrzebuje:\n
+        helper.loss\n
+        helper.batchNumber\n
+        helper.inputs\n
+        helper.size\n
+        """
+        calcLoss, current = helper.loss.item(), helper.batchNumber * len(helper.inputs)
+        metadata.stream.print(f"loss: {calcLoss:>7f}  [{current:>5d}/{helper.size:>5d}]", alias)
+        del calcLoss
+        del current
 
-    def __setstate__(self, state):
-        self.__dict__.update(state)
+    def printWeightDifference(metadata, helper, alias: list = None):
+        """
+        Potrzebuje\n
+        helper.diff
+        """
+        if(helper.diff is None):
+            metadata.stream.print(f"No weight difference")
+        else:
+            diffKey = list(helper.diff.keys())[-1]
+            metadata.stream.print(f"Weight difference: {helper.diff[diffKey]}", 'debug:0', 'bash:0', alias)
+            metadata.stream.print(f"Weight difference of last layer average: {helper.diff[diffKey].sum() / helper.diff[diffKey].numel()} :: was divided by: {helper.diff[diffKey].numel()}", alias)
+            metadata.stream.print('################################################', alias)
+            del diffKey
 
-    def addLabel(self, label: str):
-        self.labels.append(label)
-
-    def print(self, *values):
-        self.values.append(values)
 
 class Data_Metadata(SaveClass):
     def __init__(self):
@@ -611,6 +687,8 @@ class TestDataContainer():
         # one loop test data
         self.test_loss = 0
         self.test_correct = 0
+        self.testLossSum = 0
+        self.testCorrectSum = 0
 
 class EpochDataContainer():
     def __init__(self):
@@ -628,8 +706,6 @@ class Statistics():
 
     def addLoss(self, loss):
         self.trainLossArray.append(loss)
-
-
 
 class Data(SaveClass):
     """
@@ -782,13 +858,13 @@ class Data(SaveClass):
         model.optimizer.step()
 
         # run smoothing
-        smoothing.call(helperEpoch, helper, model, dataMetadata, modelMetadata, metadata)
+        smoothing(helperEpoch, helper, model, dataMetadata, modelMetadata, metadata)
 
     def setTrainLoop(self, model: 'Model', modelMetadata: 'Model_Metadata', metadata: 'Metadata'):
         helper = TrainDataContainer()
+        metadata.prepareOutput()
         helper.size = len(self.trainloader.dataset)
         model.getNNModelModule().train()
-        metadata.prepareOutput()
         helper.timer = Timer()
         helper.loopTimer = Timer()
         helper.loss = None 
@@ -866,13 +942,14 @@ class Data(SaveClass):
         """
         
         helper.pred = model.getNNModelModule()(helper.inputs)
+        helper.test_loss = model.loss_fn(helper.pred, helper.labels).item()
 
     def setTestLoop(self, model: 'Model', modelMetadata: 'Model_Metadata', metadata: 'Metadata'):
         helper = TestDataContainer()
+        metadata.prepareOutput()
         helper.size = len(self.testloader.dataset)
         helper.test_loss, helper.test_correct = 0, 0
         model.getNNModelModule().eval()
-        metadata.prepareOutput()
         helper.timer = Timer()
         helper.loopTimer = Timer()
         return helper
@@ -884,7 +961,9 @@ class Data(SaveClass):
         pass
 
     def __afterTest__(self, helperEpoch: 'EpochDataContainer', helper, model: 'Model', dataMetadata: 'Data_Metadata', modelMetadata: 'Model_Metadata', metadata: 'Metadata', smoothing: 'Smoothing'):
-        pass
+        helper.testLossSum += helper.test_loss
+        helper.test_correct = (helper.pred.argmax(1) == helper.labels).type(torch.float).sum().item()
+        helper.testCorrectSum += helper.test_correct
 
     def __afterTestLoop__(self, helperEpoch: 'EpochDataContainer', helper, model: 'Model', dataMetadata: 'Data_Metadata', modelMetadata: 'Model_Metadata', metadata: 'Metadata', smoothing: 'Smoothing'):
         pass
@@ -1033,44 +1112,22 @@ class Smoothing(SaveClass):
 
         self.mainWeights = None
 
-    def call(self, helperEpoch, helper, model, dataMetadata, modelMetadata, metadata):
+    def __call__(self, helperEpoch, helper, model, dataMetadata, modelMetadata, metadata):
         if(self.enabled == False):
             return
-        self.counter += 1
-        if(self.counter > self.numbOfBatchAfterSwitchOn):
-            self.countWeights += 1
-            del helper.diff
-            helper.diff = {}
-            with torch.no_grad():
-                for key, arg in model.getNNModelModule().named_parameters():
-                    cpuArg = arg.to('cpu')
-                    self.sumWeights[key].add_(cpuArg)
-                    helper.diff[key] = cpuArg.sub(self.previousWeights[key])
-                    self.previousWeights[key].data.copy_(cpuArg.data)
 
     def getWeights(self):
         """
         Zwraca słownik wag, który można użyć do załadowania ich do modelu. Wagi ładuje się standardową metodą torch.
         Może zwrócić pusty słownik, jeżeli obiekt nie jest gotowy do podania wag.
         """
-        average = {}
-        if(self.countWeights == 0 or self.enabled == False):
-            return average
-        with torch.no_grad():
-            for key, arg in self.sumWeights.items():
-                average[key] = self.sumWeights[key] / self.countWeights
-        return average
+        pass
 
     def setDictionary(self, dictionary):
         """
         Used to map future weights into internal sums.
         """
-        with torch.no_grad():
-            for key, values in dictionary:
-                self.sumWeights[key] = torch.zeros_like(values, requires_grad=False)
-                self.previousWeights[key] = torch.zeros_like(values, requires_grad=False)
-
-        self.enabled = True
+        pass
 
     def __getstate__(self):
         state = self.__dict__.copy()
@@ -1105,14 +1162,6 @@ class Smoothing(SaveClass):
     def saveMainWeight(self, model):
         self.mainWeights = model.getWeights()
         
-    # ważne
-    def getStateDict(self):
-        #inheritance
-        average = {}
-        for key, arg in self.sumWeights.items():
-            average[key] = self.sumWeights[key] / self.countWeights
-        return average
-
 
 class Model(nn.Module, SaveClass):
     """
@@ -1307,7 +1356,7 @@ def commandLineArg(metadata, dataMetadata, modelMetadata, argv, enableLoad = Tru
             loadedMetadata = SaveClass.tryLoad(metadata, Metadata)
             if(loadedMetadata is None):
                 break
-            print("Command line options ignored because class Metadata was loaded.")
+            Output.printBash("Command line options ignored because class Metadata was loaded.", 'info')
             return loadedMetadata, True
 
     for opt, arg in opts:
@@ -1426,12 +1475,6 @@ def selectCPU(device, metadata):
     if(metadata.debugInfo):
         print('Using {} torch CUDA device version\nCUDA avaliable: {}\nCUDA selected: False'.format(torch.version.cuda, torch.cuda.is_available()))
     return device
-
-def tryTo(tensor, device):
-    if(checkStrCUDA(device)): # cuda
-        pass
-    else:
-        pass
 
 #########################################
 # test   

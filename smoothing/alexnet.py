@@ -84,7 +84,8 @@ class TestSmoothing(sf.Smoothing):
 
         self.mainWeights = None
 
-    def call(self, helperEpoch, helper, model, dataMetadata, modelMetadata, metadata):
+    def __call__(self, helperEpoch, helper, model, dataMetadata, modelMetadata, metadata):
+        super().__call__(helperEpoch, helper, model, dataMetadata, modelMetadata, metadata)
         self.counter += 1
         if(self.counter > self.numbOfBatchAfterSwitchOn):
             self.countWeights += 1
@@ -101,6 +102,8 @@ class TestSmoothing(sf.Smoothing):
 
     def getWeights(self):
         average = {}
+        if(self.countWeights == 0 or self.enabled == False):
+            return average
         for key, arg in self.sumWeights.items():
             average[key] = self.sumWeights[key].to('cpu') / self.countWeights
         torch.cuda.empty_cache()
@@ -110,9 +113,12 @@ class TestSmoothing(sf.Smoothing):
         '''
         Used to map future weights into internal sums.
         '''
-        for key, values in dictionary:
-            self.sumWeights[key] = torch.zeros_like(values, requires_grad=False, device='cpu')
-            self.previousWeights[key] = torch.zeros_like(values, requires_grad=False, device='cpu')
+        with torch.no_grad():
+            for key, values in dictionary:
+                self.sumWeights[key] = torch.zeros_like(values, requires_grad=False, device='cpu')
+                self.previousWeights[key] = torch.zeros_like(values, requires_grad=False, device='cpu')
+
+        self.enabled = True
 
 class TestData(sf.Data):
     def __init__(self):
@@ -161,6 +167,7 @@ class TestData(sf.Data):
 
     def __beforeTrainLoop__(self, helperEpoch: 'EpochDataContainer', helper, model: 'Model', dataMetadata: 'Data_Metadata', modelMetadata: 'Model_Metadata', metadata: 'Metadata', smoothing: 'Smoothing'):
         helper.tmp_sumLoss = 0.0
+        metadata.stream.print("Loss", ['statLossTrain'])
 
     def __beforeTrain__(self, helperEpoch: 'EpochDataContainer', helper, model: 'Model', dataMetadata: 'Data_Metadata', modelMetadata: 'Model_Metadata', metadata: 'Metadata', smoothing: 'Smoothing'):
         helper.inputs, helper.labels = helper.inputs.to(modelMetadata.device), helper.labels.to(modelMetadata.device)
@@ -171,59 +178,48 @@ class TestData(sf.Data):
             helper.tmp_sumLoss += helper.loss.item()
 
             helperEpoch.statistics.addLoss(helper.loss.item())
+            metadata.stream.print(helper.loss.item(), ['statLossTrain'])
 
             if(bool(metadata.debugInfo) and dataMetadata.howOftenPrintTrain is not None and (helper.batchNumber % dataMetadata.howOftenPrintTrain == 0 or sf.test_mode.isActivated())):
-                calcLoss, current = helper.loss.item(), helper.batchNumber * len(helper.inputs)
-                metadata.stream.print(f"loss: {calcLoss:>7f}  [{current:>5d}/{helper.size:>5d}]")
-                del calcLoss
-                del current
+                sf.DefaultMethods.printLoss(metadata, helper)
         
-                averageWeights = smoothing.getWeights()
-                #if(bool(averageWeights)):
-                    #averKey = list(averageWeights.keys())[-1]
-                    #metadata.stream.print(f"Average: {averageWeights[averKey]}", 'debug', 'bash')
-                    #del averKey
+                #averageWeights = smoothing.getWeights()
                 
-
-                if(helper.diff is None):
-                    metadata.stream.print(f"No weight difference")
-                else:
-                    diffKey = list(helper.diff.keys())[-1]
-                    metadata.stream.print(f"Weight difference: {helper.diff[diffKey]}", 'debug:0', 'bash:0')
-                    metadata.stream.print(f"Weight difference of last layer average: {helper.diff[diffKey].sum() / helper.diff[diffKey].numel()} :: was divided by: {helper.diff[diffKey].numel()}")
-                    metadata.stream.print('################################################')
-                    del diffKey
+                sf.DefaultMethods.printWeightDifference(metadata, helper)
 
     def __afterTrainLoop__(self, helperEpoch: 'EpochDataContainer', helper, model: 'Model', dataMetadata: 'Data_Metadata', modelMetadata: 'Model_Metadata', metadata: 'Metadata', smoothing: 'Smoothing'):
         super().__afterTrainLoop__(helperEpoch, helper, model, dataMetadata, modelMetadata, metadata, smoothing)
         with torch.no_grad():
             if(helper.diff is not None):
                 diffKey = list(helper.diff.keys())[-1]
-                metadata.stream.print("trainLoop;\nAverage train time;Loop train time;Weight difference of last layer average;divided by;", 'stat')
-                metadata.stream.print(f"{helper.timer.getAverage()};{helper.loopTimer.getDiff()};{helper.diff[diffKey].sum() / helper.diff[diffKey].numel()};{helper.diff[diffKey].numel()}", 'stat')
+                metadata.stream.print("\n\ntrainLoop;\nAverage train time;Loop train time;Weight difference of last layer average;divided by;", ['stat'])
+                metadata.stream.print(f"{helper.timer.getAverage()};{helper.loopTimer.getDiff()};{helper.diff[diffKey].sum() / helper.diff[diffKey].numel()};{helper.diff[diffKey].numel()}", ['stat'])
                 del diffKey
 
 
     def __beforeTestLoop__(self, helperEpoch: 'EpochDataContainer', helper, model: 'Model', dataMetadata: 'Data_Metadata', modelMetadata: 'Model_Metadata', metadata: 'Metadata', smoothing: 'Smoothing'):
-        metadata.stream.print("testLoop;\nAverage test time;Loop test time;Accuracy;Avg loss", 'stat')
+        metadata.stream.print("\n\ntestLoop;\nAverage test time;Loop test time;Accuracy;Avg loss", ['stat'])
+        metadata.stream.print('Test loss', ['statLossTest'])
 
     def __beforeTest__(self, helperEpoch: 'EpochDataContainer', helper, model: 'Model', dataMetadata: 'Data_Metadata', modelMetadata: 'Model_Metadata', metadata: 'Metadata', smoothing: 'Smoothing'):
         helper.inputs = helper.inputs.to(modelMetadata.device)
         helper.labels = helper.labels.to(modelMetadata.device)
 
     def __afterTest__(self, helperEpoch: 'EpochDataContainer', helper, model: 'Model', dataMetadata: 'Data_Metadata', modelMetadata: 'Model_Metadata', metadata: 'Metadata', smoothing: 'Smoothing'):
-        helper.test_loss += model.loss_fn(helper.pred, helper.labels).item()
-        helper.test_correct += (helper.pred.argmax(1) == helper.labels).type(torch.float).sum().item()
+        super().__afterTest__(helperEpoch, helper, model, dataMetadata, modelMetadata, metadata, smoothing)
+        metadata.stream.print(helper.test_loss, ['statLossTest'])
 
     def __afterTestLoop__(self, helperEpoch: 'EpochDataContainer', helper, model: 'Model', dataMetadata: 'Data_Metadata', modelMetadata: 'Model_Metadata', metadata: 'Metadata', smoothing: 'Smoothing'):
         helper.test_loss /= helper.size
         helper.test_correct /= helper.size
-        metadata.stream.print(f"Test summary: \n Accuracy: {(100*helper.test_correct):>0.1f}%, Avg loss: {helper.test_loss:>8f}")
-        metadata.stream.print(f" Average test time ({helper.timer.getUnits()}): {helper.timer.getAverage()}")
-        metadata.stream.print(f" Loop test time ({helper.timer.getUnits()}): {helper.loopTimer.getDiff()}")
-        metadata.stream.print("")
-        metadata.stream.print(f"{helper.timer.getAverage()};{helper.loopTimer.getDiff()};{(helper.test_correct):>0.0001f};{helper.test_loss:>8f}", 'stat')
+        metadata.stream.print(f"\nTest summary: \n Accuracy: {(100*helper.test_correct):>0.1f}%, Avg loss: {helper.test_loss:>8f}", ['model:0'])
+        metadata.stream.print(f" Average test time ({helper.timer.getUnits()}): {helper.timer.getAverage()}", ['model:0'])
+        metadata.stream.print(f" Loop test time ({helper.timer.getUnits()}): {helper.loopTimer.getDiff()}\n", ['model:0'])
+        metadata.stream.print(f"{helper.timer.getAverage()};{helper.loopTimer.getDiff()};{(helper.test_correct):>0.0001f};{helper.test_loss:>8f}", ['stat'])
 
+    def __beforeEpochLoop__(self, helperEpoch: 'EpochDataContainer', model: 'Model', dataMetadata: 'Data_Metadata', modelMetadata: 'Model_Metadata', metadata: 'Metadata', smoothing: 'Smoothing'):
+        metadata.stream.open("formatedLog", 'statLossTrain', 'statLossTrain')
+        metadata.stream.open("formatedLog", 'statLossTest', 'statLossTest')
 
     def __epoch__(self, helperEpoch: 'EpochDataContainer', model: 'Model', dataMetadata: 'Data_Metadata', 
         modelMetadata: 'Model_Metadata', metadata: 'Metadata', smoothing: 'Smoothing'):
@@ -235,17 +231,17 @@ class TestData(sf.Data):
 
         with torch.no_grad():
             if(metadata.shouldTest()):
-                metadata.stream.write("Plain weights, ")
-                metadata.stream.write("Plain weights;", 'stat')
+                #metadata.stream.write("Plain weights, ")
+                #metadata.stream.write("Plain weights;", 'stat')
                 self.testLoop(helperEpoch, model, dataMetadata, modelMetadata, metadata, smoothing)
                 smoothing.saveMainWeight(model)
                 if(smoothing.getWeights()):
                     model.setWeights(smoothing.getWeights())
-                    metadata.stream.write("Smoothing weights, ")
-                    metadata.stream.write("Smoothing weights;", 'stat')
+                    #metadata.stream.write("Smoothing weights, ")
+                    #metadata.stream.write("Smoothing weights;", 'stat')
                     self.testLoop(helperEpoch, model, dataMetadata, modelMetadata, metadata, smoothing)
                 else:
-                    print('Smoothing is not enabled. Test does not executed.')
+                    metadata.stream.printBash('Smoothing is not enabled. Test does not executed.', 'info')
             # model.linear1.weight = torch.nn.parameter.Parameter(model.average)
             # model.linear1.weight = model.average
 

@@ -96,4 +96,5 @@ done
 
 let counter=0
 echo "$counter" > "$fileBashStateName"
+exitScript
 python smoothing/playSound.py
