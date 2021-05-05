@@ -235,13 +235,14 @@ class TestData(sf.Data):
                 #metadata.stream.write("Plain weights;", 'stat')
                 self.testLoop(helperEpoch, model, dataMetadata, modelMetadata, metadata, smoothing)
                 smoothing.saveMainWeight(model)
-                if(smoothing.getWeights()):
-                    model.setWeights(smoothing.getWeights())
+                wg = smoothing.getWeights()
+                if(wg):
+                    model.setWeights(wg)
                     #metadata.stream.write("Smoothing weights, ")
                     #metadata.stream.write("Smoothing weights;", 'stat')
                     self.testLoop(helperEpoch, model, dataMetadata, modelMetadata, metadata, smoothing)
                 else:
-                    metadata.stream.printBash('Smoothing is not enabled. Test does not executed.', 'info')
+                    sf.Output.printBash('Smoothing is not enabled. Test does not executed.', 'info')
             # model.linear1.weight = torch.nn.parameter.Parameter(model.average)
             # model.linear1.weight = model.average
 

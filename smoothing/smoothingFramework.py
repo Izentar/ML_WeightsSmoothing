@@ -207,23 +207,23 @@ class Metadata(SaveClass):
         if(self.stream is None):
             raise Exception("Stream not initialized")
         if(self.name is not None):
-            string = f"\n@@@@\nStarting new model: " + self.name + "\nTime: " + str(datetime.now()) + "\n@@@@\n"
+            string = f"\n\n@@@@\nStarting new model: " + self.name + "\nTime: " + str(datetime.now()) + "\n@@@@\n"
             self.stream.print(string)
-            Output.printBash(string, 'info')
+            Output.printBash(string)
         else:
-            string = f"\n@@@@\nStarting new model without name\nTime: " + str(datetime.now()) + "\n@@@@\n"
+            string = f"\n\n@@@@\nStarting new model without name\nTime: " + str(datetime.now()) + "\n@@@@\n"
             self.stream.print(string)
-            Output.printBash(string, 'info')
+            Output.printBash(string)
 
     def printContinueLoadedModel(self):
         if(self.stream is None):
             raise Exception("Stream not initialized")
         if(self.name is not None):
-            string = f"\n@@@@\nContinuation of the loaded model: '" + self.name + "'\nTime: " + str(datetime.now()) + "\n@@@@\n"
+            string = f"\n\n@@@@\nContinuation of the loaded model: '" + self.name + "'\nTime: " + str(datetime.now()) + "\n@@@@\n"
             self.stream.print(string)
             Output.printBash(string)
         else:
-            string = f"\n@@@@\nContinuation of loaded model without name\nTime: " + str(datetime.now()) + "\n@@@@\n"
+            string = f"\n\n@@@@\nContinuation of loaded model without name\nTime: " + str(datetime.now()) + "\n@@@@\n"
             self.stream.print(string)
             Output.printBash(string)
 
@@ -231,11 +231,11 @@ class Metadata(SaveClass):
         if(self.stream is None):
             raise Exception("Stream not initialized")
         if(self.name is not None):
-            string = f"\n@@@@\nEnding model: " + self.name + "\nTime: " + str(datetime.now()) + "\n@@@@\n"
+            string = f"\n\n@@@@\nEnding model: " + self.name + "\nTime: " + str(datetime.now()) + "\n@@@@\n"
             self.stream.print(string)
             Output.printBash(string)
         else:
-            string = f"\n@@@@\nEnding model\nTime: " + str(datetime.now()) + "\n@@@@\n"
+            string = f"\n\n@@@@\nEnding model\nTime: " + str(datetime.now()) + "\n@@@@\n"
             self.stream.print(string)
             Output.printBash(string)
 
@@ -577,6 +577,54 @@ class DefaultMethods():
             metadata.stream.print('################################################', alias)
             del diffKey
 
+class LoopsState():
+    def __init__(self):
+        self.numbArray = []
+        self.popNumbArray = None
+
+    def __getstate__(self):
+        state = self.__dict__.copy()
+        del state['popNumbArray']
+        return state
+
+    def __setstate__(self, state):
+        self.__dict__.update(state)
+        self.popNumbArray = None
+
+    def imprint(self, numb, isEnd):
+        if(len(self.popNumbArray) == 1 and self.popNumbArray[0][1] == False):
+            self.numbArray[0][0] = numb
+            self.numbArray[0][0] = True
+            self.popNumbArray.clear()
+        elif(len(self.popNumbArray) == 0):
+            self.numbArray.append([numb, isEnd])
+            self.popNumbArray.clear()
+
+    def clear(self):
+        self.popNumbArray = None
+        self.numbArray = []
+
+    def tryCreateNew(self):
+        if(self.popNumbArray is None):
+            self.popNumbArray = self.numbArray.copy()
+
+    def canRun(self):
+        if(self.popNumbArray is None):
+            raise Exception("State not started")
+        if(len(self.popNumbArray) != 0):
+            numb, finished = self.popNumbArray[0]
+            if(finished):
+                self.popNumbArray.pop(0)
+                return None # go to the next loop
+            else:
+                return numb # start loop with this number
+        else:
+            return 0 # start loop from 0
+
+    def decide(self):
+        self.tryCreateNew()
+        return self.canRun()
+
 
 class Data_Metadata(SaveClass):
     def __init__(self):
@@ -668,7 +716,8 @@ class TrainDataContainer():
         self.inputs = None
         self.labels = None
 
-        self.batchNumber = None
+        self.batchNumber = None # current batch number
+        self.loopEnded = False # check if loop ened
 
 class TestDataContainer():
     def __init__(self):
@@ -681,7 +730,8 @@ class TestDataContainer():
         self.inputs = None
         self.labels = None
 
-        self.batchNumber = None
+        self.batchNumber = None # current batch number
+        self.loopEnded = False # check if loop ened
 
         # one loop test data
         self.test_loss = 0
@@ -693,6 +743,7 @@ class EpochDataContainer():
     def __init__(self):
         self.epochNumber = None
         self.returnObj = None
+        self.loopsState = LoopsState()
         self.statistics = Statistics()
 
 class Statistics():
@@ -721,6 +772,9 @@ class Data(SaveClass):
         __customizeState__
         __setstate__
         __str__
+        __trainLoopExit__
+        __testLoopExit__
+
 
         Metody możliwe do przeciążenia, które nie wymagają użycia super(). Użycie go spowoduje zawarcie domyślnej treści danej metody (o ile taka istnieje), 
         która nie jest wymagana.
@@ -729,7 +783,6 @@ class Data(SaveClass):
         __beforeTrain__
         __afterTrain__
         __afterTrainLoop__
-        __trainLoopExit__
         __test__
         __beforeTestLoop__
         __beforeTest__
@@ -737,7 +790,6 @@ class Data(SaveClass):
         __afterTestLoop__
         __beforeEpochLoop__
         __afterEpochLoop__
-        __testLoopExit__
         __epochLoopExit__
 
         Metody, których nie powinno się przeciążać
@@ -886,12 +938,16 @@ class Data(SaveClass):
         metadata.stream.print(f" Loop train time ({helper.timer.getUnits()}): {helper.loopTimer.getDiff()}")
 
     def __trainLoopExit__(self, helperEpoch: 'EpochDataContainer', helper, model: 'Model', dataMetadata: 'Data_Metadata', modelMetadata: 'Model_Metadata', metadata: 'Metadata', smoothing: 'Smoothing'):
-        pass
+        helperEpoch.loopsState.imprint(helper.batchNumber, helper.loopEnded)
 
     def trainLoop(self, model: 'Model', helperEpoch: 'EpochDataContainer', dataMetadata: 'Data_Metadata', modelMetadata: 'Model_Metadata', metadata: 'Metadata', smoothing: 'Smoothing'):
         """
         Główna logika pętli treningowej.
         """
+        startNumb = helperEpoch.loopsState.decide()
+        if(startNumb is None):
+            return # loop already ended. This state can occur when framework was loaded from file.
+
         if(self.trainHelper is None): # jeżeli nie było wznowione; nowe wywołanie
             self.trainHelper = self.setTrainLoop(model, modelMetadata, metadata)
 
@@ -899,14 +955,13 @@ class Data(SaveClass):
         self.__beforeTrainLoop__(helperEpoch, self.trainHelper, model, dataMetadata, modelMetadata, metadata, smoothing)
 
         self.trainHelper.loopTimer.start()
-        for batch, (inputs, labels) in enumerate(self.trainloader, start=self.batchNumbTrain):
+        for batch, (inputs, labels) in enumerate(self.trainloader, start=startNumb):
             del self.trainHelper.inputs
             del self.trainHelper.labels
 
             self.trainHelper.inputs = inputs
             self.trainHelper.labels = labels
             self.trainHelper.batchNumber = batch
-            self.batchNumbTrain = batch
             if(SAVE_AND_EXIT_FLAG):
                 self.__trainLoopExit__(helperEpoch, self.trainHelper, model, dataMetadata, modelMetadata, metadata, smoothing)
                 return
@@ -928,9 +983,10 @@ class Data(SaveClass):
             self.trainHelper.timer.addToStatistics()
 
             self.__afterTrain__(helperEpoch, self.trainHelper, model, dataMetadata, modelMetadata, metadata, smoothing)
-            torch.cuda.empty_cache()
 
         self.trainHelper.loopTimer.end()
+        self.trainHelper.loopEnded = True
+
         self.__afterTrainLoop__(helperEpoch, self.trainHelper, model, dataMetadata, modelMetadata, metadata, smoothing)
         self.__trainLoopExit__(helperEpoch, self.trainHelper, model, dataMetadata, modelMetadata, metadata, smoothing)
         self.trainHelper = None
@@ -968,9 +1024,13 @@ class Data(SaveClass):
         pass
 
     def __testLoopExit__(self, helperEpoch: 'EpochDataContainer', helper, model: 'Model', dataMetadata: 'Data_Metadata', modelMetadata: 'Model_Metadata', metadata: 'Metadata', smoothing: 'Smoothing'):
-        pass
+        helperEpoch.loopsState.imprint(helper.batchNumber, helper.loopEnded)
 
     def testLoop(self, helperEpoch: 'EpochDataContainer', model: 'Model', dataMetadata: 'Data_Metadata', modelMetadata: 'Model_Metadata', metadata: 'Metadata', smoothing: 'Smoothing'):
+        startNumb = helperEpoch.loopsState.decide()
+        if(startNumb is None):
+            return # loop already ended. This state can occur when framework was loaded from file.
+        
         if(self.testHelper is None): # jeżeli nie było wznowione; nowe wywołanie
             self.testHelper = self.setTestLoop(model, modelMetadata, metadata)
 
@@ -979,11 +1039,10 @@ class Data(SaveClass):
 
         with torch.no_grad():
             self.testHelper.loopTimer.start()
-            for batch, (inputs, labels) in enumerate(self.testloader, self.batchNumbTest):
+            for batch, (inputs, labels) in enumerate(self.testloader, startNumb):
                 self.testHelper.inputs = inputs
                 self.testHelper.labels = labels
                 self.testHelper.batchNumber = batch
-                self.batchNumbTest = batch
                 if(SAVE_AND_EXIT_FLAG):
                     self.__testLoopExit__(helperEpoch, self.testHelper, model, dataMetadata, modelMetadata, metadata, smoothing)
                     return
@@ -1000,9 +1059,9 @@ class Data(SaveClass):
                 self.testHelper.timer.addToStatistics()
 
                 self.__afterTest__(helperEpoch, self.testHelper, model, dataMetadata, modelMetadata, metadata, smoothing)
-                torch.cuda.empty_cache()
 
             self.testHelper.loopTimer.end()
+            self.testHelper.loopEnded = True
 
         self.__afterTestLoop__(helperEpoch, self.testHelper, model, dataMetadata, modelMetadata, metadata, smoothing)
         self.__testLoopExit__(helperEpoch, self.testHelper, model, dataMetadata, modelMetadata, metadata, smoothing)
@@ -1048,22 +1107,17 @@ class Data(SaveClass):
             if(StaticData.TEST_MODE and ep == 3):
                 break
 
-            self.resetEpochState()
-
         self.__afterEpochLoop__(self.epochHelper, model, dataMetadata, modelMetadata, metadata, smoothing)
         self.__epochLoopExit__(self.epochHelper, model, dataMetadata, modelMetadata, metadata, smoothing)
-        self.resetFullEpochState()
+        self.resetEpochState()
         metadata.stream.flushAll()
         stat = self.epochHelper.statistics
         self.epochHelper = None
         return stat
 
-    def resetEpochState(self):
-        self.batchNumbTrain = 0
-        self.batchNumbTest = 0
 
-    def resetFullEpochState(self):
-        self.resetEpochState()
+    def resetEpochState(self):
+        self.epochHelper.loopsState.clear()
         self.epochNumb = 0
 
     def __update__(self, dataMetadata: 'Data_Metadata'):
