@@ -743,6 +743,7 @@ class TestDataContainer():
         self.test_correct = 0
         self.testLossSum = 0.0
         self.testCorrectSum = 0
+        self.predSizeSum = 0
 
 class EpochDataContainer():
     def __init__(self):
@@ -1063,6 +1064,7 @@ class Data(SaveClass):
                 self.testHelper.timer.end()
                 self.testHelper.timer.addToStatistics()
 
+                self.testHelper.predSizeSum += labels.size(0)
                 self.__afterTest__(helperEpoch, self.testHelper, model, dataMetadata, modelMetadata, metadata, smoothing)
 
             self.testHelper.loopTimer.end()

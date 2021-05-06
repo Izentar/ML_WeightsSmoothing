@@ -237,8 +237,8 @@ class DefaultData(sf.Data):
         metadata.stream.print(helper.test_loss, ['statLossTest'])
 
     def __afterTestLoop__(self, helperEpoch: 'EpochDataContainer', helper, model: 'Model', dataMetadata: 'Data_Metadata', modelMetadata: 'Model_Metadata', metadata: 'Metadata', smoothing: 'Smoothing'):
-        lossRatio = helper.testLossSum / helper.batchNumber
-        correctRatio = helper.testCorrectSum / helper.batchNumber
+        lossRatio = helper.testLossSum / helper.predSizeSum
+        correctRatio = helper.testCorrectSum / helper.predSizeSum
         metadata.stream.print(f"\nTest summary: \n Accuracy: {(100*correctRatio):>0.1f}%, Avg loss: {lossRatio:>8f}", ['model:0'])
         metadata.stream.print(f" Average test execution time in a loop ({helper.timer.getUnits()}): {helper.timer.getAverage():>3f}", ['model:0'])
         metadata.stream.print(f" Time to complete the entire loop ({helper.timer.getUnits()}): {helper.loopTimer.getDiff():>3f}\n", ['model:0'])
