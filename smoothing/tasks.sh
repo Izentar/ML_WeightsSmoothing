@@ -1,7 +1,7 @@
 #!/bin/bash 
 
 declare -a commands=(
-    "python smoothing/alexnet.py -l test -s test --name testModel --test true --train true --pinTest false -d --debugOutput debug --modelOutput model --bashOutput true --formatedOutput formated"
+    "python smoothing/alexnet_pretrain.py -l test -s test --mname testModel --test true --train true --pinTest false -d --debugOutput debug --modelOutput model --bashOutput true --formatedOutput formated"
 )
 
 declare -a names=(
@@ -14,6 +14,7 @@ fileBashStateName="savedBash"
 bashLogFile="bash.log"
 saveAndExit=0
 exitOnly=0
+enableRm=1
 
 saveScriptState() {
     printf "BASH: Saving script state\n" &>> $bashLogFile
@@ -56,8 +57,11 @@ trap catchSIG SIGTSTP
 trap kllChild SIGINT
 
 if  [ -n "$1" ] && [[ "$1" -eq "rmLogs" ]]; then
-    rm *.log
-    rm *.csv # może później usunąć, na razie do testów
+    if [[ "$enableRm" -eq 1 ]]; then
+        rm *.log
+        rm *.csv # może później usunąć, na razie do testów
+        exit
+    fi
     exit
 fi
 

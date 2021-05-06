@@ -77,7 +77,7 @@ class StaticData:
     PREDEFINED_MODEL_SUFFIX = '.pdmodel'
     IGNORE_IO_WARNINGS = False
     TEST_MODE = False
-    MAX_LOOPS = 31
+    MAX_LOOPS = 51
 
 class SaveClass:
     def __init__(self):
@@ -206,6 +206,7 @@ class Metadata(SaveClass):
     def printStartNewModel(self):
         if(self.stream is None):
             raise Exception("Stream not initialized")
+        self.prepareOutput()
         if(self.name is not None):
             string = f"\n\n@@@@\nStarting new model: " + self.name + "\nTime: " + str(datetime.now()) + "\n@@@@\n"
             self.stream.print(string)
@@ -218,6 +219,7 @@ class Metadata(SaveClass):
     def printContinueLoadedModel(self):
         if(self.stream is None):
             raise Exception("Stream not initialized")
+        self.prepareOutput()
         if(self.name is not None):
             string = f"\n\n@@@@\nContinuation of the loaded model: '" + self.name + "'\nTime: " + str(datetime.now()) + "\n@@@@\n"
             self.stream.print(string)
@@ -230,6 +232,7 @@ class Metadata(SaveClass):
     def printEndModel(self):
         if(self.stream is None):
             raise Exception("Stream not initialized")
+        self.prepareOutput()
         if(self.name is not None):
             string = f"\n\n@@@@\nEnding model: " + self.name + "\nTime: " + str(datetime.now()) + "\n@@@@\n"
             self.stream.print(string)
@@ -502,6 +505,8 @@ class Output(SaveClass):
                 if(fh.exist() and 'formatedLog' not in fh.OType):
                     fh.get().write(str(arg) + end)
         else:
+            if(not isinstance(alias, list)):
+                alias = [alias]
             for al in alias:
                 if(al == 'bash'):
                     print(arg, end=end)
@@ -734,9 +739,9 @@ class TestDataContainer():
         self.loopEnded = False # check if loop ened
 
         # one loop test data
-        self.test_loss = 0
+        self.test_loss = 0.0
         self.test_correct = 0
-        self.testLossSum = 0
+        self.testLossSum = 0.0
         self.testCorrectSum = 0
 
 class EpochDataContainer():
@@ -976,7 +981,7 @@ class Data(SaveClass):
             self.trainHelper.timer.clearTime()
             self.trainHelper.timer.start()
             
-
+            
             self.__train__(helperEpoch, self.trainHelper, model, dataMetadata, modelMetadata, metadata, smoothing)
 
             self.trainHelper.timer.end()
@@ -1115,7 +1120,6 @@ class Data(SaveClass):
         self.epochHelper = None
         return stat
 
-
     def resetEpochState(self):
         self.epochHelper.loopsState.clear()
         self.epochNumb = 0
@@ -1145,63 +1149,56 @@ class Data(SaveClass):
         return True
 
 class Smoothing(SaveClass):
+    """
+    Metody, które wymagają przeciążenia i wywołania super()
+    __setDictionary__
+    __getSmoothedWeights__ - zwraca pusty słownik lub None
+    """
     def __init__(self):
         super().__init__()
-        self.enabled = False # used only to prevent using smoothing when it is not set
-        self.lossSum = 0.0
-        self.lossCounter = 0
-        self.lossList = []
-        self.lossAverage = []
+        self.enabled = False # used only to prevent using smoothing when weights and dict are not set
 
-        self.numbOfBatchAfterSwitchOn = 2000
-
-        self.flushLossSum = 1000
-
-        self.sumWeights = {}
-        self.previousWeights = {}
-        # [torch.tensor(0.0) for x in range(100)] # add more to array than needed
-        self.countWeights = 0
-        self.counter = 0
-
-        self.mainWeights = None
+        self.savedWeights = {}
 
     def __call__(self, helperEpoch, helper, model, dataMetadata, modelMetadata, metadata):
         if(self.enabled == False):
             return
 
-    def getWeights(self):
+    def __getSmoothedWeights__(self):
         """
         Zwraca słownik wag, który można użyć do załadowania ich do modelu. Wagi ładuje się standardową metodą torch.
         Może zwrócić pusty słownik, jeżeli obiekt nie jest gotowy do podania wag.
+        Jeżeli zwraca pusty słownik, to wygładzanie nie zostało poprawnie skonfigurowane.
+        Gdy istnieje możliwość zwrócenia wag, zwraca None.
         """
-        pass
+        if(self.enabled == False):
+            return {}
+        else:
+            None
 
-    def setDictionary(self, dictionary):
+    def getWeights(self, key, toDevice=None, copy = False):
+        if(key in self.savedWeights.keys()):
+            if(copy):
+                return cloneTorchDict(self.savedWeights[key], toDevice)
+            else:
+                return moveToDevice(self.savedWeights[key], toDevice)
+        else:
+            Output.printBash("Smoothing: could not find key '{}' while searching for weights.".format(key), 'warn')
+            return None
+
+    def __setDictionary__(self, dictionary):
         """
         Used to map future weights into internal sums.
         """
-        pass
+        self.enabled = True
 
-    def __getstate__(self):
-        state = self.__dict__.copy()
-        if(self.only_Key_Ingredients):
-            del state['previousWeights']
-            del state['countWeights']
-            del state['counter']
-            del state['mainWeights']
-            del state['sumWeights']
-            del state['enabled']
-        return state
-
-    def __setstate__(self, state):
-        self.__dict__.update(state)
-        if(self.only_Key_Ingredients):
-            self.previousWeights = {}
-            self.countWeights = 0
-            self.counter = 0
-            self.mainWeights = None
-            self.sumWeights = {}
-            self.enabled = False
+    def saveWeights(self, weights, key, canOverride = True, toDevice = None):
+        with torch.no_grad():
+            if(canOverride):
+                self.savedWeights[key] = cloneTorchDict(weights, toDevice)
+            elif(key in self.savedWeights.keys()):
+                Output.printBash("The given key '{}' was found during the cloning of the scales. No override flag was specified.".format(key), 'warn')
+                self.savedWeights[key] = cloneTorchDict(weights, toDevice)
 
     def trySave(self, metadata, onlyKeyIngredients = False, temporaryLocation = False):
         return super().trySave(metadata, StaticData.SMOOTHING_SUFFIX, onlyKeyIngredients, temporaryLocation)
@@ -1212,14 +1209,11 @@ class Smoothing(SaveClass):
     def canUpdate(self = None):
         return False
 
-    def saveMainWeight(self, model):
-        self.mainWeights = model.getWeights()
-        
-
 class Model(nn.Module, SaveClass):
     """
         Klasa służąca do tworzenia nowych modeli.
-        Aby bezpiecznie skorzystać z metod nn.Module należy wywołać metodę getNNModelModule(), która zwróci obiekt typu nn.Module
+        Aby bezpiecznie skorzystać z metod nn.Module należy wywołać metodę getNNModelModule(), która zwróci obiekt typu nn.Module.
+        Dana klasa nie posiada żadnych wag, dlatego nie trzeba używać rekursji, przykładowo w named_parameters(recurse=False) 
 
         Metody, które wymagają przeciążenia bez wywołania super()
         __update__
@@ -1382,7 +1376,7 @@ def trySave(dictObjs: dict, onlyKeyIngredients = False, temporaryLocation = Fals
         if(key != 'Metadata'):
             obj.trySave(md, onlyKeyIngredients, temporaryLocation)
 
-def commandLineArg(metadata, dataMetadata, modelMetadata, argv, enableLoad = True):
+def commandLineArg(metadata, dataMetadata, modelMetadata, argv, enableLoad = True, enableSave = True):
     help = 'Help:\n'
     help += os.path.basename(__file__) + ' -h <help> [-s,--save] <file name to save> [-l,--load] <file name to load>'
 
@@ -1394,7 +1388,7 @@ def commandLineArg(metadata, dataMetadata, modelMetadata, argv, enableLoad = Tru
         'debugOutput=',
         'modelOutput=',
         'bashOutput=',
-        'name=',
+        'mname=',
         'formatedOutput='
         ]
 
@@ -1412,12 +1406,16 @@ def commandLineArg(metadata, dataMetadata, modelMetadata, argv, enableLoad = Tru
             Output.printBash("Command line options ignored because class Metadata was loaded.", 'info')
             return loadedMetadata, True
 
+
     for opt, arg in opts:
         if opt in ('-h', '--help'):
             print(help)
             sys.exit()
         elif opt in ('-s', '--save'):
-            metadata.fileNameSave = arg
+            if(enableSave):
+                metadata.fileNameSave = arg
+            else:
+                continue
         elif opt in ('-l', '--load'):
             continue
         elif opt in ('--test'):
@@ -1443,10 +1441,10 @@ def commandLineArg(metadata, dataMetadata, modelMetadata, argv, enableLoad = Tru
             metadata.bashFlag = boolean if boolean is not None else Metadata.exitError(help)
         elif opt in ('--formatedOutput'):
             metadata.formatedOutput = arg # formated output file path
-        elif opt in ('--name'):
+        elif opt in ('--mname'):
             metadata.name = arg
         else:
-            print("Unknown flag provided to program: {}.".format(opt))
+            Output.printBash("Unknown flag provided to program: {}.".format(opt), 'info')
 
     if(metadata.modelOutput is None):
         metadata.modelOutput = 'default.log'
@@ -1458,7 +1456,7 @@ def commandLineArg(metadata, dataMetadata, modelMetadata, argv, enableLoad = Tru
 
     return metadata, False
 
-def modelRun(Metadata_Class, Data_Metadata_Class, Model_Metadata_Class, Data_Class, Model_Class, Smoothing_Class, modelObj = None):
+def modelRun(Metadata_Class, Data_Metadata_Class, Model_Metadata_Class, Data_Class, Model_Class, Smoothing_Class, modelObj = None, load = True, save = True):
     dictObjs = {}
     dictObjs[Metadata_Class.__name__] = Metadata_Class()
     dictObjs[Metadata_Class.__name__].prepareOutput()
@@ -1469,8 +1467,8 @@ def modelRun(Metadata_Class, Data_Metadata_Class, Model_Metadata_Class, Data_Cla
     dictObjs[Model_Metadata_Class.__name__] = Model_Metadata_Class()
 
     dictObjs[Metadata_Class.__name__], metadataLoaded = commandLineArg(
-        dictObjs[Metadata_Class.__name__], dictObjs[Data_Metadata_Class.__name__], dictObjs[Model_Metadata_Class.__name__], sys.argv[1:]
-        )
+        dictObjs[Metadata_Class.__name__], dictObjs[Data_Metadata_Class.__name__], dictObjs[Model_Metadata_Class.__name__], sys.argv[1:],
+        enableSave=save, enableLoad=load)
     if(metadataLoaded): # if model should be loaded
         dictObjsTmp = tryLoad([(Data_Metadata_Class, Data_Class), (None, Smoothing_Class), (Model_Metadata_Class, Model_Class)], dictObjs[Metadata_Class.__name__])
         if(dictObjsTmp is None):
@@ -1496,7 +1494,7 @@ def modelRun(Metadata_Class, Data_Metadata_Class, Model_Metadata_Class, Data_Cla
         else:
             dictObjs[Model_Class.__name__] = Model_Class(dictObjs[Model_Metadata_Class.__name__])
 
-        dictObjs[Smoothing_Class.__name__].setDictionary(dictObjs[Model_Class.__name__].getNNModelModule().named_parameters())
+        dictObjs[Smoothing_Class.__name__].__setDictionary__(dictObjs[Model_Class.__name__].getNNModelModule().named_parameters())
 
     stat = dictObjs[Data_Class.__name__].epochLoop(
         dictObjs[Model_Class.__name__], dictObjs[Data_Metadata_Class.__name__], dictObjs[Model_Metadata_Class.__name__], 
@@ -1510,11 +1508,26 @@ def modelRun(Metadata_Class, Data_Metadata_Class, Model_Metadata_Class, Data_Cla
 
 #########################################
 # other functions
-def cloneTorchDict(weights: dict):
+def cloneTorchDict(weights: dict, toDevice = None):
     newDict = dict()
-    for key, val in weights.items():
-        newDict[key] = torch.clone(val)
-    return newDict
+    if(isinstance(weights, dict)):
+        for key, val in weights.items():
+            newDict[key] = torch.clone(val).to(toDevice)
+        return newDict
+    else:
+        for key, val in weights:
+            newDict[key] = torch.clone(val).to(toDevice)
+        return newDict
+
+def moveToDevice(weights: dict, toDevice):
+    if(isinstance(weights, dict)):
+        for key, val in weights.items():
+            weights[key] = val.to(toDevice)
+        return weights
+    else:
+        for key, val in weights:
+            weights[key] = val.to(toDevice)
+        return weights
 
 def checkStrCUDA(string):
         return string.startswith('cuda')
@@ -1566,7 +1579,7 @@ def modelDetermTest(Metadata_Class, Data_Metadata_Class, Model_Metadata_Class, D
         else:
             dictObjs[Model_Class.__name__] = Model_Class(dictObjs[Model_Metadata_Class.__name__])
 
-        dictObjs[Smoothing_Class.__name__].setDictionary(dictObjs[Model_Class.__name__].getNNModelModule().named_parameters())
+        dictObjs[Smoothing_Class.__name__].__setDictionary__(dictObjs[Model_Class.__name__].getNNModelModule().named_parameters())
 
         stat.append(
              dictObjs[Data_Class.__name__].epochLoop(dictObjs[Model_Class.__name__], dictObjs[Data_Metadata_Class.__name__], dictObjs[Model_Metadata_Class.__name__], dictObjs[Metadata_Class.__name__], dictObjs[Smoothing_Class.__name__])

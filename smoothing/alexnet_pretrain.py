@@ -10,8 +10,9 @@ import torchvision.models as models
 from framework import defaultClasses as dc
 
 if(__name__ == '__main__'):
+    with sf.test_mode():
         torch.backends.cudnn.benchmark = True
-        obj = models.alexnet()
+        obj = models.alexnet(pretrained=True)
 
         #sf.useDeterministic()
         #sf.modelDetermTest(sf.Metadata, DefaultData_Metadata, DefaultModel_Metadata, DefaultData, VGG16Model, DefaultSmoothing)
