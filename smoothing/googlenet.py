@@ -11,11 +11,11 @@ from framework import defaultClasses as dc
 
 if(__name__ == '__main__'):
     torch.backends.cudnn.benchmark = True
-    obj = models.GoogLeNet()
+    obj = models.GoogLeNet(init_weights=True)
 
     #sf.useDeterministic()
     #sf.modelDetermTest(sf.Metadata, DefaultData_Metadata, DefaultModel_Metadata, DefaultData, VGG16Model, DefaultSmoothing)
-    stat = sf.modelRun(sf.Metadata, DefaultData_Metadata, DefaultModel_Metadata, DefaultData, DefaultModel, DefaultSmoothing, obj, load=False)
+    stat = sf.modelRun(sf.Metadata, dc.DefaultData_Metadata, dc.DefaultModel_Metadata, dc.DefaultData, dc.DefaultModel, dc.DefaultSmoothing, obj, load=False)
 
     #plt.plot(stat.trainLossArray)
     #plt.xlabel('Train index')

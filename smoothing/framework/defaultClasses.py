@@ -35,8 +35,8 @@ class DefaultData_Metadata(sf.Data_Metadata):
         self.pin_memoryTest = False
 
         self.epoch = 1
-        self.batchTrainSize = 32
-        self.batchTestSize = 32
+        self.batchTrainSize = 16
+        self.batchTestSize = 16
 
         # batch size * howOftenPrintTrain
         self.howOftenPrintTrain = 2000
