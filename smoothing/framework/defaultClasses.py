@@ -26,7 +26,7 @@ class DefaultModel_Metadata(sf.Model_Metadata):
 
 class DefaultData_Metadata(sf.Data_Metadata):
     def __init__(self):
-        sf.Data_Metadata.__init__(self)
+        super().__init__()
         self.worker_seed = 8418748
         
         self.train = True
@@ -76,7 +76,7 @@ class DefaultSmoothing(sf.Smoothing):
         if(sf.test_mode.isActivated()):
             self.numbOfBatchAfterSwitchOn = 10
         else:
-            self.numbOfBatchAfterSwitchOn = 7000
+            self.numbOfBatchAfterSwitchOn = 1000 # dla 50000 / 32 ~= 1500
 
         self.sumWeights = {}
         self.previousWeights = {}
