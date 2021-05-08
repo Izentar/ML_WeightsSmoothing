@@ -1,6 +1,6 @@
 
-Istnieją 2 sposoby na wywołanie programu.
-1. Wpisanie w konsolę bezpośrednio, jak np.
+Istnieją 2 sposoby wywołania programu:
+1. Wpisanie w konsolę bezpośrednio, jak np. <br>
     python smoothing/alexnet_pretrain.py -l alexnet_pretrain_load -s alexnet_pretrain_save --mname alexnet_pretrain --test true --train true --pinTest false -d --debugOutput debug --modelOutput alexnet_pretrain_model --bashOutput true --formatedOutput alexnet_pretrain_formated 
 2. Uruchomienie linuksowego skryptu tasks.sh, w którym można zawrzeć kolejne instrukcje wywołań. Taki sposób uruchomienia zapewnia wywołanie kolejnych skryptów z kolejki nawet, jeżeli któryś z nich będzie posiadał krytyczny błąd.
 
