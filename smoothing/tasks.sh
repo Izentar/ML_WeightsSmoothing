@@ -1,7 +1,7 @@
 #!/bin/bash 
 
 declare -a commands=(
-    "python smoothing/alexnet.py -l alexnet_load -s alexnet_save --mname alexnet --test true --train true --pinTest false -d --debugOutput debug --modelOutput alexnet_model --bashOutput true --formatedOutput alexnet_formated"
+    "python smoothing/alexnet_MINST.py -l alexnet_MINST_load -s alexnet_MINST_save --log test --mname alexnet_MINST --test true --train true --pinTest false -d --bashOutput true"
 )
 
 declare -a names=(

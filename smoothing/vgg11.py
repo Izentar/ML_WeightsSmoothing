@@ -22,7 +22,10 @@ if(__name__ == '__main__'):
 
     #sf.useDeterministic()
     #sf.modelDetermTest(sf.Metadata, DefaultData_Metadata, DefaultModel_Metadata, DefaultData, VGG16Model, DefaultSmoothing)
-    stat = sf.modelRun(sf.Metadata, VGG11Data_Metadata, dc.DefaultModel_Metadata, dc.DefaultData, dc.DefaultModel, dc.DefaultSmoothing, obj, load=False)
+    stat = sf.modelRun(sf.Metadata, dc.DefaultData_Metadata, dc.DefaultModel_Metadata, dc.DefaultDataMNIST, dc.DefaultModelSimpleConv, dc.DefaultSmoothingOscilationGeneralizedMean, 
+        obj, 
+        load=False
+        )
 
     #plt.plot(stat.trainLossArray)
     #plt.xlabel('Train index')

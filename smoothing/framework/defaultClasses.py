@@ -47,13 +47,12 @@ class DefaultModel_Metadata(sf.Model_Metadata):
         self.device = 'cuda:0'
         self.learning_rate = 1e-3
         self.momentum = 0.9
-        self.oscilationMax = 0.001
 
-    def __str__(self):
-        tmp_str = '\n/{} class\n-----------------------------------------------------------------------\n'.format(type(self).__name__)
+    def __strAppend__(self):
+        tmp_str = super().__strAppend__()
         tmp_str += ('Learning rate:\t{}\n'.format(self.learning_rate))
         tmp_str += ('Momentum:\t{}\n'.format(self.momentum))
-        tmp_str += ('-----------------------------------------------------------------------\nEnd Hyperparameters class\n')
+        tmp_str += ('Model device :\t{}\n'.format(self.device))
         return tmp_str
 
 class DefaultData_Metadata(sf.Data_Metadata):
@@ -78,16 +77,23 @@ class DefaultData_Metadata(sf.Data_Metadata):
         else:
             self.howOftenPrintTrain = 2000
 
-class DefaultModelSimpleConv(sf.Model, nn.Module):
-    def __init__(self, obj, modelMetadata):
-        super().__init__(obj, modelMetadata)
+    def __strAppend__(self):
+        tmp_str = super().__strAppend__()
+        tmp_str += ('Resize data from Gray to RGB:\t{}\n'.format(self.fromGrayToRGB))
+        return tmp_str
+
+
+class DefaultModelSimpleConv(sf.Model):
+    def __init__(self, modelMetadata):
+        super().__init__(modelMetadata)
 
         self.conv1 = nn.Conv2d(3, 6, 5)
         self.pool = nn.MaxPool2d(2, 2)
         self.conv2 = nn.Conv2d(6, 16, 5)
-        self.linear1 = nn.Linear(16 * 5 * 5, 120)
-        self.linear2 = nn.Linear(120, 84)
-        self.linear3 = nn.Linear(84, 10)
+        self.linear1 = nn.Linear(212 * 212, 212)
+        self.linear2 = nn.Linear(212, 120)
+        self.linear3 = nn.Linear(120, 84)
+        self.linear4 = nn.Linear(84, 10)
 
         self.loss_fn = nn.CrossEntropyLoss()
         self.optimizer = optim.SGD(self.getNNModelModule().parameters(), lr=modelMetadata.learning_rate, momentum=modelMetadata.momentum)
@@ -99,10 +105,13 @@ class DefaultModelSimpleConv(sf.Model, nn.Module):
     def forward(self, x):
         x = self.pool(F.hardswish(self.conv1(x)))
         x = self.pool(F.hardswish(self.conv2(x)))
-        x = x.view(-1, 16 * 5 * 5)
+        # 16 * 212 * 212 może zmienić rozmiar tensora na [1, 16 * 212 * 212] co nie zgadza się z rozmiarem batch_number 1 != 16. Wtedy należy dać [-1, 212 * 212] = [16, 212 * 212]
+        # ogółem ta operacja nie jest bezpieczna przy modyfikacji danych.
+        x = x.view(-1, 212 * 212)   
         x = F.hardswish(self.linear1(x))
         x = F.hardswish(self.linear2(x))
-        x = self.linear3(x)
+        x = F.hardswish(self.linear3(x))
+        x = self.linear4(x)
         return x
 
     def __update__(self, modelMetadata):
@@ -119,6 +128,8 @@ class DefaultModelSimpleConv(sf.Model, nn.Module):
                 nn.init.normal_(m.weight, 0, 0.01)
                 nn.init.constant_(m.bias, 0)
 
+
+
 class DefaultModelPredef(sf.PredefinedModel):
     def __init__(self, obj, modelMetadata):
         super().__init__(obj, modelMetadata)
@@ -133,18 +144,16 @@ class DefaultModelPredef(sf.PredefinedModel):
         self.getNNModelModule().to(modelMetadata.device)
         self.optimizer = optim.SGD(self.getNNModelModule().parameters(), lr=modelMetadata.learning_rate, momentum=modelMetadata.momentum)
 
+
+
 class DefaultSmoothingBorderline(sf.Smoothing):
     """
     Włącza wygładzanie po przejściu przez określoną ilość iteracji pętli.
     Wygładzanie polega na liczeniu średnich tensorów.
+    Wygładzanie włączane jest od momentu wykonania określonej ilości pętli oraz jest liczone od końca iteracji.
     """
     def __init__(self):
         sf.Smoothing.__init__(self)
-        self.lossSum = 0.0
-        self.lossCounter = 0
-        self.lossList = []
-        self.lossAverage = []
-
         if(sf.test_mode.isActivated()):
             self.numbOfBatchAfterSwitchOn = 10
         else:
@@ -249,11 +258,6 @@ class DefaultSmoothingOscilationGeneralizedMean(sf.Smoothing):
             self.weightsEpsilon = 1e-6
         ###############################
 
-        self.lossSum = 0.0
-        self.lossCounter = 0
-        self.lossList = []
-        self.lossAverage = []
-
         self.sumWeights = {}
         self.lossContainer = CircularList(50)
         self.lastKLossAverage = CircularList(40)
@@ -265,6 +269,17 @@ class DefaultSmoothingOscilationGeneralizedMean(sf.Smoothing):
         self.divisionCounter = 0
 
         self.mainWeights = None
+
+    def __strAppend__(self):
+        tmp_str = super().__strAppend__()
+        tmp_str += ('Update frequency of average of average:\t{}\n'.format(self.avgOfAvgUpdateFreq))
+        tmp_str += ('Frequency of checking to end smoothing:\t{}\n'.format(self.endSmoothingFreq))
+        tmp_str += ('Generalized mean power:\t{}\n'.format(self.generalizedMeanPower))
+        tmp_str += ('Max loops to start:\t{}\n'.format(self.numbOfBatchMaxStart))
+        tmp_str += ('Min loops to start:\t{}\n'.format(self.numbOfBatchMinStart))
+        tmp_str += ('Epsilon to check when start compute weights:\t{}\n'.format(self.epsilon))
+        tmp_str += ('Epsilon to check when weights are good enough to stop:\t{}\n'.format(self.weightsEpsilon))
+        return tmp_str
 
     def canComputeWeights(self):
         """
@@ -407,11 +422,6 @@ class DefaultSmoothingOscilationWeightedMean(sf.Smoothing):
             self.weightsEpsilon = 1e-6
         ###############################
 
-        self.lossSum = 0.0
-        self.lossCounter = 0
-        self.lossList = []
-        self.lossAverage = []
-
         self.weightsArray = CircularList(20)
         self.lossContainer = CircularList(50)
         self.lastKLossAverage = CircularList(40)
@@ -423,6 +433,17 @@ class DefaultSmoothingOscilationWeightedMean(sf.Smoothing):
         self.divisionCounter = 0
 
         self.mainWeights = None
+
+    def __strAppend__(self):
+        tmp_str = super().__strAppend__()
+        tmp_str += ('Update frequency of average of average:\t{}\n'.format(self.avgOfAvgUpdateFreq))
+        tmp_str += ('Frequency of checking to end smoothing:\t{}\n'.format(self.endSmoothingFreq))
+        tmp_str += ('Generalized mean power:\t{}\n'.format(self.generalizedMeanPower))
+        tmp_str += ('Max loops to start:\t{}\n'.format(self.numbOfBatchMaxStart))
+        tmp_str += ('Min loops to start:\t{}\n'.format(self.numbOfBatchMinStart))
+        tmp_str += ('Epsilon to check when start compute weights:\t{}\n'.format(self.epsilon))
+        tmp_str += ('Epsilon to check when weights are good enough to stop:\t{}\n'.format(self.weightsEpsilon))
+        return tmp_str
 
     def canComputeWeights(self):
         """
@@ -564,6 +585,7 @@ class DefaultSmoothingOscilationWeightedMean(sf.Smoothing):
 class DefaultData(sf.Data):
     def __init__(self):
         super().__init__()
+        self.statLogName = 'statLossTest'
 
     def __customizeState__(self, state):
         super().__customizeState__(state)
@@ -600,21 +622,7 @@ class DefaultData(sf.Data):
         ])
 
     def __prepare__(self, dataMetadata):
-        self.__setInputTransform__(dataMetadata)
-
-        #self.trainset = torchvision.datasets.ImageNet(root=sf.StaticData.DATA_PATH, train=True, transform=self.trainTransform)
-        #self.testset = torchvision.datasets.ImageNet(root=sf.StaticData.DATA_PATH, train=False, transform=self.testTransform)
-        self.trainset = torchvision.datasets.MNIST(root=sf.StaticData.DATA_PATH, train=True, transform=self.trainTransform)
-        self.testset = torchvision.datasets.MNIST(root=sf.StaticData.DATA_PATH, train=False, transform=self.testTransform)
-
-        self.trainSampler = sf.BaseSampler(len(self.trainset), dataMetadata.batchTrainSize)
-        self.testSampler = sf.BaseSampler(len(self.testset), dataMetadata.batchTrainSize)
-
-        self.trainloader = torch.utils.data.DataLoader(self.trainset, batch_size=dataMetadata.batchTrainSize, sampler=self.trainSampler,
-                                          shuffle=False, num_workers=2, pin_memory=dataMetadata.pin_memoryTrain, worker_init_fn=dataMetadata.worker_seed if sf.enabledDeterminism() else None)
-
-        self.testloader = torch.utils.data.DataLoader(self.testset, batch_size=dataMetadata.batchTestSize, sampler=self.testSampler,
-                                         shuffle=False, num_workers=2, pin_memory=dataMetadata.pin_memoryTest, worker_init_fn=dataMetadata.worker_seed if sf.enabledDeterminism() else None)
+        raise NotImplementedError("def __prepare__(self, dataMetadata)")
 
     def __update__(self, dataMetadata):
         self.__prepare__(dataMetadata)
@@ -631,7 +639,6 @@ class DefaultData(sf.Data):
         with torch.no_grad():
             helper.tmp_sumLoss += helper.loss.item()
 
-            # helperEpoch.statistics.addLoss(helper.loss.item()) # nie, bo za dużo pamięci dla dużego modelu zje. Wizualizacja tylko z csv
             metadata.stream.print(helper.loss.item(), ['statLossTrain'])
 
             if(bool(metadata.debugInfo) and dataMetadata.howOftenPrintTrain is not None and (helper.batchNumber % dataMetadata.howOftenPrintTrain == 0 or sf.test_mode.isActivated())):
@@ -652,7 +659,7 @@ class DefaultData(sf.Data):
 
     def __beforeTestLoop__(self, helperEpoch: 'EpochDataContainer', helper, model: 'Model', dataMetadata: 'Data_Metadata', modelMetadata: 'Model_Metadata', metadata: 'Metadata', smoothing: 'Smoothing'):
         metadata.stream.print("\n\ntestLoop;\nAverage test time;Loop test time;Accuracy;Avg loss", ['stat'])
-        metadata.stream.print('\n\nTest loss', ['statLossTest'])
+        #metadata.stream.print('\n\nTest loss', ['statLossTest'])
 
     def __beforeTest__(self, helperEpoch: 'EpochDataContainer', helper, model: 'Model', dataMetadata: 'Data_Metadata', modelMetadata: 'Model_Metadata', metadata: 'Metadata', smoothing: 'Smoothing'):
         helper.inputs = helper.inputs.to(modelMetadata.device)
@@ -660,7 +667,7 @@ class DefaultData(sf.Data):
 
     def __afterTest__(self, helperEpoch: 'EpochDataContainer', helper, model: 'Model', dataMetadata: 'Data_Metadata', modelMetadata: 'Model_Metadata', metadata: 'Metadata', smoothing: 'Smoothing'):
         super().__afterTest__(helperEpoch, helper, model, dataMetadata, modelMetadata, metadata, smoothing)
-        metadata.stream.print(helper.test_loss, ['statLossTest'])
+        metadata.stream.print(helper.test_loss, self.statLogName)
 
     def __afterTestLoop__(self, helperEpoch: 'EpochDataContainer', helper, model: 'Model', dataMetadata: 'Data_Metadata', modelMetadata: 'Model_Metadata', metadata: 'Metadata', smoothing: 'Smoothing'):
         lossRatio = helper.testLossSum / helper.predSizeSum
@@ -671,8 +678,9 @@ class DefaultData(sf.Data):
         metadata.stream.print(f"{helper.timer.getAverage()};{helper.loopTimer.getDiff()};{(correctRatio):>0.0001f};{lossRatio:>8f}", ['stat'])
 
     def __beforeEpochLoop__(self, helperEpoch: 'EpochDataContainer', model: 'Model', dataMetadata: 'Data_Metadata', modelMetadata: 'Model_Metadata', metadata: 'Metadata', smoothing: 'Smoothing'):
-        metadata.stream.open("formatedLog", 'statLossTrain', 'statLossTrain')
-        metadata.stream.open("formatedLog", 'statLossTest', 'statLossTest')
+        metadata.stream.open(outputType="formatedLog", alias='statLossTrain', pathName='statLossTrain')
+        metadata.stream.open(outputType="formatedLog", alias='statLossTest', pathName='statLossTest')
+        metadata.stream.open(outputType="formatedLog", alias='statLossTestSmoothing', pathName='statLossTestSmoothing')
 
     def __epoch__(self, helperEpoch: 'EpochDataContainer', model: 'Model', dataMetadata: 'Data_Metadata', 
         modelMetadata: 'Model_Metadata', metadata: 'Metadata', smoothing: 'Smoothing'):
@@ -690,16 +698,105 @@ class DefaultData(sf.Data):
                 smoothing.saveWeights(model.getNNModelModule().named_parameters(), 'main')
                 wg = smoothing.__getSmoothedWeights__()
                 if(wg):
-                    metadata.stream.print("Smoothing:", 'statLossTest')
+                    #metadata.stream.print("Smoothing:", 'statLossTest')
                     model.setWeights(wg)
                     #metadata.stream.write("Smoothing weights, ")
                     #metadata.stream.write("Smoothing weights;", 'stat')
+                    self.statLogName = 'statLossTestSmoothing'
                     self.testLoop(helperEpoch, model, dataMetadata, modelMetadata, metadata, smoothing)
                     model.setWeights(smoothing.getWeights('main'))
                 else:
                     sf.Output.printBash('Smoothing is not enabled. Test does not executed.', 'info')
             # model.linear1.weight = torch.nn.parameter.Parameter(model.average)
             # model.linear1.weight = model.average
+
+class DefaultDataMNIST(DefaultData):
+    def __init__(self):
+        super().__init__()
+
+    def __prepare__(self, dataMetadata):
+        self.__setInputTransform__(dataMetadata)
+
+        #self.trainset = torchvision.datasets.ImageNet(root=sf.StaticData.DATA_PATH, train=True, transform=self.trainTransform)
+        #self.testset = torchvision.datasets.ImageNet(root=sf.StaticData.DATA_PATH, train=False, transform=self.testTransform)
+        self.trainset = torchvision.datasets.MNIST(root=sf.StaticData.DATA_PATH, train=True, transform=self.trainTransform, download=dataMetadata.download)
+        self.testset = torchvision.datasets.MNIST(root=sf.StaticData.DATA_PATH, train=False, transform=self.testTransform, download=dataMetadata.download)
+
+        self.trainSampler = sf.BaseSampler(len(self.trainset), dataMetadata.batchTrainSize)
+        self.testSampler = sf.BaseSampler(len(self.testset), dataMetadata.batchTrainSize)
+
+        self.trainloader = torch.utils.data.DataLoader(self.trainset, batch_size=dataMetadata.batchTrainSize, sampler=self.trainSampler,
+                                          shuffle=False, num_workers=2, pin_memory=dataMetadata.pin_memoryTrain, worker_init_fn=dataMetadata.worker_seed if sf.enabledDeterminism() else None)
+
+        self.testloader = torch.utils.data.DataLoader(self.testset, batch_size=dataMetadata.batchTestSize, sampler=self.testSampler,
+                                         shuffle=False, num_workers=2, pin_memory=dataMetadata.pin_memoryTest, worker_init_fn=dataMetadata.worker_seed if sf.enabledDeterminism() else None)
+
+class DefaultDataEMNIST(DefaultData):
+    def __init__(self):
+        super().__init__()
+
+    def __prepare__(self, dataMetadata):
+        self.__setInputTransform__(dataMetadata)
+
+        #self.trainset = torchvision.datasets.ImageNet(root=sf.StaticData.DATA_PATH, train=True, transform=self.trainTransform)
+        #self.testset = torchvision.datasets.ImageNet(root=sf.StaticData.DATA_PATH, train=False, transform=self.testTransform)
+        self.trainset = torchvision.datasets.EMNIST(root=sf.StaticData.DATA_PATH, train=True, transform=self.trainTransform, split='digits', download=dataMetadata.download)
+        self.testset = torchvision.datasets.EMNIST(root=sf.StaticData.DATA_PATH, train=False, transform=self.testTransform, split='digits', download=dataMetadata.download)
+
+        self.trainSampler = sf.BaseSampler(len(self.trainset), dataMetadata.batchTrainSize)
+        self.testSampler = sf.BaseSampler(len(self.testset), dataMetadata.batchTrainSize)
+
+        self.trainloader = torch.utils.data.DataLoader(self.trainset, batch_size=dataMetadata.batchTrainSize, sampler=self.trainSampler,
+                                          shuffle=False, num_workers=2, pin_memory=dataMetadata.pin_memoryTrain, worker_init_fn=dataMetadata.worker_seed if sf.enabledDeterminism() else None)
+
+        self.testloader = torch.utils.data.DataLoader(self.testset, batch_size=dataMetadata.batchTestSize, sampler=self.testSampler,
+                                         shuffle=False, num_workers=2, pin_memory=dataMetadata.pin_memoryTest, worker_init_fn=dataMetadata.worker_seed if sf.enabledDeterminism() else None)
+
+class DefaultDataCIFAR10(DefaultData):
+    def __init__(self):
+        super().__init__()
+
+    def __prepare__(self, dataMetadata):
+        self.__setInputTransform__(dataMetadata)
+
+        #self.trainset = torchvision.datasets.ImageNet(root=sf.StaticData.DATA_PATH, train=True, transform=self.trainTransform)
+        #self.testset = torchvision.datasets.ImageNet(root=sf.StaticData.DATA_PATH, train=False, transform=self.testTransform)
+        self.trainset = torchvision.datasets.CIFAR10(root, split)(root=sf.StaticData.DATA_PATH, train=True, transform=self.trainTransform, download=dataMetadata.download)
+        self.testset = torchvision.datasets.CIFAR10(root=sf.StaticData.DATA_PATH, train=False, transform=self.testTransform, download=dataMetadata.download)
+
+        self.trainSampler = sf.BaseSampler(len(self.trainset), dataMetadata.batchTrainSize)
+        self.testSampler = sf.BaseSampler(len(self.testset), dataMetadata.batchTrainSize)
+
+        self.trainloader = torch.utils.data.DataLoader(self.trainset, batch_size=dataMetadata.batchTrainSize, sampler=self.trainSampler,
+                                          shuffle=False, num_workers=2, pin_memory=dataMetadata.pin_memoryTrain, worker_init_fn=dataMetadata.worker_seed if sf.enabledDeterminism() else None)
+
+        self.testloader = torch.utils.data.DataLoader(self.testset, batch_size=dataMetadata.batchTestSize, sampler=self.testSampler,
+                                         shuffle=False, num_workers=2, pin_memory=dataMetadata.pin_memoryTest, worker_init_fn=dataMetadata.worker_seed if sf.enabledDeterminism() else None)
+
+class DefaultDataCIFAR100(DefaultData):
+    def __init__(self):
+        super().__init__()
+
+    def __prepare__(self, dataMetadata):
+        self.__setInputTransform__(dataMetadata)
+
+        #self.trainset = torchvision.datasets.ImageNet(root=sf.StaticData.DATA_PATH, train=True, transform=self.trainTransform)
+        #self.testset = torchvision.datasets.ImageNet(root=sf.StaticData.DATA_PATH, train=False, transform=self.testTransform)
+        self.trainset = torchvision.datasets.CIFAR100(root, split)(root=sf.StaticData.DATA_PATH, train=True, transform=self.trainTransform, download=dataMetadata.download)
+        self.testset = torchvision.datasets.CIFAR100(root=sf.StaticData.DATA_PATH, train=False, transform=self.testTransform, download=dataMetadata.download)
+
+        self.trainSampler = sf.BaseSampler(len(self.trainset), dataMetadata.batchTrainSize)
+        self.testSampler = sf.BaseSampler(len(self.testset), dataMetadata.batchTrainSize)
+
+        self.trainloader = torch.utils.data.DataLoader(self.trainset, batch_size=dataMetadata.batchTrainSize, sampler=self.trainSampler,
+                                          shuffle=False, num_workers=2, pin_memory=dataMetadata.pin_memoryTrain, worker_init_fn=dataMetadata.worker_seed if sf.enabledDeterminism() else None)
+
+        self.testloader = torch.utils.data.DataLoader(self.testset, batch_size=dataMetadata.batchTestSize, sampler=self.testSampler,
+                                         shuffle=False, num_workers=2, pin_memory=dataMetadata.pin_memoryTest, worker_init_fn=dataMetadata.worker_seed if sf.enabledDeterminism() else None)
+
+
+
+
 
 
 if(__name__ == '__main__'):
@@ -708,7 +805,7 @@ if(__name__ == '__main__'):
 
     #sf.useDeterministic()
     #sf.modelDetermTest(sf.Metadata, DefaultData_Metadata, DefaultModel_Metadata, DefaultData, VGG16Model, DefaultSmoothingBorderline)
-    stat = sf.modelRun(sf.Metadata, DefaultData_Metadata, DefaultModel_Metadata, DefaultData, DefaultModel, DefaultSmoothingBorderline, obj)
+    stat = sf.modelRun(sf.Metadata, DefaultData_Metadata, DefaultModel_Metadata, DefaultDataMNIST, DefaultModel, DefaultSmoothingBorderline, obj)
 
     #plt.plot(stat.trainLossArray)
     #plt.xlabel('Train index')

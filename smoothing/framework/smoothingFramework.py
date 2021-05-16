@@ -14,6 +14,8 @@ import copy as cp
 import random
 from torch.utils.data.dataloader import Sampler
 import torchvision.models as models
+from pathlib import Path
+import pandas as pd
 
 import matplotlib.pyplot as plt
 import numpy
@@ -75,6 +77,7 @@ class StaticData:
     NAME_CLASS_METADATA = 'Metadata'
     DATA_PATH = '~/.data'
     PREDEFINED_MODEL_SUFFIX = '.pdmodel'
+    LOG_FOLDER = './savedLogs/'
     IGNORE_IO_WARNINGS = False
     TEST_MODE = False
     MAX_TEST_LOOPS = 51
@@ -153,6 +156,16 @@ class BaseSampler:
     def __setstate__(self, state):
         self.__dict__.update(state)
 
+class BaseMainClass:
+    def __strAppend__(self):
+        return ""
+
+    def __str__(self):
+        tmp_str = ('\nStart {} class\n-----------------------------------------------------------------------\n'.format(type(self).__name__))
+        tmp_str += self.__strAppend__()
+        tmp_str += ('-----------------------------------------------------------------------\nEnd {} class\n'.format(type(self).__name__))
+        return tmp_str
+
 class test_mode():
     def __init__(self):
         self.prev = False
@@ -167,7 +180,7 @@ class test_mode():
     def isActivated(self = None):
         return bool(StaticData.TEST_MODE)
 
-class Metadata(SaveClass):
+class Metadata(SaveClass, BaseMainClass):
     def __init__(self):
         super().__init__()
         self.fileNameSave = None
@@ -184,15 +197,22 @@ class Metadata(SaveClass):
         self.name = None
         self.formatedOutput = None
 
+        self.logFolderSuffix = None
+
         self.noPrepareOutput = False
 
-    def __str__(self):
-        tmp_str = ('\n/Metadata class\n-----------------------------------------------------------------------\n')
-        tmp_str += ('Save path:\t{}\n'.format(StaticData.PATH + self.fileNameSave if self.fileNameSave is not None else 'Not set'))
+    def __strAppend__(self):
+        tmp_str = ('Save path:\t{}\n'.format(StaticData.PATH + self.fileNameSave if self.fileNameSave is not None else 'Not set'))
         tmp_str += ('Load path:\t{}\n'.format(StaticData.PATH + self.fileNameLoad if self.fileNameLoad is not None else 'Not set'))
         tmp_str += ('Test flag:\t{}\n'.format(self.testFlag))
         tmp_str += ('Train flag:\t{}\n'.format(self.trainFlag))
-        tmp_str += ('-----------------------------------------------------------------------\nEnd Metadata class\n')
+        tmp_str += ('Debug info flag:\t{}\n'.format(self.debugInfo))
+        tmp_str += ('Model output path:\t{}\n'.format(self.modelOutput))
+        tmp_str += ('Debug output path:\t{}\n'.format(self.debugOutput))
+        tmp_str += ('Bash flag:\t{}\n'.format(self.bashFlag))
+        tmp_str += ('Formated output name:\t{}\n'.format(self.formatedOutput))
+        tmp_str += ('Folder sufix name:\t{}\n'.format(self.logFolderSuffix))
+        tmp_str += ('Output is prepared flag:\t{}\n'.format(self.noPrepareOutput))
         return tmp_str
 
     def onOff(arg):
@@ -248,17 +268,17 @@ class Metadata(SaveClass):
 
     def prepareOutput(self):
         """
-        Spróbowano stworzyć aliasy:\n
-        debug:0\n
-        model:0\n
-        stat\n
+        Spróbowano stworzyć aliasy:
+        debug:0
+        model:0
+        stat
         oraz spróbowano otworzyć tryb 'bash'
         """
         if(self.noPrepareOutput):
             return
         Output.printBash('Preparing default output.', 'info')
         if(self.stream is None):
-            self.stream = Output()
+            self.stream = Output(self.logFolderSuffix)
 
         if(self.debugInfo == True):
             if(self.debugOutput is not None):
@@ -414,12 +434,17 @@ class Output(SaveClass):
                 self.handler.close()
                 self.counter = 0
 
-    def __init__(self):
+    def __init__(self, folderPrefix):
         super().__init__()
         self.filesDict = {}
         self.aliasToFH = {}
 
         self.bash = False
+
+        Path(StaticData.LOG_FOLDER).mkdir(parents=True, exist_ok=True)
+
+        self.folderPrefix = folderPrefix
+        self.folderInstanceStr = None
 
     def __getstate__(self):
         state = self.__dict__.copy()
@@ -461,15 +486,17 @@ class Output(SaveClass):
             return
 
         if(pathName is not None):
+            pathName = self.createLogFolder() + pathName
             if(pathName in self.filesDict):
                 if(outputType in self.filesDict[pathName] and self.filesDict[pathName][outputType].exist()):
                     pass # do nothing, already opened
-                elif(self.filesDict[pathName][outputType] is None):
-                    for _, val in self.filesDict[pathName]:
+                elif(outputType not in self.filesDict[pathName]):
+                    for _, val in self.filesDict[pathName].items():
                         if(val.exist()): # copy reference
                             if(outputType == 'formatedLog'):
                                 raise Exception("Output for type 'formatedLog' for provided pathName can have only one instance. For this pathName file in different mode is already opened.")
-                            self.filesDict[pathName][outputType] = self.filesDict[pathName][self.filesDict[pathName].keys()[-1]].counterUp().addOType(outputType)
+                            self.filesDict[pathName][outputType] = self.filesDict[pathName][list(self.filesDict[pathName].keys())[-1]].counterUp().addOType(outputType)
+                            self.aliasToFH[alias] = self.filesDict[pathName][outputType]
                             return
                         else:
                             del val
@@ -479,6 +506,16 @@ class Output(SaveClass):
                 print("WARNING: For this '{}' Output type pathName should not be None.".format(outputType))
             return
     
+    def createLogFolder(self):
+        if(self.folderInstanceStr is None):
+            dt_string = datetime.now().strftime("%d.%m.%Y_%H-%M-%S_")
+            prfx = self.folderPrefix if self.folderPrefix is not None else ""
+            path = StaticData.LOG_FOLDER + "/" + str(dt_string) + prfx + "/"
+            Path(path).mkdir(parents=True, exist_ok=False)
+            self.folderInstanceStr = path
+            return path
+        return self.folderInstanceStr
+
     def __getPrefix(mode):
         prefix = ''
         if(mode is None):
@@ -583,6 +620,11 @@ class DefaultMethods():
             del diffKey
 
 class LoopsState():
+    """
+    Klasa służy do zapamiętania stanu pętli treningowych oraz testowych, niezależnie od kolejności ich wywołania.
+    Kolejność wywoływania pętli treningowych oraz testowych powinna być niezmienna, 
+    inaczej program pogubi się w tym, która pętla powinna zostać wznowiona.
+    """
     def __init__(self):
         self.numbArray = []
         self.popNumbArray = None
@@ -631,7 +673,7 @@ class LoopsState():
         return self.canRun()
 
 
-class Data_Metadata(SaveClass):
+class Data_Metadata(SaveClass, BaseMainClass):
     def __init__(self):
         super().__init__()
 
@@ -664,7 +706,7 @@ class Data_Metadata(SaveClass):
                 print('Test data pinned to GPU: {}'.format(self.pin_memoryTest))
         return bool(self.pin_memoryTest)
 
-    def __str__(self):
+    def __strAppend__(self):
         tmp_str = ('Should train data:\t{}\n'.format(self.train))
         tmp_str += ('Download data:\t{}\n'.format(self.download))
         tmp_str += ('Pin memory train:\t{}\n'.format(self.pin_memoryTrain))
@@ -673,6 +715,7 @@ class Data_Metadata(SaveClass):
         tmp_str += ('Batch test size:\t{}\n'.format(self.batchTestSize))
         tmp_str += ('Number of epochs:\t{}\n'.format(self.epoch))
         tmp_str += ('How often print:\t{}\n'.format(self.howOftenPrintTrain))
+        return tmp_str
 
     def _getstate__(self):
         return self.__dict__.copy()
@@ -689,7 +732,7 @@ class Data_Metadata(SaveClass):
     def canUpdate(self = None):
         return False
 
-class Model_Metadata(SaveClass):
+class Model_Metadata(SaveClass, BaseMainClass):
     def __init__(self):
         super().__init__()
 
@@ -758,12 +801,9 @@ class Statistics():
     """
     def __init__(self):
         super().__init__()
-        self.trainLossArray = []
+        self.logFolder = None # folder w którym zapisują się logi
 
-    def addLoss(self, loss):
-        self.trainLossArray.append(loss)
-
-class Data(SaveClass):
+class Data(SaveClass, BaseMainClass):
     """
         Metody konieczne do przeciążenia, dla których wymaga się użycia super().
         __init__
@@ -809,8 +849,6 @@ class Data(SaveClass):
         self.testloader = None
         self.transform = None
 
-        self.batchNumbTrain = 0
-        self.batchNumbTest = 0
         self.epochNumb = 0
 
         self.trainSampler = None
@@ -826,20 +864,16 @@ class Data(SaveClass):
         self.testHelper = None
         self.epochHelper = None
 
-    def __str__(self):
-        tmp_str = ('\n/Data class\n-----------------------------------------------------------------------\n')
-        tmp_str += ('Is trainset set:\t{}\n'.format(self.trainset is not None))
+    def __strAppend__(self):
+        tmp_str = ('Is trainset set:\t{}\n'.format(self.trainset is not None))
         tmp_str += ('Is trainloader set:\t{}\n'.format(self.trainloader is not None))
         tmp_str += ('Is testset set:\t\t{}\n'.format(self.testset is not None))
         tmp_str += ('Is testloader set:\t{}\n'.format(self.testloader is not None))
         tmp_str += ('Is transform set:\t{}\n'.format(self.transform is not None))
-        tmp_str += ('-----------------------------------------------------------------------\nEnd Data class\n')
         return tmp_str
 
     def __customizeState__(self, state):
         if(self.only_Key_Ingredients):
-            del state['batchNumbTrain']
-            del state['batchNumbTest']
             del state['epochNumb']
             del state['trainHelper']
             del state['testHelper']
@@ -862,8 +896,6 @@ class Data(SaveClass):
     def __setstate__(self, state):
         self.__dict__.update(state)
         if(self.only_Key_Ingredients):
-            self.batchNumbTrain = 0
-            self.batchNumbTest = 0
             self.epochNumb = 0
             self.trainHelper = None
             self.testHelper = None
@@ -1100,6 +1132,7 @@ class Data(SaveClass):
     def epochLoop(self, model: 'Model', dataMetadata: 'Data_Metadata', modelMetadata: 'Model_Metadata', metadata: 'Metadata', smoothing: 'Smoothing'):
         metadata.prepareOutput()
         self.epochHelper = EpochDataContainer()
+        self.epochHelper.statistics.logFolder = metadata.stream.folderInstanceStr
 
         self.__beforeEpochLoop__(self.epochHelper, model, dataMetadata, modelMetadata, metadata, smoothing)
 
@@ -1152,7 +1185,7 @@ class Data(SaveClass):
     def canUpdate(self = None):
         return True
 
-class Smoothing(SaveClass):
+class Smoothing(SaveClass, BaseMainClass):
     """
     Metody, które wymagają przeciążenia i wywołania super()
     __setDictionary__
@@ -1219,7 +1252,7 @@ class Smoothing(SaveClass):
     def canUpdate(self = None):
         return False
 
-class Model(nn.Module, SaveClass):
+class Model(nn.Module, SaveClass, BaseMainClass):
     """
         Klasa służąca do tworzenia nowych modeli.
         Aby bezpiecznie skorzystać z metod nn.Module należy wywołać metodę getNNModelModule(), która zwróci obiekt typu nn.Module.
@@ -1284,7 +1317,7 @@ class Model(nn.Module, SaveClass):
         """
         return self
 
-class PredefinedModel(SaveClass):
+class PredefinedModel(SaveClass, BaseMainClass):
     """
         Klasa używana do kapsułkowania istniejących już obiektów predefiniowanych modeli.
         Aby bezpiecznie skorzystać z metod nn.Module należy wywołać metodę getNNModelModule(), która zwróci obiekt typu nn.Module
@@ -1399,7 +1432,8 @@ def commandLineArg(metadata, dataMetadata, modelMetadata, argv, enableLoad = Tru
         'modelOutput=',
         'bashOutput=',
         'mname=',
-        'formatedOutput='
+        'formatedOutput=',
+        'log='
         ]
 
     try:
@@ -1453,23 +1487,34 @@ def commandLineArg(metadata, dataMetadata, modelMetadata, argv, enableLoad = Tru
             metadata.formatedOutput = arg # formated output file path
         elif opt in ('--mname'):
             metadata.name = arg
+        elif opt in ('--log'):
+            metadata.logFolderSuffix = arg
         else:
             Output.printBash("Unknown flag provided to program: {}.".format(opt), 'info')
 
     if(metadata.modelOutput is None):
-        metadata.modelOutput = 'default.log'
+        metadata.modelOutput = 'default_model.log'
 
     if(metadata.debugOutput is None):
-        metadata.debugOutput = 'default.log'  
+        metadata.debugOutput = 'default_debug.log'  
+
+    if(metadata.formatedOutput is None):
+        metadata.formatedOutput = 'default_formatedOutput.log' 
     
     metadata.noPrepareOutput = False
 
     return metadata, False
 
-def modelRun(Metadata_Class, Data_Metadata_Class, Model_Metadata_Class, Data_Class, Model_Class, Smoothing_Class, modelObj = None, load = True, save = True):
+def printClassToLog(metadata, *obj):
+    where = ['debug:0', 'model:0']
+    metadata.stream.print(str(metadata), where)
+    for o in obj:
+        metadata.stream.print(str(o), where)
+
+def modelRun(Metadata_Class, Data_Metadata_Class, Model_Metadata_Class, Data_Class, Model_Class, Smoothing_Class, modelObj = None, load = True, save = True,
+    folderLogNameSuffix = None):
     dictObjs = {}
     dictObjs[Metadata_Class.__name__] = Metadata_Class()
-    dictObjs[Metadata_Class.__name__].prepareOutput()
     loadedSuccessful = False
     metadataLoaded = None
 
@@ -1479,6 +1524,11 @@ def modelRun(Metadata_Class, Data_Metadata_Class, Model_Metadata_Class, Data_Cla
     dictObjs[Metadata_Class.__name__], metadataLoaded = commandLineArg(
         dictObjs[Metadata_Class.__name__], dictObjs[Data_Metadata_Class.__name__], dictObjs[Model_Metadata_Class.__name__], sys.argv[1:],
         enableSave=save, enableLoad=load)
+
+    if(folderLogNameSuffix is not None):
+        dictObjs[Metadata_Class.__name__].logFolderSuffix = folderLogNameSuffix
+
+    dictObjs[Metadata_Class.__name__].prepareOutput()
     if(metadataLoaded): # if model should be loaded
         dictObjsTmp = tryLoad([(Data_Metadata_Class, Data_Class), (None, Smoothing_Class), (Model_Metadata_Class, Model_Class)], dictObjs[Metadata_Class.__name__])
         if(dictObjsTmp is None):
@@ -1510,6 +1560,10 @@ def modelRun(Metadata_Class, Data_Metadata_Class, Model_Metadata_Class, Data_Cla
         dictObjs[Model_Class.__name__], dictObjs[Data_Metadata_Class.__name__], dictObjs[Model_Metadata_Class.__name__], 
         dictObjs[Metadata_Class.__name__], dictObjs[Smoothing_Class.__name__]
         )
+    
+    printClassToLog(dictObjs[Metadata_Class.__name__], dictObjs[Model_Metadata_Class.__name__], dictObjs[Data_Class.__name__],
+        dictObjs[Data_Metadata_Class.__name__],  dictObjs[Model_Class.__name__], dictObjs[Smoothing_Class.__name__])
+    
     dictObjs[Metadata_Class.__name__].printEndModel()
 
     trySave(dictObjs)
@@ -1554,6 +1608,19 @@ def selectCPU(device, metadata):
         print('Using {} torch CUDA device version\nCUDA avaliable: {}\nCUDA selected: False'.format(torch.version.cuda, torch.cuda.is_available()))
     return device
 
+def plot(fileNames: list):
+    """
+    Dane przedstawiane na jednym wykresie powinny być tej samej ilości.
+    """
+    if(isinstance(fileNames, str)):
+        fileNames = [fileNames]
+    for fn in fileNames:
+        data = pd.read_csv(fn, header=None)
+        plt.plot(data, label=os.path.basename(fn))
+    plt.legend()
+    plt.show()
+
+
 #########################################
 # test   
 
@@ -1567,13 +1634,13 @@ def modelDetermTest(Metadata_Class, Data_Metadata_Class, Model_Metadata_Class, D
         useDeterministic()
         dictObjs = {}
         dictObjs[Metadata_Class.__name__] = Metadata_Class()
-        dictObjs[Metadata_Class.__name__].prepareOutput()
         loadedSuccessful = False
 
         dictObjs[Data_Metadata_Class.__name__] = Data_Metadata_Class()
         dictObjs[Model_Metadata_Class.__name__] = Model_Metadata_Class()
 
         dictObjs[Metadata_Class.__name__], _ = commandLineArg(dictObjs[Metadata_Class.__name__], dictObjs[Data_Metadata_Class.__name__], dictObjs[Model_Metadata_Class.__name__], sys.argv[1:], False)
+        dictObjs[Metadata_Class.__name__].prepareOutput()
 
         dictObjs[Metadata_Class.__name__].printStartNewModel()
         dictObjs[Data_Class.__name__] = Data_Class()
@@ -1606,11 +1673,4 @@ def modelDetermTest(Metadata_Class, Data_Metadata_Class, Model_Metadata_Class, D
             break
     print('Arrays are: ', equal)
 
-if(__name__ == '__main__'):
-    with sf.test_mode():
-        stat = modelRun(Metadata, Data_Metadata, Model_Metadata, Data, Model, Smoothing)
 
-        plt.plot(stat.trainLossArray)
-        plt.xlabel('Train index')
-        plt.ylabel('Loss')
-        plt.show()
