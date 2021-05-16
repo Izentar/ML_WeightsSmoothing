@@ -77,7 +77,7 @@ class StaticData:
     PREDEFINED_MODEL_SUFFIX = '.pdmodel'
     IGNORE_IO_WARNINGS = False
     TEST_MODE = False
-    MAX_LOOPS = 51
+    MAX_TEST_LOOPS = 51
 
 class SaveClass:
     def __init__(self):
@@ -765,11 +765,11 @@ class Statistics():
 
 class Data(SaveClass):
     """
-        Metody konieczne do przeciążenia.
+        Metody konieczne do przeciążenia, dla których wymaga się użycia super().
         __init__
+        __setInputTransform__
 
         Metody konieczne do przeciążenia, dla których nie używa się super().
-        __setInputTransform__
         __prepare__
         __update__
         __epoch__
@@ -874,9 +874,8 @@ class Data(SaveClass):
         self.testset = None
         self.testloader = None
         self.transform = None
-        self.__setInputTransform__()
 
-    def __setInputTransform__(self):
+    def __setInputTransform__(self, dataMetadata):
         """
         Wymaga przypisania wartości \n
             self.trainTransform = ...\n
@@ -972,7 +971,7 @@ class Data(SaveClass):
                 self.__trainLoopExit__(helperEpoch, self.trainHelper, model, dataMetadata, modelMetadata, metadata, smoothing)
                 return
 
-            if(StaticData.TEST_MODE and batch >= StaticData.MAX_LOOPS):
+            if(StaticData.TEST_MODE and batch >= StaticData.MAX_TEST_LOOPS):
                 break
             
             self.__beforeTrain__(helperEpoch, self.trainHelper, model, dataMetadata, modelMetadata, metadata, smoothing)
@@ -989,6 +988,9 @@ class Data(SaveClass):
             self.trainHelper.timer.addToStatistics()
 
             self.__afterTrain__(helperEpoch, self.trainHelper, model, dataMetadata, modelMetadata, metadata, smoothing)
+
+            if(smoothing.__isSmoothingIsGoodEnough__(helperEpoch, self.trainHelper, model, dataMetadata, modelMetadata, metadata)):
+                break
 
         self.trainHelper.loopTimer.end()
         self.trainHelper.loopEnded = True
@@ -1053,7 +1055,7 @@ class Data(SaveClass):
                     self.__testLoopExit__(helperEpoch, self.testHelper, model, dataMetadata, modelMetadata, metadata, smoothing)
                     return
 
-                if(StaticData.TEST_MODE and batch >= StaticData.MAX_LOOPS):
+                if(StaticData.TEST_MODE and batch >= StaticData.MAX_TEST_LOOPS):
                     break
 
                 self.__beforeTest__(helperEpoch, self.testHelper, model, dataMetadata, modelMetadata, metadata, smoothing)
@@ -1139,7 +1141,7 @@ class Data(SaveClass):
             self.trainloader = ...\n
             self.testloader = ...\n
         """
-        raise Exception("Not implemented")
+        self.__setInputTransform__(dataMetadata)
 
     def trySave(self, metadata: 'Metadata', onlyKeyIngredients = False, temporaryLocation = False):
         return super().trySave(metadata, StaticData.DATA_SUFFIX, onlyKeyIngredients, temporaryLocation)
@@ -1155,6 +1157,9 @@ class Smoothing(SaveClass):
     Metody, które wymagają przeciążenia i wywołania super()
     __setDictionary__
     __getSmoothedWeights__ - zwraca pusty słownik lub None
+
+    Metody, które wymagają przeciążenia bez wywołania super()
+    __isSmoothingIsGoodEnough__
     """
     def __init__(self):
         super().__init__()
@@ -1177,6 +1182,9 @@ class Smoothing(SaveClass):
             return {}
         else:
             None
+
+    def __isSmoothingIsGoodEnough__(self, helperEpoch, helper, model, dataMetadata, modelMetadata, metadata):
+        raise Exception("Not implemented.")
 
     def getWeights(self, key, toDevice=None, copy = False):
         if(key in self.savedWeights.keys()):
@@ -1599,9 +1607,10 @@ def modelDetermTest(Metadata_Class, Data_Metadata_Class, Model_Metadata_Class, D
     print('Arrays are: ', equal)
 
 if(__name__ == '__main__'):
-    stat = modelRun(Metadata, Data_Metadata, Model_Metadata, Data, Model, Smoothing)
+    with sf.test_mode():
+        stat = modelRun(Metadata, Data_Metadata, Model_Metadata, Data, Model, Smoothing)
 
-    plt.plot(stat.trainLossArray)
-    plt.xlabel('Train index')
-    plt.ylabel('Loss')
-    plt.show()
+        plt.plot(stat.trainLossArray)
+        plt.xlabel('Train index')
+        plt.ylabel('Loss')
+        plt.show()

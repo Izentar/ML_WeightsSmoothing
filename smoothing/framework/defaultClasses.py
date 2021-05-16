@@ -8,10 +8,42 @@ import torch.nn as nn
 import torch.nn.functional as F
 import torchvision.models as models
 
+class CircularList():
+    def __init__(self, maxCapacity):
+        self.array = []
+        self.arrayIndex = 0
+        self.arrayMax = maxCapacity
+
+    def pushBack(self, number):
+        self.array.insert(self.arrayIndex % self.arrayMax, number)
+        self.arrayIndex += 1
+
+    def getAverage(self):
+        l = len(self.array)
+        return sum(self.array) / l if l else 0
+
+    def __setstate__(self):
+        self.__dict__.update(state)
+        self.arrayIndex = self.arrayIndex % self.arrayMax
+
+    def reset(self):
+        del self.array
+        self.array = []
+        self.arrayIndex = 0
+
+    def getSortedArrayByPos(self):
+        ar_lo = self.array[:(self.arrayIndex - 1 if self.arrayIndex > 0 else 0)]
+        ar_hi = self.array[self.arrayIndex:] if len(self.array) > self.arrayIndex else []
+        ar_lo.reverse()
+        ar_hi.reverse()
+        return ar_lo + ar_hi
+
+    def __len__(self):
+        return len(self.array)
 
 class DefaultModel_Metadata(sf.Model_Metadata):
     def __init__(self):
-        sf.Model_Metadata.__init__(self)
+        super().__init__()
         self.device = 'cuda:0'
         self.learning_rate = 1e-3
         self.momentum = 0.9
@@ -38,18 +70,31 @@ class DefaultData_Metadata(sf.Data_Metadata):
         self.batchTrainSize = 16
         self.batchTestSize = 16
 
-        # batch size * howOftenPrintTrain
-        self.howOftenPrintTrain = 2000
+        self.fromGrayToRGB = True
 
-class DefaultModel(sf.PredefinedModel):
+        # batch size * howOftenPrintTrain
+        if(sf.test_mode.isActivated()):
+            self.howOftenPrintTrain = 200
+        else:
+            self.howOftenPrintTrain = 2000
+
+class DefaultModelSimpleConv(sf.Model, nn.Module):
     def __init__(self, obj, modelMetadata):
         super().__init__(obj, modelMetadata)
+
+        self.conv1 = nn.Conv2d(3, 6, 5)
+        self.pool = nn.MaxPool2d(2, 2)
+        self.conv2 = nn.Conv2d(6, 16, 5)
+        self.linear1 = nn.Linear(16 * 5 * 5, 120)
+        self.linear2 = nn.Linear(120, 84)
+        self.linear3 = nn.Linear(84, 10)
 
         self.loss_fn = nn.CrossEntropyLoss()
         self.optimizer = optim.SGD(self.getNNModelModule().parameters(), lr=modelMetadata.learning_rate, momentum=modelMetadata.momentum)
         #self.optimizer = optim.AdamW(self.parameters(), lr=modelMetadata.learning_rate)
 
         self.getNNModelModule().to(modelMetadata.device)
+
 
     def forward(self, x):
         x = self.pool(F.hardswish(self.conv1(x)))
@@ -64,7 +109,35 @@ class DefaultModel(sf.PredefinedModel):
         self.getNNModelModule().to(modelMetadata.device)
         self.optimizer = optim.SGD(self.getNNModelModule().parameters(), lr=modelMetadata.learning_rate, momentum=modelMetadata.momentum)
 
-class DefaultSmoothing(sf.Smoothing):
+    def __initializeWeights__(self):
+        for m in model.modules():
+            if(isinstance(m, (nn.Conv2d, nn.ConvTranspose2d, nn.BatchNorm2d))):
+                nn.init.kaiming_normal_(m.weight, mode='fan_out', nonlinearity='relu')
+                if m.bias is not None:
+                    nn.init.constant_(m.bias, 0)
+            elif(isinstance(m, nn.Linear)):
+                nn.init.normal_(m.weight, 0, 0.01)
+                nn.init.constant_(m.bias, 0)
+
+class DefaultModelPredef(sf.PredefinedModel):
+    def __init__(self, obj, modelMetadata):
+        super().__init__(obj, modelMetadata)
+
+        self.loss_fn = nn.CrossEntropyLoss()
+        self.optimizer = optim.SGD(self.getNNModelModule().parameters(), lr=modelMetadata.learning_rate, momentum=modelMetadata.momentum)
+        #self.optimizer = optim.AdamW(self.parameters(), lr=modelMetadata.learning_rate)
+
+        self.getNNModelModule().to(modelMetadata.device)
+
+    def __update__(self, modelMetadata):
+        self.getNNModelModule().to(modelMetadata.device)
+        self.optimizer = optim.SGD(self.getNNModelModule().parameters(), lr=modelMetadata.learning_rate, momentum=modelMetadata.momentum)
+
+class DefaultSmoothingBorderline(sf.Smoothing):
+    """
+    Włącza wygładzanie po przejściu przez określoną ilość iteracji pętli.
+    Wygładzanie polega na liczeniu średnich tensorów.
+    """
     def __init__(self):
         sf.Smoothing.__init__(self)
         self.lossSum = 0.0
@@ -72,11 +145,10 @@ class DefaultSmoothing(sf.Smoothing):
         self.lossList = []
         self.lossAverage = []
 
-        self.numbOfBatchAfterSwitchOn = None
         if(sf.test_mode.isActivated()):
             self.numbOfBatchAfterSwitchOn = 10
         else:
-            self.numbOfBatchAfterSwitchOn = 1000 # dla 50000 / 32 ~= 1500
+            self.numbOfBatchAfterSwitchOn = 3000 # dla 50000 / 32 ~= 1500, 50000 / 16 ~= 3000
 
         self.sumWeights = {}
         self.previousWeights = {}
@@ -85,6 +157,9 @@ class DefaultSmoothing(sf.Smoothing):
         self.counter = 0
 
         self.mainWeights = None
+
+    def __isSmoothingIsGoodEnough__(self, helperEpoch, helper, model, dataMetadata, modelMetadata, metadata):
+        False
 
     def __call__(self, helperEpoch, helper, model, dataMetadata, modelMetadata, metadata):
         super().__call__(helperEpoch, helper, model, dataMetadata, modelMetadata, metadata)
@@ -111,7 +186,6 @@ class DefaultSmoothing(sf.Smoothing):
             return average
         for key, arg in self.sumWeights.items():
             average[key] = self.sumWeights[key].to('cpu') / self.countWeights
-        torch.cuda.empty_cache()
         return average
 
     def __setDictionary__(self, dictionary):
@@ -145,6 +219,348 @@ class DefaultSmoothing(sf.Smoothing):
             self.sumWeights = {}
             self.enabled = False
 
+class DefaultSmoothingOscilationGeneralizedMean(sf.Smoothing):
+    """
+    Włącza wygładzanie gdy zostaną spełnione określone warunki:
+    - po przekroczeniu pewnej minimalnej ilości iteracji pętli oraz 
+        gdy różnica pomiędzy średnią N ostatnich strat treningowych modelu, 
+        a średnią średnich N ostatnich strat treningowych modelu jest mniejsza niż epsilon.
+    - po przekroczeniu pewnej maksymalnej ilości iteracji pętli.
+
+    Liczy średnią arytmetyczną dla wag.
+    """
+    def __init__(self):
+        sf.Smoothing.__init__(self)
+
+        # dane do konfiguracji
+        self.avgOfAvgUpdateFreq = 10
+        self.endSmoothingFreq = 10
+        self.generalizedMeanPower = 1 # tylko dla 1 dobrze działa, reszta daje gorsze wyniki, info do opisania
+
+        if(sf.test_mode.isActivated()):
+            self.numbOfBatchMaxStart = sf.StaticData.MAX_TEST_LOOPS - 10 if sf.StaticData.MAX_TEST_LOOPS - 10 >= 0 else 0
+            self.numbOfBatchMinStart = sf.StaticData.MAX_TEST_LOOPS - 30 if sf.StaticData.MAX_TEST_LOOPS - 30 >= 0 else 0
+            self.epsilon = 1e-2
+            self.weightsEpsilon = 1e-4
+        else:
+            self.numbOfBatchMaxStart = 3100
+            self.numbOfBatchMinStart = 500
+            self.epsilon = 1e-3
+            self.weightsEpsilon = 1e-6
+        ###############################
+
+        self.lossSum = 0.0
+        self.lossCounter = 0
+        self.lossList = []
+        self.lossAverage = []
+
+        self.sumWeights = {}
+        self.lossContainer = CircularList(50)
+        self.lastKLossAverage = CircularList(40)
+        
+        self.countWeights = 0
+        self.counter = 0
+        self.tensorPrevSum_1 = CircularList(int(self.endSmoothingFreq))
+        self.tensorPrevSum_2 = CircularList(int(self.endSmoothingFreq))
+        self.divisionCounter = 0
+
+        self.mainWeights = None
+
+    def canComputeWeights(self):
+        """
+        - Jeżeli wartość bezwzględna różnicy średnich N ostatnich strat f. celu, a średnią K średnich N ostatnich strat f. celu będzie mniejsza niż epsilon
+        i program przeszedł przez minimalną liczbę pętli
+        - lub program wykonał już pewną graniczną ilość pętli
+        to metoda zwróci True.
+        W przeciwnym wypadku zwróci False.
+        """
+        if(self.counter % self.avgOfAvgUpdateFreq == int(self.avgOfAvgUpdateFreq / 2)): # ponieważ liczenie kolejnej średniej od razu po dodaniu nowego elementu dużo nie da, lepiej zrobić to w połowie
+            return bool(
+                (abs(self.lossContainer.getAverage() - self.lastKLossAverage.getAverage()) < self.epsilon and self.counter > self.numbOfBatchMinStart) 
+                or self.counter > self.numbOfBatchMaxStart
+            )
+        return False
+
+    def __isSmoothingIsGoodEnough__(self, helperEpoch, helper, model, dataMetadata, modelMetadata, metadata):
+        """
+        Sprawdza jak bardzo wygładzone wagi różnią się od siebie w kolejnych iteracjach.
+        Jeżeli różnica będzie wystarczająco mała, metoda zwróci True. W przeciwnym wypadku zwraca false.
+
+        Algorytm:
+        - sumowanie wszystkich wag dla których wcześniej oblicza się wartość bezwzględną
+        - dodanie obliczonej wartości do jednego z 2 buforów cyklicznych ustawionych w kolejce, jeden za drugim
+        - obliczenie oddzielnie średniej w dwóch buforach i wykonanie abs(r1 - r2)
+        - jeżeli dana różnica bezwzględna jest mniejsza od weightsEpsilon, to zwraca True
+        - w przeciwnym wypadku metoda zwraca False
+        """
+        if(self.countWeights > 0 and self.counter % self.endSmoothingFreq == 0):
+            self.divisionCounter += 1
+            smWg = self.__getSmoothedWeights__()
+            sumArray = []
+            for val in smWg.values():
+                sumArray.append(torch.sum(torch.abs(val)))
+            absSum = torch.sum(torch.stack(sumArray)).item()
+
+            if(self.divisionCounter % 2 == 0):
+                self.tensorPrevSum_1.pushBack(absSum)
+            else:
+                self.tensorPrevSum_2.pushBack(absSum)
+            # avg_1 będzie zawierała ogółem starsze wartości niż avg_2, 
+            # dlatego przy dodaniu wartości do avg_2 różnica będzie mniejsza niż przy dodaniu wartości do avg_1
+            avg_1 = self.tensorPrevSum_1.getAverage() 
+            avg_2 = self.tensorPrevSum_2.getAverage()
+            metadata.stream.print("Sum debug:" + str(absSum), 'debug:0')
+            metadata.stream.print("Weight avg debug:" + str(abs(avg_1 - avg_2)), 'debug:0')
+            metadata.stream.print("Weight avg bool:" + str(bool(abs(avg_1 - avg_2) < self.weightsEpsilon)), 'debug:0')
+            
+            return bool(abs(avg_1 - avg_2) < self.weightsEpsilon)
+        return False
+
+    def calcAvgArithmeticMean(self, model):
+        with torch.no_grad():
+            for key, arg in model.getNNModelModule().named_parameters():
+                cpuArg = arg.to('cpu').pow(self.generalizedMeanPower)
+                self.sumWeights[key].add_(cpuArg)
+
+    def __call__(self, helperEpoch, helper, model, dataMetadata, modelMetadata, metadata):
+        super().__call__(helperEpoch, helper, model, dataMetadata, modelMetadata, metadata)
+        self.counter += 1
+        self.lossContainer.pushBack(helper.loss.item())
+        avg = self.lossContainer.getAverage()
+        if(self.counter % self.avgOfAvgUpdateFreq):
+            self.lastKLossAverage.pushBack(avg)
+        metadata.stream.print("Loss avg debug:" + str(abs(avg - self.lastKLossAverage.getAverage())), 'debug:0')
+        if(self.canComputeWeights()):
+            self.countWeights += 1
+            self.calcAvgArithmeticMean(model)
+
+    def __getSmoothedWeights__(self):
+        average = super().__getSmoothedWeights__()
+        if(average is not None):
+            return average
+        average = {}
+        if(self.countWeights == 0):
+            return average
+        for key, arg in self.sumWeights.items():
+            average[key] = (self.sumWeights[key] / self.countWeights).pow(1/self.generalizedMeanPower)
+        return average
+
+    def __setDictionary__(self, dictionary):
+        '''
+        Used to map future weights into internal sums.
+        '''
+        super().__setDictionary__(dictionary)
+        with torch.no_grad():
+            for key, values in dictionary:
+                self.sumWeights[key] = torch.zeros_like(values, requires_grad=False, device='cpu')
+
+    def __getstate__(self):
+        state = self.__dict__.copy()
+        if(self.only_Key_Ingredients):
+            del state['countWeights']
+            del state['counter']
+            del state['mainWeights']
+            del state['sumWeights']
+            del state['enabled']
+        return state
+
+    def __setstate__(self, state):
+        self.__dict__.update(state)
+        if(self.only_Key_Ingredients):
+            self.countWeights = 0
+            self.counter = 0
+            self.mainWeights = None
+            self.sumWeights = {}
+            self.enabled = False
+            self.lossContainer.reset()
+            self.lastKLossAverage.reset()
+            self.tensorPrevSum_1.reset()
+            self.tensorPrevSum_2.reset()
+            self.divisionCounter = 0
+
+class DefaultSmoothingOscilationWeightedMean(sf.Smoothing):
+    """
+    Włącza wygładzanie gdy zostaną spełnione określone warunki:
+    - po przekroczeniu pewnej minimalnej ilości iteracji pętli oraz 
+        gdy różnica pomiędzy średnią N ostatnich strat treningowych modelu, 
+        a średnią średnich N ostatnich strat treningowych modelu jest mniejsza niż epsilon.
+    - po przekroczeniu pewnej maksymalnej ilości iteracji pętli.
+
+    Liczy średnią ważoną dla wag. Wagi są nadawane względem starości zapamiętanej wagi. Im starsza tym ma mniejszą wagę.
+    """
+    def __init__(self):
+        sf.Smoothing.__init__(self)
+
+        # dane do konfiguracji
+        self.avgOfAvgUpdateFreq = 10
+        self.endSmoothingFreq = 10
+
+        if(sf.test_mode.isActivated()):
+            self.numbOfBatchMaxStart = sf.StaticData.MAX_TEST_LOOPS - 10 if sf.StaticData.MAX_TEST_LOOPS - 10 >= 0 else 0
+            self.numbOfBatchMinStart = sf.StaticData.MAX_TEST_LOOPS - 30 if sf.StaticData.MAX_TEST_LOOPS - 30 >= 0 else 0
+            self.epsilon = 1e-2
+            self.weightsEpsilon = 1e-4
+        else:
+            self.numbOfBatchMaxStart = 3100
+            self.numbOfBatchMinStart = 500
+            self.epsilon = 1e-3
+            self.weightsEpsilon = 1e-6
+        ###############################
+
+        self.lossSum = 0.0
+        self.lossCounter = 0
+        self.lossList = []
+        self.lossAverage = []
+
+        self.weightsArray = CircularList(20)
+        self.lossContainer = CircularList(50)
+        self.lastKLossAverage = CircularList(40)
+        
+        self.countWeights = 0
+        self.counter = 0
+        self.tensorPrevSum_1 = CircularList(int(self.endSmoothingFreq))
+        self.tensorPrevSum_2 = CircularList(int(self.endSmoothingFreq))
+        self.divisionCounter = 0
+
+        self.mainWeights = None
+
+    def canComputeWeights(self):
+        """
+        - Jeżeli wartość bezwzględna różnicy średnich N ostatnich strat f. celu, a średnią K średnich N ostatnich strat f. celu będzie mniejsza niż epsilon
+        i program przeszedł przez minimalną liczbę pętli
+        - lub program wykonał już pewną graniczną ilość pętli
+        to metoda zwróci True.
+        W przeciwnym wypadku zwróci False.
+        """
+        if(self.counter % self.avgOfAvgUpdateFreq == int(self.avgOfAvgUpdateFreq / 2)): # ponieważ liczenie kolejnej średniej od razu po dodaniu nowego elementu dużo nie da, lepiej zrobić to w połowie
+            return bool(
+                (abs(self.lossContainer.getAverage() - self.lastKLossAverage.getAverage()) < self.epsilon and self.counter > self.numbOfBatchMinStart) 
+                or self.counter > self.numbOfBatchMaxStart
+            )
+        return False
+
+    def __isSmoothingIsGoodEnough__(self, helperEpoch, helper, model, dataMetadata, modelMetadata, metadata):
+        """
+        Sprawdza jak bardzo wygładzone wagi różnią się od siebie w kolejnych iteracjach.
+        Jeżeli różnica będzie wystarczająco mała, metoda zwróci True. W przeciwnym wypadku zwraca false.
+
+        Algorytm:
+        - sumowanie wszystkich wag dla których wcześniej oblicza się wartość bezwzględną
+        - dodanie obliczonej wartości do jednego z 2 buforów cyklicznych ustawionych w kolejce, jeden za drugim
+        - obliczenie oddzielnie średniej w dwóch buforach i wykonanie abs(r1 - r2)
+        - jeżeli dana różnica bezwzględna jest mniejsza od weightsEpsilon, to zwraca True
+        - w przeciwnym wypadku metoda zwraca False
+        """
+        if(self.countWeights > 0 and self.counter % self.endSmoothingFreq == 0):
+            self.divisionCounter += 1
+            smWg = self.__getSmoothedWeights__()
+            sumArray = []
+            for val in smWg.values():
+                sumArray.append(torch.sum(torch.abs(val)))
+            absSum = torch.sum(torch.stack(sumArray)).item()
+
+            if(self.divisionCounter % 2 == 0):
+                self.tensorPrevSum_1.pushBack(absSum)
+            else:
+                self.tensorPrevSum_2.pushBack(absSum)
+            # avg_1 będzie zawierała ogółem starsze wartości niż avg_2, 
+            # dlatego przy dodaniu wartości do avg_2 różnica będzie mniejsza niż przy dodaniu wartości do avg_1
+            avg_1 = self.tensorPrevSum_1.getAverage() 
+            avg_2 = self.tensorPrevSum_2.getAverage()
+            metadata.stream.print("Sum debug:" + str(absSum), 'debug:0')
+            metadata.stream.print("Weight avg debug:" + str(abs(avg_1 - avg_2)), 'debug:0')
+            metadata.stream.print("Weight avg bool:" + str(bool(abs(avg_1 - avg_2) < self.weightsEpsilon)), 'debug:0')
+            
+            return bool(abs(avg_1 - avg_2) < self.weightsEpsilon)
+        return False
+
+    def calcAvgArithmeticMean(self, model):
+        with torch.no_grad():
+            for key, arg in model.getNNModelModule().named_parameters():
+                cpuArg = arg.to('cpu')
+                self.sumWeights[key].to('cpu').add_(cpuArg)
+
+    def calcAvgWeightedMean(self, model):
+        with torch.no_grad():
+            tmpDict = {}
+            for key, val in model.getNNModelModule().named_parameters():
+                tmpDict[key] = val.to('cpu')
+            weightsArray.pushBack(tmpDict)
+
+
+    def __call__(self, helperEpoch, helper, model, dataMetadata, modelMetadata, metadata):
+        super().__call__(helperEpoch, helper, model, dataMetadata, modelMetadata, metadata)
+        self.counter += 1
+        self.lossContainer.pushBack(helper.loss.item())
+        avg = self.lossContainer.getAverage()
+        if(self.counter % self.avgOfAvgUpdateFreq):
+            self.lastKLossAverage.pushBack(avg)
+        metadata.stream.print("Loss avg debug:" + str(abs(avg - self.lastKLossAverage.getAverage())), 'debug:0')
+        if(self.canComputeWeights()):
+            self.countWeights += 1
+            self.calcAvgWeightedMean(model)
+
+    def __getSmoothedWeights__(self):
+        average = super().__getSmoothedWeights__()
+        if(average is not None):
+            return average # {}
+        average = {}
+        if(self.countWeights == 0):
+            return average # {}
+
+        sortedList = self.weightsArray.getSortedArrayByPos()
+
+        for wg in sortedList:
+            for key, val in wg:
+                average[key] = torch.zeros_like(val, requires_grad=False, device='cpu')
+            break
+
+        weight = 1.0
+        wgSum = 0.0
+        for wg in sortedList:
+            for key, val in wg:
+                average[key] += val.mul(weight)
+            wgSum += weight 
+            weight /= 2
+
+        for wg in sortedList:
+            for key, val in wg:
+                average[key].div_(wgSum)
+
+        return average
+
+    def __setDictionary__(self, dictionary):
+        '''
+        Used to map future weights into internal sums.
+        '''
+        super().__setDictionary__(dictionary)
+
+
+    def __getstate__(self):
+        state = self.__dict__.copy()
+        if(self.only_Key_Ingredients):
+            del state['countWeights']
+            del state['counter']
+            del state['mainWeights']
+            del state['weightsArray']
+            del state['enabled']
+        return state
+
+    def __setstate__(self, state):
+        self.__dict__.update(state)
+        if(self.only_Key_Ingredients):
+            self.countWeights = 0
+            self.counter = 0
+            self.mainWeights = None
+            self.weightsArray.reset()
+            self.enabled = False
+            self.lossContainer.reset()
+            self.lastKLossAverage.reset()
+            self.tensorPrevSum_1.reset()
+            self.tensorPrevSum_2.reset()
+            self.divisionCounter = 0
+
+
 class DefaultData(sf.Data):
     def __init__(self):
         super().__init__()
@@ -155,31 +571,41 @@ class DefaultData(sf.Data):
     def __setstate__(self, state):
         super().__setstate__(state)
 
-    def __setInputTransform__(self):
+    def lambdaGrayToRGB(x):
+        return x.repeat(3, 1, 1)
+
+    def NoneTransform(obj):
+        '''Nic nie robi. Używana w wyrażeniach warunkowych dotyczących tranformacji lambda.'''
+        return obj
+
+    def __setInputTransform__(self, dataMetadata):
         ''' self.transform = transforms.Compose(
             [transforms.ToTensor(),
             transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))]
         )
         '''
+
         self.trainTransform = transforms.Compose([
             transforms.Resize(224),
             transforms.RandomHorizontalFlip(),
             transforms.ToTensor(),
-            transforms.Normalize((0.4914, 0.4822, 0.4465), (0.2023, 0.1994, 0.2010)),
+            transforms.Lambda(DefaultData.lambdaGrayToRGB if dataMetadata.fromGrayToRGB else DefaultData.NoneTransform),
+            transforms.Normalize((0.4914, 0.4822, 0.4465), (0.2023, 0.1994, 0.2010)), 
         ])
         self.testTransform = transforms.Compose([
             transforms.Resize(224),
             transforms.ToTensor(),
+            transforms.Lambda(DefaultData.lambdaGrayToRGB if dataMetadata.fromGrayToRGB else DefaultData.NoneTransform),
             transforms.Normalize((0.4914, 0.4822, 0.4465), (0.2023, 0.1994, 0.2010)),
         ])
 
     def __prepare__(self, dataMetadata):
-        self.__setInputTransform__()
+        self.__setInputTransform__(dataMetadata)
 
         #self.trainset = torchvision.datasets.ImageNet(root=sf.StaticData.DATA_PATH, train=True, transform=self.trainTransform)
         #self.testset = torchvision.datasets.ImageNet(root=sf.StaticData.DATA_PATH, train=False, transform=self.testTransform)
-        self.trainset = torchvision.datasets.CIFAR10(root=sf.StaticData.DATA_PATH, train=True, transform=self.trainTransform)
-        self.testset = torchvision.datasets.CIFAR10(root=sf.StaticData.DATA_PATH, train=False, transform=self.testTransform)
+        self.trainset = torchvision.datasets.MNIST(root=sf.StaticData.DATA_PATH, train=True, transform=self.trainTransform)
+        self.testset = torchvision.datasets.MNIST(root=sf.StaticData.DATA_PATH, train=False, transform=self.testTransform)
 
         self.trainSampler = sf.BaseSampler(len(self.trainset), dataMetadata.batchTrainSize)
         self.testSampler = sf.BaseSampler(len(self.testset), dataMetadata.batchTrainSize)
@@ -277,18 +703,17 @@ class DefaultData(sf.Data):
 
 
 if(__name__ == '__main__'):
-    with sf.test_mode():
-        torch.backends.cudnn.benchmark = True
-        obj = models.alexnet(pretrained=True)
+    torch.backends.cudnn.benchmark = True
+    obj = models.alexnet(pretrained=True)
 
-        #sf.useDeterministic()
-        #sf.modelDetermTest(sf.Metadata, DefaultData_Metadata, DefaultModel_Metadata, DefaultData, VGG16Model, DefaultSmoothing)
-        stat = sf.modelRun(sf.Metadata, DefaultData_Metadata, DefaultModel_Metadata, DefaultData, DefaultModel, DefaultSmoothing, obj)
+    #sf.useDeterministic()
+    #sf.modelDetermTest(sf.Metadata, DefaultData_Metadata, DefaultModel_Metadata, DefaultData, VGG16Model, DefaultSmoothingBorderline)
+    stat = sf.modelRun(sf.Metadata, DefaultData_Metadata, DefaultModel_Metadata, DefaultData, DefaultModel, DefaultSmoothingBorderline, obj)
 
-        #plt.plot(stat.trainLossArray)
-        #plt.xlabel('Train index')
-        #plt.ylabel('Loss')
-        #plt.show()
+    #plt.plot(stat.trainLossArray)
+    #plt.xlabel('Train index')
+    #plt.ylabel('Loss')
+    #plt.show()
 
 
 

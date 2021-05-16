@@ -1,13 +1,7 @@
 #!/bin/bash 
 
 declare -a commands=(
-    "python smoothing/alexnet_pretrain.py -l alexnet_pretrain_load -s alexnet_pretrain_save --mname alexnet_pretrain --test true --train true --pinTest false -d --debugOutput debug --modelOutput alexnet_pretrain_model --bashOutput true --formatedOutput alexnet_pretrain_formated"
     "python smoothing/alexnet.py -l alexnet_load -s alexnet_save --mname alexnet --test true --train true --pinTest false -d --debugOutput debug --modelOutput alexnet_model --bashOutput true --formatedOutput alexnet_formated"
-    "python smoothing/googlenet.py -l googlenet_load -s googlenet_save --mname googlenet --test true --train true --pinTest false -d --debugOutput debug --modelOutput model --bashOutput true --formatedOutput googlenet_formated"
-    "python smoothing/resnet18_pretrain.py -l resnet18_pretrain_load -s resnet18_pretrain_save --mname resnet18_pretrain --test true --train true --pinTest false -d --debugOutput debug --modelOutput resnet18_pretrain_model --bashOutput true --formatedOutput resnet18_pretrain_formated"
-    "python smoothing/resnet18.py -l resnet18_load -s resnet18_save --mname resnet18 --test true --train true --pinTest false -d --debugOutput debug --modelOutput resnet18_model --bashOutput true --formatedOutput resnet18_formated"
-    "python smoothing/vgg11_pretrain.py -l vgg11_pretrain_load -s vgg11_pretrain_save --mname vgg11_pretrain --test true --train true --pinTest false -d --debugOutput debug --modelOutput vgg11_pretrain_model --bashOutput true --formatedOutput vgg11_pretrain_formated"
-    "python smoothing/vgg11.py -l vgg11_load -s vgg11_save --mname vgg11 --test true --train true --pinTest false -d --debugOutput debug --modelOutput vgg11_model --bashOutput true --formatedOutput vgg11_formated"
 )
 
 declare -a names=(
@@ -23,11 +17,15 @@ declare -a names=(
     "python smoothing/vgg11.py -l vgg11_load -s vgg11_save --mname vgg11 --test true --train true --pinTest false -d --debugOutput debug --modelOutput vgg11_model --bashOutput true --formatedOutput vgg11_formated"
 '
 
+: '
+
+'
+
 fileBashStateName="savedBash"
 bashLogFile="bash.log"
 saveAndExit=0
 exitOnly=0
-enableRm=0
+enableRm=1
 
 saveScriptState() {
     printf "BASH: Saving script state\n" &>> $bashLogFile

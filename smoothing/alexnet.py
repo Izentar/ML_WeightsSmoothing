@@ -10,12 +10,15 @@ import torchvision.models as models
 from framework import defaultClasses as dc
 
 if(__name__ == '__main__'):
+    sf.StaticData.TEST_MODE = True
     torch.backends.cudnn.benchmark = True
     obj = models.alexnet()
 
     #sf.useDeterministic()
     #sf.modelDetermTest(sf.Metadata, DefaultData_Metadata, DefaultModel_Metadata, DefaultData, VGG16Model, DefaultSmoothing)
-    stat = sf.modelRun(sf.Metadata, dc.DefaultData_Metadata, dc.DefaultModel_Metadata, dc.DefaultData, dc.DefaultModel, dc.DefaultSmoothing, obj, load=False)
+    stat = sf.modelRun(sf.Metadata, dc.DefaultData_Metadata, dc.DefaultModel_Metadata, dc.DefaultData, dc.DefaultModelSimpleConv, dc.DefaultSmoothingOscilationGeneralizedMean, 
+        #obj, 
+        load=False)
 
     #plt.plot(stat.trainLossArray)
     #plt.xlabel('Train index')
