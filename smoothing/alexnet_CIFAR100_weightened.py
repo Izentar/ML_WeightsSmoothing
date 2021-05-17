@@ -16,7 +16,7 @@ if(__name__ == '__main__'):
 
     #sf.useDeterministic()
     #sf.modelDetermTest(sf.Metadata, DefaultData_Metadata, DefaultModel_Metadata, DefaultData, VGG16Model, DefaultSmoothing)
-    stat = sf.modelRun(sf.Metadata, dc.DefaultData_Metadata, dc.DefaultModel_Metadata, dc.DefaultDataMNIST, dc.DefaultModelSimpleConv, dc.DefaultSmoothingOscilationGeneralizedMean, 
+    stat = sf.modelRun(sf.Metadata, dc.DefaultData_Metadata, dc.DefaultModel_Metadata, dc.DefaultDataMNIST, dc.DefaultModelPredef, dc.DefaultSmoothingOscilationWeightedMean, 
         obj, 
         load=False
         )

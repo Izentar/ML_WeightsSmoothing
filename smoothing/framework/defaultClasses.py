@@ -15,7 +15,10 @@ class CircularList():
         self.arrayMax = maxCapacity
 
     def pushBack(self, number):
-        self.array.insert(self.arrayIndex % self.arrayMax, number)
+        idx = self.arrayIndex % self.arrayMax
+        if(idx < len(self.array)):
+            del self.array[idx] # trzeba usunąć, inaczej insert zachowa w liście obiekt
+        self.array.insert(idx, number)
         self.arrayIndex += 1
 
     def getAverage(self):
@@ -31,12 +34,31 @@ class CircularList():
         self.array = []
         self.arrayIndex = 0
 
+    def __iter__(self):
+        lo = list(range(self.arrayIndex))
+        hi = list(range(self.arrayIndex, len(self.array)))
+        lo.reverse()
+        hi.reverse()
+        self.indexArray = lo + hi
+        self.idx = 0
+        return self
+
+    def __next__(self):
+        if(self.idx >= len(self.indexArray)):
+            raise StopIteration
+        x = self.array[self.idx]
+        self.idx += 1
+        return x
+
     def getSortedArrayByPos(self):
-        ar_lo = self.array[:(self.arrayIndex - 1 if self.arrayIndex > 0 else 0)]
-        ar_hi = self.array[self.arrayIndex:] if len(self.array) > self.arrayIndex else []
+        ar_lo = self.array[:self.arrayIndex]
+        ar_hi = self.array[self.arrayIndex:]
         ar_lo.reverse()
         ar_hi.reverse()
-        return ar_lo + ar_hi
+        ret = ar_lo + ar_hi
+        del ar_lo
+        del ar_hi
+        return ret
 
     def __len__(self):
         return len(self.array)
@@ -154,6 +176,9 @@ class DefaultSmoothingBorderline(sf.Smoothing):
     """
     def __init__(self):
         sf.Smoothing.__init__(self)
+
+        self.device = 'cpu'
+
         if(sf.test_mode.isActivated()):
             self.numbOfBatchAfterSwitchOn = 10
         else:
@@ -180,8 +205,8 @@ class DefaultSmoothingBorderline(sf.Smoothing):
             helper.substract = {}
             with torch.no_grad():
                 for key, arg in model.getNNModelModule().named_parameters():
-                    cpuArg = arg.to('cpu')
-                    self.sumWeights[key].to('cpu').add_(cpuArg)
+                    cpuArg = arg.to(self.device)
+                    self.sumWeights[key].to(self.device).add_(cpuArg)
                     #helper.substract[key] = arg.sub(self.previousWeights[key])
                     helper.substract[key] = self.previousWeights[key].sub_(cpuArg).multiply_(-1)
                     self.previousWeights[key].detach().copy_(cpuArg.detach())
@@ -194,7 +219,7 @@ class DefaultSmoothingBorderline(sf.Smoothing):
         if(self.countWeights == 0):
             return average
         for key, arg in self.sumWeights.items():
-            average[key] = self.sumWeights[key].to('cpu') / self.countWeights
+            average[key] = self.sumWeights[key].to(self.device) / self.countWeights
         return average
 
     def __setDictionary__(self, dictionary):
@@ -204,8 +229,8 @@ class DefaultSmoothingBorderline(sf.Smoothing):
         super().__setDictionary__(dictionary)
         with torch.no_grad():
             for key, values in dictionary:
-                self.sumWeights[key] = torch.zeros_like(values, requires_grad=False, device='cpu')
-                self.previousWeights[key] = torch.zeros_like(values, requires_grad=False, device='cpu')
+                self.sumWeights[key] = torch.zeros_like(values, requires_grad=False, device=self.device)
+                self.previousWeights[key] = torch.zeros_like(values, requires_grad=False, device=self.device)
 
     def __getstate__(self):
         state = self.__dict__.copy()
@@ -228,7 +253,7 @@ class DefaultSmoothingBorderline(sf.Smoothing):
             self.sumWeights = {}
             self.enabled = False
 
-class DefaultSmoothingOscilationGeneralizedMean(sf.Smoothing):
+class SmoothingOscilationBase(sf.Smoothing):
     """
     Włącza wygładzanie gdy zostaną spełnione określone warunki:
     - po przekroczeniu pewnej minimalnej ilości iteracji pętli oraz 
@@ -239,18 +264,33 @@ class DefaultSmoothingOscilationGeneralizedMean(sf.Smoothing):
     Liczy średnią arytmetyczną dla wag.
     """
     def __init__(self):
-        sf.Smoothing.__init__(self)
+        super().__init__()
 
-        # dane do konfiguracji
-        self.avgOfAvgUpdateFreq = 10
+        #------- dane do konfiguracji
+
+        self.device = 'cpu'
+
+        # jak częto powinno się zapisywać średnią odnoszącą się do akumulatora straty.
+        # ta średnia jest później porównywana ze średnią N ostatnich zapisanych strat, 
+        # która mówi o tym czy nie znaleziono otoczenia minimum lokalnego
+        self.avgOfAvgUpdateFreq = 10 
+
+        # jak często powinno się sprawdzać, czy wygładzanie jest dostatecznie dobre. Min val = 1
         self.endSmoothingFreq = 10
-        self.generalizedMeanPower = 1 # tylko dla 1 dobrze działa, reszta daje gorsze wyniki, info do opisania
+
+        # margines błędu mówiący ile razy __isSmoothingIsGoodEnough__ powinno dawać pozytywną informację, aznim można
+        # będzie uznać, że wygładzanie jest dostatecznie dobre. Funkcjonuje jako pojemność akumulatora.
+        self.softMarginAdditionalLoops = 20 
 
         if(sf.test_mode.isActivated()):
+            # po ilu maksymalnie iteracjach wygładzanie powinno zostać włączone
             self.numbOfBatchMaxStart = sf.StaticData.MAX_TEST_LOOPS - 10 if sf.StaticData.MAX_TEST_LOOPS - 10 >= 0 else 0
+
+            # minimalna ilość iteracji po których wygładzanie może zostać włączone
+            # zapobiega problemom: mała ilośc zgromadzonych danych => niemiarodajne wyniki dla średnich =? zbyt wczesne zatrzymanie treningu
             self.numbOfBatchMinStart = sf.StaticData.MAX_TEST_LOOPS - 30 if sf.StaticData.MAX_TEST_LOOPS - 30 >= 0 else 0
-            self.epsilon = 1e-2
-            self.weightsEpsilon = 1e-4
+            self.epsilon = 1e-2 # kiedy można uzać, że wygładzania powinno zostać włączone 
+            self.weightsEpsilon = 1e-4 # kiedy można uznać, że wygładzanie powinno zostać zakończone wraz z zakończeniem pętli treningowej.
         else:
             self.numbOfBatchMaxStart = 3100
             self.numbOfBatchMinStart = 500
@@ -258,7 +298,6 @@ class DefaultSmoothingOscilationGeneralizedMean(sf.Smoothing):
             self.weightsEpsilon = 1e-6
         ###############################
 
-        self.sumWeights = {}
         self.lossContainer = CircularList(50)
         self.lastKLossAverage = CircularList(40)
         
@@ -267,6 +306,7 @@ class DefaultSmoothingOscilationGeneralizedMean(sf.Smoothing):
         self.tensorPrevSum_1 = CircularList(int(self.endSmoothingFreq))
         self.tensorPrevSum_2 = CircularList(int(self.endSmoothingFreq))
         self.divisionCounter = 0
+        self.goodEnoughCounter = 0
 
         self.mainWeights = None
 
@@ -274,7 +314,6 @@ class DefaultSmoothingOscilationGeneralizedMean(sf.Smoothing):
         tmp_str = super().__strAppend__()
         tmp_str += ('Update frequency of average of average:\t{}\n'.format(self.avgOfAvgUpdateFreq))
         tmp_str += ('Frequency of checking to end smoothing:\t{}\n'.format(self.endSmoothingFreq))
-        tmp_str += ('Generalized mean power:\t{}\n'.format(self.generalizedMeanPower))
         tmp_str += ('Max loops to start:\t{}\n'.format(self.numbOfBatchMaxStart))
         tmp_str += ('Min loops to start:\t{}\n'.format(self.numbOfBatchMinStart))
         tmp_str += ('Epsilon to check when start compute weights:\t{}\n'.format(self.epsilon))
@@ -328,13 +367,45 @@ class DefaultSmoothingOscilationGeneralizedMean(sf.Smoothing):
             metadata.stream.print("Weight avg debug:" + str(abs(avg_1 - avg_2)), 'debug:0')
             metadata.stream.print("Weight avg bool:" + str(bool(abs(avg_1 - avg_2) < self.weightsEpsilon)), 'debug:0')
             
-            return bool(abs(avg_1 - avg_2) < self.weightsEpsilon)
+            ret = bool(abs(avg_1 - avg_2) < self.weightsEpsilon)
+            if(ret):
+                if(self.softMarginAdditionalLoops > self.goodEnoughCounter):
+                    self.goodEnoughCounter += 1
+                return ret
         return False
+
+class DefaultSmoothingOscilationGeneralizedMean(SmoothingOscilationBase):
+    """
+    Włącza wygładzanie gdy zostaną spełnione określone warunki:
+    - po przekroczeniu pewnej minimalnej ilości iteracji pętli oraz 
+        gdy różnica pomiędzy średnią N ostatnich strat treningowych modelu, 
+        a średnią średnich N ostatnich strat treningowych modelu jest mniejsza niż epsilon.
+    - po przekroczeniu pewnej maksymalnej ilości iteracji pętli.
+
+    Liczy średnią arytmetyczną dla wag.
+    """
+    def __init__(self):
+        super().__init__()
+
+        # dane do konfiguracji
+
+        # stopieć średniej generalizowanej. Dla = 1 jest to średnia arytmetyczna
+        self.generalizedMeanPower = 1 # tylko dla 1 dobrze działa, reszta daje gorsze wyniki, info do opisania
+        ###############################
+
+        self.sumWeights = {}
+        self.lossContainer = CircularList(50)
+        self.lastKLossAverage = CircularList(40)
+
+    def __strAppend__(self):
+        tmp_str = super().__strAppend__()
+        tmp_str += ('Generalized mean power:\t{}\n'.format(self.generalizedMeanPower))
+        return tmp_str
 
     def calcAvgArithmeticMean(self, model):
         with torch.no_grad():
             for key, arg in model.getNNModelModule().named_parameters():
-                cpuArg = arg.to('cpu').pow(self.generalizedMeanPower)
+                cpuArg = arg.to(self.device).pow(self.generalizedMeanPower)
                 self.sumWeights[key].add_(cpuArg)
 
     def __call__(self, helperEpoch, helper, model, dataMetadata, modelMetadata, metadata):
@@ -367,7 +438,7 @@ class DefaultSmoothingOscilationGeneralizedMean(sf.Smoothing):
         super().__setDictionary__(dictionary)
         with torch.no_grad():
             for key, values in dictionary:
-                self.sumWeights[key] = torch.zeros_like(values, requires_grad=False, device='cpu')
+                self.sumWeights[key] = torch.zeros_like(values, requires_grad=False, device=self.device)
 
     def __getstate__(self):
         state = self.__dict__.copy()
@@ -393,7 +464,7 @@ class DefaultSmoothingOscilationGeneralizedMean(sf.Smoothing):
             self.tensorPrevSum_2.reset()
             self.divisionCounter = 0
 
-class DefaultSmoothingOscilationWeightedMean(sf.Smoothing):
+class DefaultSmoothingOscilationWeightedMean(SmoothingOscilationBase):
     """
     Włącza wygładzanie gdy zostaną spełnione określone warunki:
     - po przekroczeniu pewnej minimalnej ilości iteracji pętli oraz 
@@ -404,110 +475,26 @@ class DefaultSmoothingOscilationWeightedMean(sf.Smoothing):
     Liczy średnią ważoną dla wag. Wagi są nadawane względem starości zapamiętanej wagi. Im starsza tym ma mniejszą wagę.
     """
     def __init__(self):
-        sf.Smoothing.__init__(self)
+        super().__init__()
 
         # dane do konfiguracji
-        self.avgOfAvgUpdateFreq = 10
-        self.endSmoothingFreq = 10
 
-        if(sf.test_mode.isActivated()):
-            self.numbOfBatchMaxStart = sf.StaticData.MAX_TEST_LOOPS - 10 if sf.StaticData.MAX_TEST_LOOPS - 10 >= 0 else 0
-            self.numbOfBatchMinStart = sf.StaticData.MAX_TEST_LOOPS - 30 if sf.StaticData.MAX_TEST_LOOPS - 30 >= 0 else 0
-            self.epsilon = 1e-2
-            self.weightsEpsilon = 1e-4
-        else:
-            self.numbOfBatchMaxStart = 3100
-            self.numbOfBatchMinStart = 500
-            self.epsilon = 1e-3
-            self.weightsEpsilon = 1e-6
         ###############################
 
-        self.weightsArray = CircularList(20)
+        # trzeba uważać na zajętość w pamięci. Zapamiętuje wszystkie wagi modelu, co może sumować się do dużych rozmiarów
+        self.weightsArray = CircularList(20) 
         self.lossContainer = CircularList(50)
         self.lastKLossAverage = CircularList(40)
-        
-        self.countWeights = 0
-        self.counter = 0
-        self.tensorPrevSum_1 = CircularList(int(self.endSmoothingFreq))
-        self.tensorPrevSum_2 = CircularList(int(self.endSmoothingFreq))
-        self.divisionCounter = 0
-
-        self.mainWeights = None
 
     def __strAppend__(self):
-        tmp_str = super().__strAppend__()
-        tmp_str += ('Update frequency of average of average:\t{}\n'.format(self.avgOfAvgUpdateFreq))
-        tmp_str += ('Frequency of checking to end smoothing:\t{}\n'.format(self.endSmoothingFreq))
-        tmp_str += ('Generalized mean power:\t{}\n'.format(self.generalizedMeanPower))
-        tmp_str += ('Max loops to start:\t{}\n'.format(self.numbOfBatchMaxStart))
-        tmp_str += ('Min loops to start:\t{}\n'.format(self.numbOfBatchMinStart))
-        tmp_str += ('Epsilon to check when start compute weights:\t{}\n'.format(self.epsilon))
-        tmp_str += ('Epsilon to check when weights are good enough to stop:\t{}\n'.format(self.weightsEpsilon))
-        return tmp_str
-
-    def canComputeWeights(self):
-        """
-        - Jeżeli wartość bezwzględna różnicy średnich N ostatnich strat f. celu, a średnią K średnich N ostatnich strat f. celu będzie mniejsza niż epsilon
-        i program przeszedł przez minimalną liczbę pętli
-        - lub program wykonał już pewną graniczną ilość pętli
-        to metoda zwróci True.
-        W przeciwnym wypadku zwróci False.
-        """
-        if(self.counter % self.avgOfAvgUpdateFreq == int(self.avgOfAvgUpdateFreq / 2)): # ponieważ liczenie kolejnej średniej od razu po dodaniu nowego elementu dużo nie da, lepiej zrobić to w połowie
-            return bool(
-                (abs(self.lossContainer.getAverage() - self.lastKLossAverage.getAverage()) < self.epsilon and self.counter > self.numbOfBatchMinStart) 
-                or self.counter > self.numbOfBatchMaxStart
-            )
-        return False
-
-    def __isSmoothingIsGoodEnough__(self, helperEpoch, helper, model, dataMetadata, modelMetadata, metadata):
-        """
-        Sprawdza jak bardzo wygładzone wagi różnią się od siebie w kolejnych iteracjach.
-        Jeżeli różnica będzie wystarczająco mała, metoda zwróci True. W przeciwnym wypadku zwraca false.
-
-        Algorytm:
-        - sumowanie wszystkich wag dla których wcześniej oblicza się wartość bezwzględną
-        - dodanie obliczonej wartości do jednego z 2 buforów cyklicznych ustawionych w kolejce, jeden za drugim
-        - obliczenie oddzielnie średniej w dwóch buforach i wykonanie abs(r1 - r2)
-        - jeżeli dana różnica bezwzględna jest mniejsza od weightsEpsilon, to zwraca True
-        - w przeciwnym wypadku metoda zwraca False
-        """
-        if(self.countWeights > 0 and self.counter % self.endSmoothingFreq == 0):
-            self.divisionCounter += 1
-            smWg = self.__getSmoothedWeights__()
-            sumArray = []
-            for val in smWg.values():
-                sumArray.append(torch.sum(torch.abs(val)))
-            absSum = torch.sum(torch.stack(sumArray)).item()
-
-            if(self.divisionCounter % 2 == 0):
-                self.tensorPrevSum_1.pushBack(absSum)
-            else:
-                self.tensorPrevSum_2.pushBack(absSum)
-            # avg_1 będzie zawierała ogółem starsze wartości niż avg_2, 
-            # dlatego przy dodaniu wartości do avg_2 różnica będzie mniejsza niż przy dodaniu wartości do avg_1
-            avg_1 = self.tensorPrevSum_1.getAverage() 
-            avg_2 = self.tensorPrevSum_2.getAverage()
-            metadata.stream.print("Sum debug:" + str(absSum), 'debug:0')
-            metadata.stream.print("Weight avg debug:" + str(abs(avg_1 - avg_2)), 'debug:0')
-            metadata.stream.print("Weight avg bool:" + str(bool(abs(avg_1 - avg_2) < self.weightsEpsilon)), 'debug:0')
-            
-            return bool(abs(avg_1 - avg_2) < self.weightsEpsilon)
-        return False
-
-    def calcAvgArithmeticMean(self, model):
-        with torch.no_grad():
-            for key, arg in model.getNNModelModule().named_parameters():
-                cpuArg = arg.to('cpu')
-                self.sumWeights[key].to('cpu').add_(cpuArg)
+        return super().__strAppend__()
 
     def calcAvgWeightedMean(self, model):
         with torch.no_grad():
             tmpDict = {}
             for key, val in model.getNNModelModule().named_parameters():
-                tmpDict[key] = val.to('cpu')
-            weightsArray.pushBack(tmpDict)
-
+                tmpDict[key] = val.to(self.device)
+            self.weightsArray.pushBack(tmpDict)
 
     def __call__(self, helperEpoch, helper, model, dataMetadata, modelMetadata, metadata):
         super().__call__(helperEpoch, helper, model, dataMetadata, modelMetadata, metadata)
@@ -529,24 +516,26 @@ class DefaultSmoothingOscilationWeightedMean(sf.Smoothing):
         if(self.countWeights == 0):
             return average # {}
 
-        sortedList = self.weightsArray.getSortedArrayByPos()
+        #sortedList = self.weightsArray.getSortedArrayByPos()
 
-        for wg in sortedList:
-            for key, val in wg:
-                average[key] = torch.zeros_like(val, requires_grad=False, device='cpu')
+        for wg in self.weightsArray:
+            for key, val in wg.items():
+                average[key] = torch.zeros_like(val, requires_grad=False, device=self.device)
             break
 
         weight = 1.0
         wgSum = 0.0
-        for wg in sortedList:
-            for key, val in wg:
+        for wg in self.weightsArray:
+            for key, val in wg.items():
                 average[key] += val.mul(weight)
             wgSum += weight 
             weight /= 2
 
-        for wg in sortedList:
-            for key, val in wg:
+        for wg in self.weightsArray:
+            for key, val in wg.items():
                 average[key].div_(wgSum)
+
+        #del sortedList
 
         return average
 
@@ -555,7 +544,6 @@ class DefaultSmoothingOscilationWeightedMean(sf.Smoothing):
         Used to map future weights into internal sums.
         '''
         super().__setDictionary__(dictionary)
-
 
     def __getstate__(self):
         state = self.__dict__.copy()

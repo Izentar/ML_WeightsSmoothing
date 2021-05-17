@@ -1493,13 +1493,13 @@ def commandLineArg(metadata, dataMetadata, modelMetadata, argv, enableLoad = Tru
             Output.printBash("Unknown flag provided to program: {}.".format(opt), 'info')
 
     if(metadata.modelOutput is None):
-        metadata.modelOutput = 'default_model.log'
+        metadata.modelOutput = 'default_model'
 
     if(metadata.debugOutput is None):
-        metadata.debugOutput = 'default_debug.log'  
+        metadata.debugOutput = 'default_debug'  
 
     if(metadata.formatedOutput is None):
-        metadata.formatedOutput = 'default_formatedOutput.log' 
+        metadata.formatedOutput = 'default_formatedOutput' 
     
     metadata.noPrepareOutput = False
 

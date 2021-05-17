@@ -1,7 +1,8 @@
 #!/bin/bash 
 
 declare -a commands=(
-    "python smoothing/alexnet_MINST.py -l alexnet_MINST_load -s alexnet_MINST_save --log test --mname alexnet_MINST --test true --train true --pinTest false -d --bashOutput true"
+    "python smoothing/alexnet_CIFAR100_generMean.py -l alexnet_CIFAR100_generMean_load -s alexnet_CIFAR100_generMean_save --log alexnet_CIFAR100_generMean --mname alexnet_CIFAR100_generMean --test true --train true --pinTest false -d --bashOutput true"
+    "python smoothing/alexnet_CIFAR100_weightened.py -l alexnet_CIFAR100_weightened_load -s alexnet_CIFAR100_weightened_save --log alexnet_CIFAR100_weightened --mname alexnet_CIFAR100_weightened --test true --train true --pinTest false -d --bashOutput true"
 )
 
 declare -a names=(
@@ -18,7 +19,14 @@ declare -a names=(
 '
 
 : '
-
+    "python smoothing/alexnet_CIFAR100_generMean.py -l alexnet_CIFAR100_generMean_load -s alexnet_CIFAR100_generMean_save --log alexnet_CIFAR100_generMean --mname alexnet_CIFAR100_generMean --test true --train true --pinTest false -d --bashOutput true"
+    "python smoothing/alexnet_CIFAR100_weightened.py -l alexnet_CIFAR100_weightened_load -s alexnet_CIFAR100_weightened_save --log alexnet_CIFAR100_weightened --mname alexnet_CIFAR100_weightened --test true --train true --pinTest false -d --bashOutput true"
+    "python smoothing/alexnet_MINST_generMean.py -l alexnet_MINST_generMean_load -s alexnet_MINST_generMean_save --log alexnet_MINST_generMean --mname alexnet_MINST_generMean --test true --train true --pinTest false -d --bashOutput true"
+    "python smoothing/alexnet_MINST_weightened.py -l alexnet_MINST_weightened_load -s alexnet_MINST_weightened_save --log alexnet_MINST_weightened --mname alexnet_MINST_weightened --test true --train true --pinTest false -d --bashOutput true"
+    "python smoothing/simpleModel_CIFAR100_generMean.py -l simpleModel_CIFAR100_generMean_load -s simpleModel_CIFAR100_generMean_save --log simpleModel_CIFAR100_generMean --mname simpleModel_CIFAR100_generMean --test true --train true --pinTest false -d --bashOutput true"
+    "python smoothing/simpleModel_CIFAR100_weightened.py -l simpleModel_CIFAR100_weightened_load -s simpleModel_CIFAR100_weightened_save --log simpleModel_CIFAR100_weightened --mname simpleModel_CIFAR100_weightened --test true --train true --pinTest false -d --bashOutput true"
+    "python smoothing/simpleModel_MINST_generMean.py -l simpleModel_MINST_generMean_load -s simpleModel_MINST_generMean_save --log simpleModel_MINST_generMean --mname simpleModel_MINST_generMean --test true --train true --pinTest false -d --bashOutput true"
+    "python smoothing/simpleModel_MINST_weightened.py -l simpleModel_MINST_weightened_load -s simpleModel_MINST_weightened_save --log simpleModel_MINST_weightened --mname simpleModel_MINST_weightened --test true --train true --pinTest false -d --bashOutput true"
 '
 
 fileBashStateName="savedBash"
