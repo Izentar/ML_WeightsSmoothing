@@ -137,9 +137,8 @@ class TestModel(sf.Model):
                 nn.init.constant_(m.weight, 5)
                 nn.init.constant_(m.bias, 7)
 
-class Test_DefaultSmoothingOscilationWeightedMean(unittest.TestCase):
+class Test_DefaultSmoothing(unittest.TestCase):
     def compareArrays(self, iterator, numpyArray: list, lab = lambda x : x):
-        
         idx = 0
         for ar in iterator:
             if(idx >= len(numpyArray)):
@@ -150,12 +149,16 @@ class Test_DefaultSmoothingOscilationWeightedMean(unittest.TestCase):
             assert np.allclose(ar, numpyArray[idx])
             idx += 1
 
+
+class Test_DefaultSmoothingOscilationWeightedMean(Test_DefaultSmoothing):
     def test_calcAvgWeightedMean(self):
         modelMetadata = TestModel_Metadata()
         model = TestModel(modelMetadata)
+        model.__initializeWeights__()
 
         smoothing = dc.DefaultSmoothingOscilationWeightedMean()
         smoothing.enabled = True
+        smoothing.weightDecay = 2
         smoothing.calcAvgWeightedMean(model)
         weights = smoothing.weightsArray.array
         li1_wg = np.array([[5., 5., 5.]])
@@ -194,7 +197,6 @@ class Test_DefaultSmoothingOscilationWeightedMean(unittest.TestCase):
 
         smoothing.countWeights = 2
         sm_weights = smoothing.__getSmoothedWeights__(None)
-        print(sm_weights)
 
         li1_wg_avg = np.array([[9., 9., 9.]])
         li_bias_avg = np.array([11.])
