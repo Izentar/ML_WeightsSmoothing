@@ -1023,7 +1023,7 @@ class Data(SaveClass, BaseMainClass):
 
             self.__afterTrain__(helperEpoch, self.trainHelper, model, dataMetadata, modelMetadata, metadata, smoothing)
 
-            if(smoothing.__isSmoothingIsGoodEnough__(helperEpoch, self.trainHelper, model, dataMetadata, modelMetadata, metadata)):
+            if(smoothing.__isSmoothingGoodEnough__(helperEpoch, self.trainHelper, model, dataMetadata, modelMetadata, metadata)):
                 break
 
         self.trainHelper.loopTimer.end()
@@ -1194,7 +1194,7 @@ class Smoothing(SaveClass, BaseMainClass):
     __getSmoothedWeights__ - zwraca pusty słownik lub None
 
     Metody, które wymagają przeciążenia bez wywołania super()
-    __isSmoothingIsGoodEnough__
+    __isSmoothingGoodEnough__
     """
     def __init__(self):
         super().__init__()
@@ -1218,7 +1218,7 @@ class Smoothing(SaveClass, BaseMainClass):
         else:
             None
 
-    def __isSmoothingIsGoodEnough__(self, helperEpoch, helper, model, dataMetadata, modelMetadata, metadata):
+    def __isSmoothingGoodEnough__(self, helperEpoch, helper, model, dataMetadata, modelMetadata, metadata):
         raise Exception("Not implemented.")
 
     def getWeights(self, key, toDevice=None, copy = False):
