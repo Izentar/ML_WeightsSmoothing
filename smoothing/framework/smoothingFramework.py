@@ -325,9 +325,11 @@ class Timer(SaveClass):
         self.modelTimeCount = 0
 
     def start(self):
+        torch.cuda.synchronize()
         self.timeStart = time.perf_counter()
 
     def end(self):
+        torch.cuda.synchronize()
         self.timeEnd = time.perf_counter()
 
     def getDiff(self):
@@ -1204,7 +1206,7 @@ class Smoothing(SaveClass, BaseMainClass):
         if(self.enabled == False):
             return
 
-    def __getSmoothedWeights__(self):
+    def __getSmoothedWeights__(self, metadata):
         """
         Zwraca słownik wag, który można użyć do załadowania ich do modelu. Wagi ładuje się standardową metodą torch.
         Może zwrócić pusty słownik, jeżeli obiekt nie jest gotowy do podania wag.
@@ -1282,6 +1284,7 @@ class Model(nn.Module, SaveClass, BaseMainClass):
         def __initializeWeights__(self)\n
         """
         super().__init__()
+        self.__initializeWeights__()
 
     def __initializeWeights__(self):
         raise Exception("Not implemented")
@@ -1672,5 +1675,3 @@ def modelDetermTest(Metadata_Class, Data_Metadata_Class, Model_Metadata_Class, D
             print(stat[1].trainLossArray[idx])
             break
     print('Arrays are: ', equal)
-
-
