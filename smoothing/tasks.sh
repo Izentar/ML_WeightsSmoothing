@@ -1,7 +1,6 @@
 #!/bin/bash 
 
 declare -a commands=(
-    "python smoothing/alexnet_CIFAR100_generMean.py -l alexnet_CIFAR100_generMean_load -s alexnet_CIFAR100_generMean_save --log alexnet_CIFAR100_generMean --mname alexnet_CIFAR100_generMean --test true --train true --pinTest false -d --bashOutput true"
     "python smoothing/alexnet_CIFAR100_weightened.py -l alexnet_CIFAR100_weightened_load -s alexnet_CIFAR100_weightened_save --log alexnet_CIFAR100_weightened --mname alexnet_CIFAR100_weightened --test true --train true --pinTest false -d --bashOutput true"
 )
 
@@ -19,6 +18,11 @@ declare -a names=(
 '
 
 : '
+    "python smoothing/alexnet_CIFAR100_disabledSmoothing.py -l alexnet_CIFAR100_disabledSmoothing_load -s alexnet_CIFAR100_disabledSmoothing_save --log alexnet_CIFAR100_disabledSmoothing --mname alexnet_CIFAR100_disabledSmoothing --test true --train true --pinTest false -d --bashOutput true"
+    "python smoothing/alexnet_MINST_disabledSmoothing.py -l alexnet_MINST_disabledSmoothing_load -s alexnet_MINST_disabledSmoothing_save --log alexnet_MINST_disabledSmoothing --mname alexnet_MINST_disabledSmoothing --test true --train true --pinTest false -d --bashOutput true"
+    "python smoothing/simpleModel_CIFAR100_disabledSmoothing.py -l simpleModel_CIFAR100_disabledSmoothing_load -s simpleModel_CIFAR100_disabledSmoothing_save --log simpleModel_CIFAR100_disabledSmoothing --mname simpleModel_CIFAR100_disabledSmoothing --test true --train true --pinTest false -d --bashOutput true"
+    "python smoothing/simpleModel_MINST_disabledSmoothing.py -l simpleModel_MINST_disabledSmoothing_load -s simpleModel_MINST_disabledSmoothing_save --log simpleModel_MINST_disabledSmoothing --mname simpleModel_MINST_disabledSmoothing --test true --train true --pinTest false -d --bashOutput true"
+
     "python smoothing/alexnet_CIFAR100_generMean.py -l alexnet_CIFAR100_generMean_load -s alexnet_CIFAR100_generMean_save --log alexnet_CIFAR100_generMean --mname alexnet_CIFAR100_generMean --test true --train true --pinTest false -d --bashOutput true"
     "python smoothing/alexnet_CIFAR100_weightened.py -l alexnet_CIFAR100_weightened_load -s alexnet_CIFAR100_weightened_save --log alexnet_CIFAR100_weightened --mname alexnet_CIFAR100_weightened --test true --train true --pinTest false -d --bashOutput true"
     "python smoothing/alexnet_MINST_generMean.py -l alexnet_MINST_generMean_load -s alexnet_MINST_generMean_save --log alexnet_MINST_generMean --mname alexnet_MINST_generMean --test true --train true --pinTest false -d --bashOutput true"
