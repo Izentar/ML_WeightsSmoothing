@@ -29,7 +29,7 @@ FORCE_PRINT_WARNINGS = False
 def saveWorkAndExit(signumb, frame):
     global SAVE_AND_EXIT_FLAG
     SAVE_AND_EXIT_FLAG = True
-    print('Ending and saving model')
+    Output.printBash('Ending and saving model', 'info')
     return
 
 def terminate(signumb, frame):
@@ -263,7 +263,7 @@ class Metadata(SaveClass, BaseMainClass):
             Output.printBash(string)
 
     def exitError(help):
-        print(help) 
+        Output.printBash(help, 'info') 
         sys.exit(2)
 
     def prepareOutput(self):
@@ -458,7 +458,8 @@ class Output(SaveClass):
     def __open(self, alias, pathName, outputType):
         if(alias in self.aliasToFH and self.aliasToFH[alias].exist()):
             if(warnings()):
-                print("WARNING: Provided alias '{}' with opened file already exist: {}.".format(alias, outputType), 'This may be due to loaded Metadata object.')
+                Output.printBash("Provided alias '{}' with opened file already exist: {}.".format(alias, outputType), 'This may be due to loaded Metadata object.',
+                'warn')
             return
         suffix = '.log'
         if(outputType == 'formatedLog'):
@@ -470,12 +471,12 @@ class Output(SaveClass):
     def open(self, outputType: str, alias: str = None, pathName: str = None):
         if((outputType != 'debug' and outputType != 'model' and outputType != 'bash' and outputType != 'formatedLog') or outputType is None):
             if(warnings()):
-                print("WARNING: Unknown command in open for Output class.")
+                Output.printBash("Unknown command in open for Output class.", 'warn')
             return
 
         if(alias == 'debug' or alias == 'model' or alias == 'bash' or alias == 'formatedLog'):
             if(warnings()):
-                print("WARNING: Alias cannot have the same name as output configuration in open for Output class.")
+                Output.printBash("Alias cannot have the same name as output configuration in open for Output class.", 'warn')
             return
 
         if(outputType == 'bash'):
@@ -484,7 +485,7 @@ class Output(SaveClass):
 
         if(alias is None):
             if(warnings()):
-                print("WARNING: Alias is None but the output is not 'bash'; it is: {}.".format(outputType))
+                Output.printBash("Alias is None but the output is not 'bash'; it is: {}.".format(outputType), 'warn')
             return
 
         if(pathName is not None):
@@ -505,7 +506,7 @@ class Output(SaveClass):
             self.__open(alias, pathName, outputType)
         else:
             if(warnings()):
-                print("WARNING: For this '{}' Output type pathName should not be None.".format(outputType))
+                Output.printBash("For this '{}' Output type pathName should not be None.".format(outputType), 'warn')
             return
     
     def createLogFolder(self):
@@ -529,7 +530,7 @@ class Output(SaveClass):
         elif(mode == 'warn'):
             prefix = 'WARNING:'
         elif(warnings()):
-            print("WARNING: Unrecognized mode in Output.printBash method. Printing without prefix.")
+            Output.printBash("Unrecognized mode in Output.printBash method. Printing without prefix.", 'warn')
         return prefix
 
     def write(self, arg, alias: list = None, ignore = False, end = '', mode: str = None):
@@ -698,14 +699,14 @@ class Data_Metadata(SaveClass, BaseMainClass):
         if(torch.cuda.is_available()):
             self.pin_memoryTrain = True
             if(metadata.debugInfo):
-                print('Train data pinned to GPU: {}'.format(self.pin_memoryTrain))
+                Output.printBash('Train data pinned to GPU: {}'.format(self.pin_memoryTrain), 'info')
         return bool(self.pin_memoryTrain)
 
     def tryPinMemoryTest(self, metadata, modelMetadata):
         if(torch.cuda.is_available()):
             self.pin_memoryTest = True
             if(metadata.debugInfo):
-                print('Test data pinned to GPU: {}'.format(self.pin_memoryTest))
+                Output.printBash('Test data pinned to GPU: {}'.format(self.pin_memoryTest), 'info')
         return bool(self.pin_memoryTest)
 
     def __strAppend__(self):
@@ -1456,7 +1457,7 @@ def commandLineArg(metadata, dataMetadata, modelMetadata, argv, enableLoad = Tru
 
     for opt, arg in opts:
         if opt in ('-h', '--help'):
-            print(help)
+            Output.printBash(help, 'info')
             sys.exit()
         elif opt in ('-s', '--save'):
             if(enableSave):
@@ -1602,13 +1603,15 @@ def checkStrCUDA(string):
 def trySelectCUDA(device, metadata):
     device = 'cuda' if torch.cuda.is_available() else 'cpu'
     if(metadata.debugInfo):
-        print('Using {} torch CUDA device version\nCUDA avaliable: {}\nCUDA selected: {}'.format(torch.version.cuda, torch.cuda.is_available(), self.device == 'cuda'))
+        Output.printBash('Using {} torch CUDA device version\nCUDA avaliable: {}\nCUDA selected: {}'.format(torch.version.cuda, torch.cuda.is_available(), self.device == 'cuda'),
+        'debug')
     return device
 
 def selectCPU(device, metadata):
     device = 'cpu'
     if(metadata.debugInfo):
-        print('Using {} torch CUDA device version\nCUDA avaliable: {}\nCUDA selected: False'.format(torch.version.cuda, torch.cuda.is_available()))
+        Output.printBash('Using {} torch CUDA device version\nCUDA avaliable: {}\nCUDA selected: False'.format(torch.version.cuda, torch.cuda.is_available()),
+        'debug')
     return device
 
 def plot(fileNames: list):
