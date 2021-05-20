@@ -436,7 +436,7 @@ class Output(SaveClass):
                 self.handler.close()
                 self.counter = 0
 
-    def __init__(self, folderPrefix):
+    def __init__(self, folderSuffix):
         super().__init__()
         self.filesDict = {}
         self.aliasToFH = {}
@@ -445,7 +445,7 @@ class Output(SaveClass):
 
         Path(StaticData.LOG_FOLDER).mkdir(parents=True, exist_ok=True)
 
-        self.folderPrefix = folderPrefix
+        self.folderSuffix = folderSuffix
         self.folderInstanceStr = None
 
     def __getstate__(self):
@@ -465,6 +465,7 @@ class Output(SaveClass):
         if(outputType == 'formatedLog'):
             suffix = '.csv'
         fh = self.FileHandler(pathName + suffix, 'a', outputType)
+        print('pathName + suffix', pathName + suffix)
         self.filesDict[pathName] = {outputType: fh}
         self.aliasToFH[alias] = fh
 
@@ -512,7 +513,7 @@ class Output(SaveClass):
     def createLogFolder(self):
         if(self.folderInstanceStr is None):
             dt_string = datetime.now().strftime("%d.%m.%Y_%H-%M-%S_")
-            prfx = self.folderPrefix if self.folderPrefix is not None else ""
+            prfx = self.folderSuffix if self.folderSuffix is not None else ""
             path = StaticData.LOG_FOLDER + "/" + str(dt_string) + prfx + "/"
             Path(path).mkdir(parents=True, exist_ok=False)
             self.folderInstanceStr = path
@@ -1263,7 +1264,7 @@ class Model(nn.Module, SaveClass, BaseMainClass):
 
         Metody, które wymagają przeciążenia bez wywołania super()
         __update__
-        __initializeWeights__
+        __initializeWeights__ - należy go wywołać na samym końcu __init__, z powodu dodania w klasach pochodnych dodatkowych wag modelu.
 
         Metody, które wymagają przeciążenia z wywołaniem super()
         __init__
@@ -1285,10 +1286,15 @@ class Model(nn.Module, SaveClass, BaseMainClass):
         def __initializeWeights__(self)\n
         """
         super().__init__()
-        self.__initializeWeights__()
+        self.weightsInit = False
 
     def __initializeWeights__(self):
-        raise Exception("Not implemented")
+        self.weightsInit = True
+
+    def __strAppend__(self):
+        tmp_str = super().__strAppend__()
+        tmp_str += ('Weights initialized:\t{}\n'.format(self.weightsInit))
+        return tmp_str
 
     def __getstate__(self):
         return self.__dict__.copy()
