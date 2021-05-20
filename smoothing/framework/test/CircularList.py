@@ -7,49 +7,55 @@ import torch.nn as nn
 import torch.optim as optim
 import numpy as np
 
-sf.StaticData.LOG_FOLDER = './framework/test/dump/'
+sf.StaticData.LOG_FOLDER = './smoothing/framework/test/dump/'
+
+def testCmpPandas(obj_1, name_1, obj_2, name_2 = None):
+    if(name_2 is None):
+        pd.testing.assert_frame_equal(pd.DataFrame([{name_1: obj_1}]), pd.DataFrame([{name_1: obj_2}]))
+    else:
+        pd.testing.assert_frame_equal(pd.DataFrame([{name_1: obj_1}]), pd.DataFrame([{name_2: obj_2}]))
 
 class Test_CircularList(unittest.TestCase):
 
     def test_pushBack(self):
         inst = dc.CircularList(2)
         inst.pushBack(1)
-        assert inst.array[0] == 1
+        testCmpPandas(inst.array[0], 'array_value', 1)
         inst.pushBack(2)
-        assert inst.array[0] == 1
-        assert inst.array[1] == 2
+        testCmpPandas(inst.array[0], 'array_value', 1)
+        testCmpPandas(inst.array[1], 'array_value', 2)
         inst.pushBack(3)
-        assert inst.array[0] == 3
-        assert inst.array[1] == 2
+        testCmpPandas(inst.array[0], 'array_value', 3)
+        testCmpPandas(inst.array[1], 'array_value', 2)
         inst.pushBack(4)
-        assert inst.array[0] == 3
-        assert inst.array[1] == 4
+        testCmpPandas(inst.array[0], 'array_value', 3)
+        testCmpPandas(inst.array[1], 'array_value', 4)
 
         inst.reset()
-        assert len(inst.array) == 0
+        testCmpPandas(len(inst.array), 'array_length', 0)
         inst.pushBack(10)
-        assert inst.array[0] == 10
-        assert len(inst.array) == 1
+        testCmpPandas(inst.array[0], 'array_value', 10)
+        testCmpPandas(len(inst.array), 'array_length', 1)
 
     def test_getAverage(self):
         inst = dc.CircularList(3)
-        assert inst.getAverage() == 0
+        testCmpPandas(inst.getAverage(), 'average', 0)
         inst.pushBack(1)
-        pd.testing.assert_frame_equal(pd.DataFrame([{'average': inst.getAverage()}]), pd.DataFrame([{'average': 1.0}]))
+        testCmpPandas(inst.getAverage(), 'average', 1.0)
         inst.pushBack(2)
-        pd.testing.assert_frame_equal(pd.DataFrame([{'average': inst.getAverage()}]), pd.DataFrame([{'average': 1.5}]))
+        testCmpPandas(inst.getAverage(), 'average', 1.5)
         inst.pushBack(3)
-        pd.testing.assert_frame_equal(pd.DataFrame([{'average': inst.getAverage()}]), pd.DataFrame([{'average': 2.0}]))
+        testCmpPandas(inst.getAverage(), 'average', 2.0)
         inst.pushBack(4)
-        pd.testing.assert_frame_equal(pd.DataFrame([{'average': inst.getAverage()}]), pd.DataFrame([{'average': 3.0}]))
+        testCmpPandas(inst.getAverage(), 'average', 3.0)
         inst.pushBack(5)
-        pd.testing.assert_frame_equal(pd.DataFrame([{'average': inst.getAverage()}]), pd.DataFrame([{'average': 4.0}]))
+        testCmpPandas(inst.getAverage(), 'average', 4.0)
 
         inst.reset()
-        assert len(inst.array) == 0
+        testCmpPandas(len(inst.array), 'array_length', 0)
         inst.pushBack(10)
-        assert inst.array[0] == 10
-        assert len(inst.array) == 1
+        testCmpPandas(inst.getAverage(), 'average', 10.0)
+        testCmpPandas(len(inst.array), 'array_length', 1)
 
     def test_iteration(self):
         inst = dc.CircularList(3)
@@ -58,40 +64,41 @@ class Test_CircularList(unittest.TestCase):
         inst.pushBack(3)
 
         i = iter(inst)
-        assert i.indexArray == [2, 1, 0]
+        testCmpPandas(i.indexArray, 'array', [2, 1, 0])
 
-        assert next(i) == 3
-        assert next(i) == 2
-        assert next(i) == 1
+        testCmpPandas(next(i), 'iter_next', 3)
+        testCmpPandas(next(i), 'iter_next', 2)
+        testCmpPandas(next(i), 'iter_next', 1)
+
         self.assertRaises(StopIteration, lambda : next(i))
 
         inst.pushBack(4)
         i = iter(inst)
-        assert next(i) == 4
-        assert next(i) == 3
-        assert next(i) == 2
+        testCmpPandas(next(i), 'iter_next', 4)
+        testCmpPandas(next(i), 'iter_next', 3)
+        testCmpPandas(next(i), 'iter_next', 2)
         self.assertRaises(StopIteration, lambda : next(i))
 
         inst.pushBack(5)
         i = iter(inst)
-        assert next(i) == 5
-        assert next(i) == 4
-        assert next(i) == 3
+        testCmpPandas(next(i), 'iter_next', 5)
+        testCmpPandas(next(i), 'iter_next', 4)
+        testCmpPandas(next(i), 'iter_next', 3)
         self.assertRaises(StopIteration, lambda : next(i))
         
     def test_len(self):
         inst = dc.CircularList(3)
-        assert len(inst) == 0
+        testCmpPandas(len(inst), 'array_length', 0)
         inst.pushBack(1)
-        assert len(inst) == 1
+        testCmpPandas(len(inst), 'array_length', 1)
         inst.pushBack(2)
-        assert len(inst) == 2
+        testCmpPandas(len(inst), 'array_length', 2)
         inst.pushBack(3)
-        assert len(inst) == 3
+        testCmpPandas(len(inst), 'array_length', 3)
         inst.pushBack(4)
-        assert len(inst) == 3
+        testCmpPandas(len(inst), 'array_length', 3)
         inst.pushBack(5)
-        assert len(inst) == 3
+        testCmpPandas(len(inst), 'array_length', 3)
 
 class TestModel_Metadata(sf.Model_Metadata):
     def __init__(self):
@@ -117,6 +124,7 @@ class TestModel(sf.Model):
         self.optimizer = optim.SGD(self.getNNModelModule().parameters(), lr=modelMetadata.learning_rate, momentum=modelMetadata.momentum)
 
         self.getNNModelModule().to(modelMetadata.device)
+        self.__initializeWeights__()
 
     def forward(self, x):
         x = self.linear1(x)
@@ -144,9 +152,8 @@ class Test_DefaultSmoothing(unittest.TestCase):
             if(idx >= len(numpyArray)):
                 self.fail("Arrays size not equals.") 
             ar = lab(ar)
-            print(ar, "------", numpyArray[idx], '\n')
-            assert ar.shape == numpyArray[idx].shape 
-            assert np.allclose(ar, numpyArray[idx])
+            #testCmpPandas(ar.shape, 'array_shape', numpyArray[idx].shape)
+            testCmpPandas(ar, 'array', numpyArray[idx])
             idx += 1
 
 
@@ -154,11 +161,9 @@ class Test_DefaultSmoothingOscilationWeightedMean(Test_DefaultSmoothing):
     def test_calcAvgWeightedMean(self):
         modelMetadata = TestModel_Metadata()
         model = TestModel(modelMetadata)
-        model.__initializeWeights__()
 
-        smoothing = dc.DefaultSmoothingOscilationWeightedMean()
+        smoothing = dc.DefaultSmoothingOscilationWeightedMean(weightDecay=2)
         smoothing.enabled = True
-        smoothing.weightDecay = 2
         smoothing.calcAvgWeightedMean(model)
         weights = smoothing.weightsArray.array
         li1_wg = np.array([[5., 5., 5.]])
@@ -210,7 +215,7 @@ class Test_DefaultSmoothingOscilationWeightedMean(Test_DefaultSmoothing):
         i = iter(sm_weights.values())
         self.compareArrays(i, [li1_wg_avg, li_bias_avg, li2_wg_avg, li2_bias_avg], lambda x : x.detach().numpy())
 
-    def test__isSmoothingIsGoodEnough__(self): # TODO
+    def test__saveAvgSum(self): # TODO
         metadata = sf.Metadata()
         modelMetadata = TestModel_Metadata()
         model = TestModel(modelMetadata)
@@ -218,22 +223,171 @@ class Test_DefaultSmoothingOscilationWeightedMean(Test_DefaultSmoothing):
         smoothing = dc.DefaultSmoothingOscilationWeightedMean()
         smoothing.enabled = True
 
-        smoothing.calcAvgWeightedMean(model)
-        assert smoothing.__isSmoothingIsGoodEnough__(None, None, model, None, None, metadata) == False
-
-
-        for m in model.modules():
-            if(isinstance(m, nn.Linear)):
-                nn.init.constant_(m.weight, 11)
-                nn.init.constant_(m.bias, 13)
-        smoothing.calcAvgWeightedMean(model)
-        smoothing.calcAvgWeightedMean(model)
-        smoothing.countWeights = 2
-        smoothing.endSmoothingFreq = 1
-        smoothing.weightsEpsilon = 1.0
-
-        smoothing.__isSmoothingIsGoodEnough__(None, None, model, None, None, metadata)
+        sumAvg = 5
+        smoothing.divisionCounter += 1
+        a, b = smoothing._saveAvgSum(sumAvg)
+        testCmpPandas(a, 'weight_sum', 0)
+        testCmpPandas(b, 'weight_sum', 5.0)
+        sumAvg = 7
+        smoothing.divisionCounter += 1
+        a, b = smoothing._saveAvgSum(sumAvg)
+        testCmpPandas(a, 'weight_sum', 7.0)
+        testCmpPandas(b, 'weight_sum', 5.0)
+        sumAvg = 11
+        smoothing.divisionCounter += 1
+        a, b = smoothing._saveAvgSum(sumAvg)
+        testCmpPandas(a, 'weight_sum', 7.0)
+        testCmpPandas(b, 'weight_sum', 8.0)
+        sumAvg = 13
+        smoothing.divisionCounter += 1
+        a, b = smoothing._saveAvgSum(sumAvg)
+        testCmpPandas(a, 'weight_sum', 10.0)
+        testCmpPandas(b, 'weight_sum', 8.0)
         
+    def test__sumAllWeights(self):
+        metadata = sf.Metadata()
+        modelMetadata = TestModel_Metadata()
+        model = TestModel(modelMetadata)
+
+        smoothing = dc.DefaultSmoothingOscilationWeightedMean()
+        smoothing.enabled = True
+        smoothing.countWeights = 1
+
+        smoothing.calcAvgWeightedMean(model)
+        sumWg = smoothing._sumAllWeights(metadata)
+        testCmpPandas(sumWg, 'weight_sum', 58.0)
+
+    def test__smoothingGoodEnoughCheck(self):
+        metadata = sf.Metadata()
+        modelMetadata = TestModel_Metadata()
+        model = TestModel(modelMetadata)
+
+        smoothing = dc.DefaultSmoothingOscilationWeightedMean(softMarginAdditionalLoops=1, weightsEpsilon = 1.0)
+        smoothing.enabled = True
+        smoothing.countWeights = 1
+        a = 2.0
+        b = 1.5
+
+        testCmpPandas(smoothing._smoothingGoodEnoughCheck(a, b), 'bool', False)
+        testCmpPandas(smoothing._smoothingGoodEnoughCheck(a, b), 'bool', True)
+        testCmpPandas(smoothing._smoothingGoodEnoughCheck(b, a), 'bool', True)
+        b = 3.1
+        testCmpPandas(smoothing._smoothingGoodEnoughCheck(a, b), 'bool', False)
+
+    def test___isSmoothingGoodEnough__(self):
+        metadata = sf.Metadata()
+        metadata.debugInfo = True
+        metadata.logFolderSuffix = 'test_1'
+        metadata.debugOutput = 'debug'
+        metadata.prepareOutput()
+        modelMetadata = TestModel_Metadata()
+        model = TestModel(modelMetadata)
+        helper = sf.TrainDataContainer()
+
+        smoothing = dc.DefaultSmoothingOscilationWeightedMean(epsilon=1.0, avgOfAvgUpdateFreq=2, whenCheckCanComputeWeights=1,
+        weightsEpsilon=1.0, numbOfBatchMinStart=1, endSmoothingFreq=2, softMarginAdditionalLoops=1)
+        smoothing.enabled = True
+        helper.loss = torch.Tensor([1.0])
+
+        smoothing(None, helper, model, None, None, metadata)
+        testCmpPandas(smoothing.lossContainer.getAverage(), 'average', 1.0)
+        testCmpPandas(smoothing.lastKLossAverage.getAverage(), 'average', 0)
+        testCmpPandas(smoothing.__isSmoothingGoodEnough__(None, helper, model, None, None, metadata), 'isSmoothingGoodEnough', False)
+        helper.loss = torch.Tensor([0.5])
+
+        smoothing(None, helper, model, None, None, metadata)
+        testCmpPandas(smoothing.lossContainer.getAverage(), 'average', 1.5/2)
+        testCmpPandas(smoothing.lastKLossAverage.getAverage(), 'average', 0.5)
+        testCmpPandas(smoothing.__isSmoothingGoodEnough__(None, helper, model, None, None, metadata), 'isSmoothingGoodEnough', False)
+
+        smoothing(None, helper, model, None, None, metadata)
+        testCmpPandas(smoothing.lossContainer.getAverage(), 'average', 2/3)
+        testCmpPandas(smoothing.lastKLossAverage.getAverage(), 'average', 0.5)
+        testCmpPandas(smoothing.__isSmoothingGoodEnough__(None, helper, model, None, None, metadata), 'isSmoothingGoodEnough', False)
+
+        helper.loss = torch.Tensor([1.5])
+        smoothing(None, helper, model, None, None, metadata)
+        testCmpPandas(smoothing.lossContainer.getAverage(), 'average', 3.5/4)
+        testCmpPandas(smoothing.lastKLossAverage.getAverage(), 'average', 2/2)
+        testCmpPandas(smoothing.__isSmoothingGoodEnough__(None, helper, model, None, None, metadata), 'isSmoothingGoodEnough', False)
+
+        smoothing(None, helper, model, None, None, metadata)
+        testCmpPandas(smoothing.lossContainer.getAverage(), 'average', 5/5)
+        testCmpPandas(smoothing.lastKLossAverage.getAverage(), 'average', 2/2)
+        testCmpPandas(smoothing.__isSmoothingGoodEnough__(None, helper, model, None, None, metadata), 'isSmoothingGoodEnough', False)
+
+        smoothing(None, helper, model, None, None, metadata)
+        testCmpPandas(smoothing.lossContainer.getAverage(), 'average', 6.5/6)
+        testCmpPandas(smoothing.lastKLossAverage.getAverage(), 'average', 3.5/3)
+        testCmpPandas(smoothing.__isSmoothingGoodEnough__(None, helper, model, None, None, metadata), 'isSmoothingGoodEnough', False)
+
+        smoothing(None, helper, model, None, None, metadata)
+        testCmpPandas(smoothing.lossContainer.getAverage(), 'average', 8/7)
+        testCmpPandas(smoothing.lastKLossAverage.getAverage(), 'average', 3.5/3)
+        testCmpPandas(smoothing.__isSmoothingGoodEnough__(None, helper, model, None, None, metadata), 'isSmoothingGoodEnough', False)
+
+        smoothing(None, helper, model, None, None, metadata)
+        testCmpPandas(smoothing.lossContainer.getAverage(), 'average', 9.5/8)
+        testCmpPandas(smoothing.lastKLossAverage.getAverage(), 'average', 5/4)
+        testCmpPandas(smoothing.__isSmoothingGoodEnough__(None, helper, model, None, None, metadata), 'isSmoothingGoodEnough', True)
+
+class Test_DefaultSmoothingOscilationMovingMean(Test_DefaultSmoothing):
+    def test___isSmoothingGoodEnough__(self):
+        metadata = sf.Metadata()
+        metadata.debugInfo = True
+        metadata.logFolderSuffix = 'test_2'
+        metadata.debugOutput = 'debug'
+        metadata.prepareOutput()
+        modelMetadata = TestModel_Metadata()
+        model = TestModel(modelMetadata)
+        helper = sf.TrainDataContainer()
+
+        smoothing = dc.DefaultSmoothingOscilationWeightedMean(epsilon=1.0, avgOfAvgUpdateFreq=2, whenCheckCanComputeWeights=1,
+        weightsEpsilon=1.0, numbOfBatchMinStart=1, endSmoothingFreq=2, softMarginAdditionalLoops=1)
+        smoothing.enabled = True
+        helper.loss = torch.Tensor([1.0])
+
+        smoothing(None, helper, model, None, None, metadata)
+        testCmpPandas(smoothing.lossContainer.getAverage(), 'average', 1.0)
+        testCmpPandas(smoothing.lastKLossAverage.getAverage(), 'average', 0)
+        testCmpPandas(smoothing.__isSmoothingGoodEnough__(None, helper, model, None, None, metadata), 'isSmoothingGoodEnough', False)
+        helper.loss = torch.Tensor([0.5])
+
+        smoothing(None, helper, model, None, None, metadata)
+        testCmpPandas(smoothing.lossContainer.getAverage(), 'average', 1.5/2)
+        testCmpPandas(smoothing.lastKLossAverage.getAverage(), 'average', 0.5)
+        testCmpPandas(smoothing.__isSmoothingGoodEnough__(None, helper, model, None, None, metadata), 'isSmoothingGoodEnough', False)
+
+        smoothing(None, helper, model, None, None, metadata)
+        testCmpPandas(smoothing.lossContainer.getAverage(), 'average', 2/3)
+        testCmpPandas(smoothing.lastKLossAverage.getAverage(), 'average', 0.5)
+        testCmpPandas(smoothing.__isSmoothingGoodEnough__(None, helper, model, None, None, metadata), 'isSmoothingGoodEnough', False)
+
+        helper.loss = torch.Tensor([1.5])
+        smoothing(None, helper, model, None, None, metadata)
+        testCmpPandas(smoothing.lossContainer.getAverage(), 'average', 3.5/4)
+        testCmpPandas(smoothing.lastKLossAverage.getAverage(), 'average', 2/2)
+        testCmpPandas(smoothing.__isSmoothingGoodEnough__(None, helper, model, None, None, metadata), 'isSmoothingGoodEnough', False)
+
+        smoothing(None, helper, model, None, None, metadata)
+        testCmpPandas(smoothing.lossContainer.getAverage(), 'average', 5/5)
+        testCmpPandas(smoothing.lastKLossAverage.getAverage(), 'average', 2/2)
+        testCmpPandas(smoothing.__isSmoothingGoodEnough__(None, helper, model, None, None, metadata), 'isSmoothingGoodEnough', False)
+
+        smoothing(None, helper, model, None, None, metadata)
+        testCmpPandas(smoothing.lossContainer.getAverage(), 'average', 6.5/6)
+        testCmpPandas(smoothing.lastKLossAverage.getAverage(), 'average', 3.5/3)
+        testCmpPandas(smoothing.__isSmoothingGoodEnough__(None, helper, model, None, None, metadata), 'isSmoothingGoodEnough', False)
+
+        smoothing(None, helper, model, None, None, metadata)
+        testCmpPandas(smoothing.lossContainer.getAverage(), 'average', 8/7)
+        testCmpPandas(smoothing.lastKLossAverage.getAverage(), 'average', 3.5/3)
+        testCmpPandas(smoothing.__isSmoothingGoodEnough__(None, helper, model, None, None, metadata), 'isSmoothingGoodEnough', False)
+
+        smoothing(None, helper, model, None, None, metadata)
+        testCmpPandas(smoothing.lossContainer.getAverage(), 'average', 9.5/8)
+        testCmpPandas(smoothing.lastKLossAverage.getAverage(), 'average', 5/4)
+        testCmpPandas(smoothing.__isSmoothingGoodEnough__(None, helper, model, None, None, metadata), 'isSmoothingGoodEnough', True)
 
 
 def run():
@@ -246,6 +400,13 @@ def run():
 
     inst = Test_DefaultSmoothingOscilationWeightedMean()
     inst.test_calcAvgWeightedMean()
+    inst.test__saveAvgSum()
+    inst.test__sumAllWeights()
+    inst.test__smoothingGoodEnoughCheck()
+    inst.test___isSmoothingGoodEnough__()
+
+    init = Test_DefaultSmoothingOscilationMovingMean()
+    init.test___isSmoothingGoodEnough__()
 
 
 if __name__ == '__main__':
