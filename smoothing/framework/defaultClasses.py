@@ -52,11 +52,12 @@ class CircularList():
         return len(self.array)
 
 class DefaultModel_Metadata(sf.Model_Metadata):
-    def __init__(self):
+    def __init__(self,
+        device = 'cuda:0', learning_rate = 1e-3, momentum = 0.9):
         super().__init__()
-        self.device = 'cuda:0'
-        self.learning_rate = 1e-3
-        self.momentum = 0.9
+        self.device = device
+        self.learning_rate = learning_rate
+        self.momentum = momentum
 
     def __strAppend__(self):
         tmp_str = super().__strAppend__()
@@ -66,26 +67,30 @@ class DefaultModel_Metadata(sf.Model_Metadata):
         return tmp_str
 
 class DefaultData_Metadata(sf.Data_Metadata):
-    def __init__(self):
+    def __init__(self, 
+        worker_seed = 8418748, train = True, download = True, pin_memoryTrain = False, pin_memoryTest = False,
+        epoch = 1, batchTrainSize = 16, batchTestSize = 16, fromGrayToRGB = True,
+        test_howOftenPrintTrain = 200, howOftenPrintTrain = 2000):
+
         super().__init__()
-        self.worker_seed = 8418748
+        self.worker_seed = worker_seed
         
-        self.train = True
-        self.download = True
-        self.pin_memoryTrain = False
-        self.pin_memoryTest = False
+        self.train = train
+        self.download = download
+        self.pin_memoryTrain = pin_memoryTrain
+        self.pin_memoryTest = pin_memoryTest
 
-        self.epoch = 1
-        self.batchTrainSize = 16
-        self.batchTestSize = 16
+        self.epoch = epoch
+        self.batchTrainSize = batchTrainSize
+        self.batchTestSize = batchTestSize
 
-        self.fromGrayToRGB = True
+        self.fromGrayToRGB = fromGrayToRGB
 
         # batch size * howOftenPrintTrain
         if(sf.test_mode.isActivated()):
-            self.howOftenPrintTrain = 200
+            self.howOftenPrintTrain = test_howOftenPrintTrain
         else:
-            self.howOftenPrintTrain = 2000
+            self.howOftenPrintTrain = howOftenPrintTrain
 
     def __strAppend__(self):
         tmp_str = super().__strAppend__()
@@ -110,6 +115,7 @@ class DefaultModelSimpleConv(sf.Model):
         #self.optimizer = optim.AdamW(self.parameters(), lr=modelMetadata.learning_rate)
 
         self.getNNModelModule().to(modelMetadata.device)
+        self.__initializeWeights__()
 
     def forward(self, x):
         x = self.pool(F.hardswish(self.conv1(x)))
@@ -136,8 +142,6 @@ class DefaultModelSimpleConv(sf.Model):
             elif(isinstance(m, nn.Linear)):
                 nn.init.normal_(m.weight, 0, 0.01)
                 nn.init.constant_(m.bias, 0)
-
-
 
 class DefaultModelPredef(sf.PredefinedModel):
     def __init__(self, obj, modelMetadata):
@@ -178,15 +182,17 @@ class DefaultSmoothingBorderline(sf.Smoothing):
     Wygładzanie polega na liczeniu średnich tensorów.
     Wygładzanie włączane jest od momentu wykonania określonej ilości pętli oraz jest liczone od końca iteracji.
     """
-    def __init__(self):
+    def __init__(self,
+        device = 'cpu',
+        numbOfBatchAfterSwitchOn = 3000, test_numbOfBatchAfterSwitchOn = 10):
         super().__init__()
 
-        self.device = 'cpu'
+        self.device = device
 
         if(sf.test_mode.isActivated()):
-            self.numbOfBatchAfterSwitchOn = 10
+            self.numbOfBatchAfterSwitchOn = test_numbOfBatchAfterSwitchOn
         else:
-            self.numbOfBatchAfterSwitchOn = 3000 # dla 50000 / 32 ~= 1500, 50000 / 16 ~= 3000
+            self.numbOfBatchAfterSwitchOn = numbOfBatchAfterSwitchOn # dla 50000 / 32 ~= 1500, 50000 / 16 ~= 3000
 
         self.sumWeights = {}
         self.previousWeights = {}
@@ -195,6 +201,7 @@ class DefaultSmoothingBorderline(sf.Smoothing):
         self.counter = 0
 
         self.mainWeights = None
+
 
     def __isSmoothingGoodEnough__(self, helperEpoch, helper, model, dataMetadata, modelMetadata, metadata):
         False
@@ -267,24 +274,32 @@ class SmoothingOscilationBase(sf.Smoothing):
 
     Liczy średnią arytmetyczną dla wag.
     """
-    def __init__(self):
+    def __init__(self, 
+        device = 'cpu', avgOfAvgUpdateFreq = 10, whenCheckCanComputeWeights = 5,
+        endSmoothingFreq = 10, softMarginAdditionalLoops = 20, 
+        numbOfBatchMaxStart = 3100, numbOfBatchMinStart = 500, epsilon = 1e-3, weightsEpsilon = 1e-6,
+        test_epsilon = 1e-2, test_weightsEpsilon = 1e-4):
+
         super().__init__()
 
         #------- dane do konfiguracji
 
-        self.device = 'cpu'
+        self.device = device
 
         # jak częto powinno się zapisywać średnią odnoszącą się do akumulatora straty.
         # ta średnia jest później porównywana ze średnią N ostatnich zapisanych strat, 
         # która mówi o tym czy nie znaleziono otoczenia minimum lokalnego
-        self.avgOfAvgUpdateFreq = 10 
+        self.avgOfAvgUpdateFreq = avgOfAvgUpdateFreq 
+        
+        # wartość musi znaleźć się w przeidzale <0, avgOfAvgUpdateFreq]. Musi być integerem.
+        self.whenCheckCanComputeWeights = whenCheckCanComputeWeights
 
         # jak często powinno się sprawdzać, czy wygładzanie jest dostatecznie dobre. Min val = 1
-        self.endSmoothingFreq = 10
+        self.endSmoothingFreq = endSmoothingFreq
 
-        # margines błędu mówiący ile razy __isSmoothingGoodEnough__ powinno dawać pozytywną informację, aznim można
+        # margines błędu mówiący ile razy __isSmoothingGoodEnough__ powinno dawać pozytywną informację, zanim można
         # będzie uznać, że wygładzanie jest dostatecznie dobre. Funkcjonuje jako pojemność akumulatora.
-        self.softMarginAdditionalLoops = 20
+        self.softMarginAdditionalLoops = softMarginAdditionalLoops
 
         if(sf.test_mode.isActivated()):
             # po ilu maksymalnie iteracjach wygładzanie powinno zostać włączone
@@ -293,13 +308,13 @@ class SmoothingOscilationBase(sf.Smoothing):
             # minimalna ilość iteracji po których wygładzanie może zostać włączone
             # zapobiega problemom: mała ilośc zgromadzonych danych => niemiarodajne wyniki dla średnich =? zbyt wczesne zatrzymanie treningu
             self.numbOfBatchMinStart = sf.StaticData.MAX_TEST_LOOPS - 30 if sf.StaticData.MAX_TEST_LOOPS - 30 >= 0 else 0
-            self.epsilon = 1e-2 # kiedy można uzać, że wygładzania powinno zostać włączone 
-            self.weightsEpsilon = 1e-4 # kiedy można uznać, że wygładzanie powinno zostać zakończone wraz z zakończeniem pętli treningowej.
+            self.epsilon = test_epsilon # kiedy można uzać, że wygładzania powinno zostać włączone 
+            self.weightsEpsilon = test_weightsEpsilon # kiedy można uznać, że wygładzanie powinno zostać zakończone wraz z zakończeniem pętli treningowej.
         else:
-            self.numbOfBatchMaxStart = 3100
-            self.numbOfBatchMinStart = 500
-            self.epsilon = 1e-3
-            self.weightsEpsilon = 1e-6
+            self.numbOfBatchMaxStart = numbOfBatchMaxStart
+            self.numbOfBatchMinStart = numbOfBatchMinStart
+            self.epsilon = epsilon
+            self.weightsEpsilon = weightsEpsilon
         ###############################
 
         self.lossContainer = CircularList(50)
@@ -313,6 +328,16 @@ class SmoothingOscilationBase(sf.Smoothing):
         self.goodEnoughCounter = 0
 
         self.mainWeights = None
+
+        # data validation
+        if(avgOfAvgUpdateFreq <= 1):
+            raise Exception("Wrong frequency of avgOfAvgUpdateFreq: '{}'".format(self.avgOfAvgUpdateFreq))
+        if(endSmoothingFreq <= 1):
+            raise Exception("Wrong frequency of endSmoothingFreq: '{}'".format(self.endSmoothingFreq))
+        if(not isinstance(self.whenCheckCanComputeWeights, int)):
+            raise Exception("Wrong datatype of whenCheckCanComputeWeights")
+        if(self.whenCheckCanComputeWeights < 0 or self.whenCheckCanComputeWeights >= self.avgOfAvgUpdateFreq):
+            raise Exception("Wrong range of whenCheckCanComputeWeights: '{}'".format(self.whenCheckCanComputeWeights))
 
     def __strAppend__(self):
         tmp_str = super().__strAppend__()
@@ -333,11 +358,11 @@ class SmoothingOscilationBase(sf.Smoothing):
         to metoda zwróci True.
         W przeciwnym wypadku zwróci False.
         """
-        if(self.counter % self.avgOfAvgUpdateFreq == int(self.avgOfAvgUpdateFreq / 2)): # ponieważ liczenie kolejnej średniej od razu po dodaniu nowego elementu dużo nie da, lepiej zrobić to w połowie
+        if(self.counter % self.avgOfAvgUpdateFreq == self.whenCheckCanComputeWeights): # liczenie kolejnej średniej od razu po dodaniu nowego elementu dużo nie da
             return bool(
                 (abs(self.lossContainer.getAverage() - self.lastKLossAverage.getAverage()) < self.epsilon and self.counter > self.numbOfBatchMinStart) 
                 or self.counter > self.numbOfBatchMaxStart
-            )
+                )
         return False
 
     def _saveAvgSum(self, sum):
@@ -355,7 +380,7 @@ class SmoothingOscilationBase(sf.Smoothing):
         for val in smWg.values():
             sumArray.append(torch.sum(torch.abs(val)))
         absSum = torch.sum(torch.stack(sumArray)).item()
-        return smWg
+        return absSum
 
     def _smoothingGoodEnoughCheck(self, avg_1, avg_2):
         ret = bool(abs(avg_1 - avg_2) < self.weightsEpsilon)
@@ -364,6 +389,7 @@ class SmoothingOscilationBase(sf.Smoothing):
                 self.goodEnoughCounter += 1
                 return False
             return ret
+        return False
 
     def __isSmoothingGoodEnough__(self, helperEpoch, helper, model, dataMetadata, modelMetadata, metadata):
         """
@@ -379,7 +405,7 @@ class SmoothingOscilationBase(sf.Smoothing):
         """
         if(self.countWeights > 0 and self.counter % self.endSmoothingFreq == 0):
             self.divisionCounter += 1
-            smWg = self._sumAllWeights(metadata)
+            absSum = self._sumAllWeights(metadata)
 
             avg_1, avg_2 = self._saveAvgSum(absSum)
 
@@ -400,13 +426,21 @@ class DefaultSmoothingOscilationGeneralizedMean(SmoothingOscilationBase):
 
     Liczy średnią generalizowaną dla wag.
     """
-    def __init__(self):
-        super().__init__()
+    def __init__(self, generalizedMeanPower = 1,
+        device = 'cpu', avgOfAvgUpdateFreq = 10, whenCheckCanComputeWeights = 5,
+        endSmoothingFreq = 10, softMarginAdditionalLoops = 20, 
+        numbOfBatchMaxStart = 3100, numbOfBatchMinStart = 500, epsilon = 1e-3, weightsEpsilon = 1e-6,
+        test_epsilon = 1e-2, test_weightsEpsilon = 1e-4):
+
+        super().__init__(device=device, avgOfAvgUpdateFreq=avgOfAvgUpdateFreq, whenCheckCanComputeWeights=whenCheckCanComputeWeights,
+        endSmoothingFreq=endSmoothingFreq, softMarginAdditionalLoops=softMarginAdditionalLoops, numbOfBatchMaxStart=numbOfBatchMaxStart,
+        numbOfBatchMinStart=numbOfBatchMinStart, epsilon=epsilon, weightsEpsilon=weightsEpsilon,
+        test_epsilon=test_epsilon, test_weightsEpsilon=test_weightsEpsilon)
 
         # dane do konfiguracji
 
         # stopieć średniej generalizowanej. Dla = 1 jest to średnia arytmetyczna
-        self.generalizedMeanPower = 1 # tylko dla 1 dobrze działa, reszta daje gorsze wyniki, info do opisania
+        self.generalizedMeanPower = generalizedMeanPower # tylko dla 1 dobrze działa, reszta daje gorsze wyniki, info do opisania
         ###############################
 
         self.sumWeights = {}
@@ -511,13 +545,21 @@ class DefaultSmoothingOscilationMovingMean(SmoothingOscilationBase):
 
     Liczy średnią ważoną dla wag. Wagi są nadawane względem starości zapamiętanej wagi. Im starsza tym ma mniejszą wagę.
     """
-    def __init__(self):
-        super().__init__()
+    def __init__(self, movingAvgParam = 0.27,
+        device = 'cpu', avgOfAvgUpdateFreq = 10, whenCheckCanComputeWeights = 5,
+        endSmoothingFreq = 10, softMarginAdditionalLoops = 20, 
+        numbOfBatchMaxStart = 3100, numbOfBatchMinStart = 500, epsilon = 1e-3, weightsEpsilon = 1e-6,
+        test_epsilon = 1e-2, test_weightsEpsilon = 1e-4):
+
+        super().__init__(device=device, avgOfAvgUpdateFreq=avgOfAvgUpdateFreq, whenCheckCanComputeWeights=whenCheckCanComputeWeights,
+        endSmoothingFreq=endSmoothingFreq, softMarginAdditionalLoops=softMarginAdditionalLoops, numbOfBatchMaxStart=numbOfBatchMaxStart,
+        numbOfBatchMinStart=numbOfBatchMinStart, epsilon=epsilon, weightsEpsilon=weightsEpsilon,
+        test_epsilon=test_epsilon, test_weightsEpsilon=test_weightsEpsilon)
 
         # dane do konfiguracji
 
         # jest to parametr 'a' dla wzoru: S = ax + (1-a)S
-        movingAvgParam = 0.27
+        # movingAvgParam
 
         ###############################
 
@@ -552,7 +594,7 @@ class DefaultSmoothingOscilationMovingMean(SmoothingOscilationBase):
         self.lossContainer.pushBack(helper.loss.item())
         avg = self.lossContainer.getAverage()
         if(self.counter % self.avgOfAvgUpdateFreq):
-            self.lastKLossAverage.pushBack(avg)
+            self.lastKLossAverage.pushBack(helper.loss.item())
         metadata.stream.print("Loss avg debug:" + str(abs(avg - self.lastKLossAverage.getAverage())), 'debug:0')
         if(self.canComputeWeights()):
             self.countWeights += 1
@@ -611,20 +653,28 @@ class DefaultSmoothingOscilationWeightedMean(SmoothingOscilationBase):
 
     Liczy średnią ważoną dla wag. Wagi są nadawane względem starości zapamiętanej wagi. Im starsza tym ma mniejszą wagę.
     """
-    def __init__(self):
-        super().__init__()
+    def __init__(self, weightDecay=1.5,
+        device = 'cpu', avgOfAvgUpdateFreq = 10, whenCheckCanComputeWeights = 5,
+        endSmoothingFreq = 10, softMarginAdditionalLoops = 20, 
+        numbOfBatchMaxStart = 3100, numbOfBatchMinStart = 500, epsilon = 1e-3, weightsEpsilon = 1e-6,
+        test_epsilon = 1e-2, test_weightsEpsilon = 1e-4):
+
+        super().__init__(device=device, avgOfAvgUpdateFreq=avgOfAvgUpdateFreq, whenCheckCanComputeWeights=whenCheckCanComputeWeights,
+        endSmoothingFreq=endSmoothingFreq, softMarginAdditionalLoops=softMarginAdditionalLoops, numbOfBatchMaxStart=numbOfBatchMaxStart,
+        numbOfBatchMinStart=numbOfBatchMinStart, epsilon=epsilon, weightsEpsilon=weightsEpsilon,
+        test_epsilon=test_epsilon, test_weightsEpsilon=test_weightsEpsilon)
 
         # dane do konfiguracji
 
         # jak bardzo następne wagi w kolejce mają stracić na wartości. Kolejne wagi dzieli się przez wielokrotność tej wartości.
-        self.weightDecay = 1.5
+        self.weightDecay = weightDecay
 
         ###############################
 
         # trzeba uważać na zajętość w pamięci. Zapamiętuje wszystkie wagi modelu, co może sumować się do dużych rozmiarów
         self.weightsArray = CircularList(20) 
         self.lossContainer = CircularList(50)
-        self.lastKLossAverage = CircularList(40)
+        self.lastKLossAverage = CircularList(25)
 
     def __strAppend__(self):
         return super().__strAppend__()
@@ -641,8 +691,8 @@ class DefaultSmoothingOscilationWeightedMean(SmoothingOscilationBase):
         self.counter += 1
         self.lossContainer.pushBack(helper.loss.item())
         avg = self.lossContainer.getAverage()
-        if(self.counter % self.avgOfAvgUpdateFreq):
-            self.lastKLossAverage.pushBack(avg)
+        if(self.counter % self.avgOfAvgUpdateFreq == 0):
+            self.lastKLossAverage.pushBack(helper.loss.item())
         metadata.stream.print("Loss avg debug:" + str(abs(avg - self.lastKLossAverage.getAverage())), 'debug:0')
         if(self.canComputeWeights()):
             self.countWeights += 1
@@ -655,7 +705,6 @@ class DefaultSmoothingOscilationWeightedMean(SmoothingOscilationBase):
         average = {}
         if(self.countWeights == 0):
             return average # {}
-
 
         for wg in self.weightsArray:
             for key, val in wg.items():
@@ -707,9 +756,10 @@ class DefaultSmoothingOscilationWeightedMean(SmoothingOscilationBase):
 
 
 class DefaultData(sf.Data):
-    def __init__(self):
+    def __init__(self,
+        statLogName = 'statLossTest'):
         super().__init__()
-        self.statLogName = 'statLossTest'
+        self.statLogName = statLogName
 
     def __customizeState__(self, state):
         super().__customizeState__(state)
