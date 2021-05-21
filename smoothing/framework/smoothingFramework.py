@@ -465,7 +465,6 @@ class Output(SaveClass):
         if(outputType == 'formatedLog'):
             suffix = '.csv'
         fh = self.FileHandler(pathName + suffix, 'a', outputType)
-        print('pathName + suffix', pathName + suffix)
         self.filesDict[pathName] = {outputType: fh}
         self.aliasToFH[alias] = fh
 
