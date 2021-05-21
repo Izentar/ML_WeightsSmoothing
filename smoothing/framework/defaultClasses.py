@@ -200,8 +200,6 @@ class DefaultSmoothingBorderline(sf.Smoothing):
         self.countWeights = 0
         self.counter = 0
 
-        self.mainWeights = None
-
 
     def __isSmoothingGoodEnough__(self, helperEpoch, helper, model, dataMetadata, modelMetadata, metadata):
         False
@@ -249,7 +247,6 @@ class DefaultSmoothingBorderline(sf.Smoothing):
             del state['previousWeights']
             del state['countWeights']
             del state['counter']
-            del state['mainWeights']
             del state['sumWeights']
             del state['enabled']
         return state
@@ -260,11 +257,10 @@ class DefaultSmoothingBorderline(sf.Smoothing):
             self.previousWeights = {}
             self.countWeights = 0
             self.counter = 0
-            self.mainWeights = None
             self.sumWeights = {}
             self.enabled = False
 
-class SmoothingOscilationBase(sf.Smoothing):
+class _SmoothingOscilationBase(sf.Smoothing):
     """
     Włącza wygładzanie gdy zostaną spełnione określone warunki:
     - po przekroczeniu pewnej minimalnej ilości iteracji pętli oraz 
@@ -278,6 +274,7 @@ class SmoothingOscilationBase(sf.Smoothing):
         device = 'cpu', avgOfAvgUpdateFreq = 10, whenCheckCanComputeWeights = 5,
         endSmoothingFreq = 10, softMarginAdditionalLoops = 20, 
         numbOfBatchMaxStart = 3100, numbOfBatchMinStart = 500, epsilon = 1e-3, weightsEpsilon = 1e-6,
+        lossContainer=50, lastKLossAverage=25,
         test_epsilon = 1e-2, test_weightsEpsilon = 1e-4):
 
         super().__init__()
@@ -301,6 +298,9 @@ class SmoothingOscilationBase(sf.Smoothing):
         # będzie uznać, że wygładzanie jest dostatecznie dobre. Funkcjonuje jako pojemność akumulatora.
         self.softMarginAdditionalLoops = softMarginAdditionalLoops
 
+        self.lossContainer = CircularList(lossContainer)
+        self.lastKLossAverage = CircularList(lastKLossAverage)
+
         if(sf.test_mode.isActivated()):
             # po ilu maksymalnie iteracjach wygładzanie powinno zostać włączone
             self.numbOfBatchMaxStart = sf.StaticData.MAX_TEST_LOOPS - 10 if sf.StaticData.MAX_TEST_LOOPS - 10 >= 0 else 0
@@ -316,9 +316,6 @@ class SmoothingOscilationBase(sf.Smoothing):
             self.epsilon = epsilon
             self.weightsEpsilon = weightsEpsilon
         ###############################
-
-        self.lossContainer = CircularList(50)
-        self.lastKLossAverage = CircularList(40)
         
         self.countWeights = 0
         self.counter = 0
@@ -326,8 +323,6 @@ class SmoothingOscilationBase(sf.Smoothing):
         self.tensorPrevSum_2 = CircularList(int(self.endSmoothingFreq))
         self.divisionCounter = 0
         self.goodEnoughCounter = 0
-
-        self.mainWeights = None
 
         # data validation
         if(avgOfAvgUpdateFreq <= 1):
@@ -416,7 +411,19 @@ class SmoothingOscilationBase(sf.Smoothing):
             return self._smoothingGoodEnoughCheck(avg_1, avg_2)
         return False
 
-class DefaultSmoothingOscilationGeneralizedMean(SmoothingOscilationBase):
+    def __call__(self, helperEpoch, helper, model, dataMetadata, modelMetadata, metadata):
+        super().__call__(helperEpoch, helper, model, dataMetadata, modelMetadata, metadata)
+        self.counter += 1
+        self.lossContainer.pushBack(helper.loss.item())
+        avg = self.lossContainer.getAverage()
+        if(self.counter % self.avgOfAvgUpdateFreq == 0):
+            self.lastKLossAverage.pushBack(helper.loss.item())
+        metadata.stream.print("Loss avg difference debug:" + str(abs(avg - self.lastKLossAverage.getAverage())), 'debug:0')
+        if(self.canComputeWeights()):
+            self.countWeights += 1
+            self.calcMean(model)
+
+class DefaultSmoothingOscilationGeneralizedMean(_SmoothingOscilationBase):
     """
     Włącza wygładzanie gdy zostaną spełnione określone warunki:
     - po przekroczeniu pewnej minimalnej ilości iteracji pętli oraz 
@@ -430,11 +437,13 @@ class DefaultSmoothingOscilationGeneralizedMean(SmoothingOscilationBase):
         device = 'cpu', avgOfAvgUpdateFreq = 10, whenCheckCanComputeWeights = 5,
         endSmoothingFreq = 10, softMarginAdditionalLoops = 20, 
         numbOfBatchMaxStart = 3100, numbOfBatchMinStart = 500, epsilon = 1e-3, weightsEpsilon = 1e-6,
+        lossContainer=50, lastKLossAverage=25,
         test_epsilon = 1e-2, test_weightsEpsilon = 1e-4):
 
         super().__init__(device=device, avgOfAvgUpdateFreq=avgOfAvgUpdateFreq, whenCheckCanComputeWeights=whenCheckCanComputeWeights,
         endSmoothingFreq=endSmoothingFreq, softMarginAdditionalLoops=softMarginAdditionalLoops, numbOfBatchMaxStart=numbOfBatchMaxStart,
         numbOfBatchMinStart=numbOfBatchMinStart, epsilon=epsilon, weightsEpsilon=weightsEpsilon,
+        lossContainer=lossContainer, lastKLossAverage=lastKLossAverage,
         test_epsilon=test_epsilon, test_weightsEpsilon=test_weightsEpsilon)
 
         # dane do konfiguracji
@@ -444,8 +453,6 @@ class DefaultSmoothingOscilationGeneralizedMean(SmoothingOscilationBase):
         ###############################
 
         self.sumWeights = {}
-        self.lossContainer = CircularList(50)
-        self.lastKLossAverage = CircularList(40)
 
         self.methodPow = None
         self.methodDiv = None
@@ -516,7 +523,6 @@ class DefaultSmoothingOscilationGeneralizedMean(SmoothingOscilationBase):
         if(self.only_Key_Ingredients):
             del state['countWeights']
             del state['counter']
-            del state['mainWeights']
             del state['sumWeights']
             del state['enabled']
         return state
@@ -526,7 +532,6 @@ class DefaultSmoothingOscilationGeneralizedMean(SmoothingOscilationBase):
         if(self.only_Key_Ingredients):
             self.countWeights = 0
             self.counter = 0
-            self.mainWeights = None
             self.sumWeights = {}
             self.enabled = False
             self.lossContainer.reset()
@@ -535,7 +540,7 @@ class DefaultSmoothingOscilationGeneralizedMean(SmoothingOscilationBase):
             self.tensorPrevSum_2.reset()
             self.divisionCounter = 0
 
-class DefaultSmoothingOscilationMovingMean(SmoothingOscilationBase):
+class DefaultSmoothingOscilationMovingMean(_SmoothingOscilationBase):
     """
     Włącza wygładzanie gdy zostaną spełnione określone warunki:
     - po przekroczeniu pewnej minimalnej ilości iteracji pętli oraz 
@@ -549,11 +554,13 @@ class DefaultSmoothingOscilationMovingMean(SmoothingOscilationBase):
         device = 'cpu', avgOfAvgUpdateFreq = 10, whenCheckCanComputeWeights = 5,
         endSmoothingFreq = 10, softMarginAdditionalLoops = 20, 
         numbOfBatchMaxStart = 3100, numbOfBatchMinStart = 500, epsilon = 1e-3, weightsEpsilon = 1e-6,
+        lossContainer=50, lastKLossAverage=25,
         test_epsilon = 1e-2, test_weightsEpsilon = 1e-4):
 
         super().__init__(device=device, avgOfAvgUpdateFreq=avgOfAvgUpdateFreq, whenCheckCanComputeWeights=whenCheckCanComputeWeights,
         endSmoothingFreq=endSmoothingFreq, softMarginAdditionalLoops=softMarginAdditionalLoops, numbOfBatchMaxStart=numbOfBatchMaxStart,
         numbOfBatchMinStart=numbOfBatchMinStart, epsilon=epsilon, weightsEpsilon=weightsEpsilon,
+        lossContainer=lossContainer, lastKLossAverage=lastKLossAverage,
         test_epsilon=test_epsilon, test_weightsEpsilon=test_weightsEpsilon)
 
         # dane do konfiguracji
@@ -566,8 +573,6 @@ class DefaultSmoothingOscilationMovingMean(SmoothingOscilationBase):
         # trzeba uważać na zajętość w pamięci. Zapamiętuje wszystkie wagi modelu, co może sumować się do dużych rozmiarów
         #self.weightsArray = CircularList(20) 
         self.weightsSum = {}
-        self.lossContainer = CircularList(50)
-        self.lastKLossAverage = CircularList(40)
 
         self.setMovingAvgParam(movingAvgParam)
 
@@ -583,22 +588,10 @@ class DefaultSmoothingOscilationMovingMean(SmoothingOscilationBase):
         tmp_str += ('Moving average parameter:\t{}\n'.format(self.movingAvgTensorLow.item()))
         return tmp_str
 
-    def calcAvgWeightedMean(self, model):
+    def calcMean(self, model):
         with torch.no_grad():
             for key, val in model.getNNModelModule().named_parameters():
                 self.weightsSum[key] = self.weightsSum[key].mul_(self.movingAvgTensorHigh).add_(val.to(self.device).mul_(self.movingAvgTensorLow))
-
-    def __call__(self, helperEpoch, helper, model, dataMetadata, modelMetadata, metadata):
-        super().__call__(helperEpoch, helper, model, dataMetadata, modelMetadata, metadata)
-        self.counter += 1
-        self.lossContainer.pushBack(helper.loss.item())
-        avg = self.lossContainer.getAverage()
-        if(self.counter % self.avgOfAvgUpdateFreq):
-            self.lastKLossAverage.pushBack(helper.loss.item())
-        metadata.stream.print("Loss avg debug:" + str(abs(avg - self.lastKLossAverage.getAverage())), 'debug:0')
-        if(self.canComputeWeights()):
-            self.countWeights += 1
-            self.calcAvgWeightedMean(model)
 
     def __getSmoothedWeights__(self, metadata):
         average = super().__getSmoothedWeights__(metadata)
@@ -626,7 +619,6 @@ class DefaultSmoothingOscilationMovingMean(SmoothingOscilationBase):
         if(self.only_Key_Ingredients):
             del state['countWeights']
             del state['counter']
-            del state['mainWeights']
             del state['enabled']
         return state
 
@@ -635,7 +627,6 @@ class DefaultSmoothingOscilationMovingMean(SmoothingOscilationBase):
         if(self.only_Key_Ingredients):
             self.countWeights = 0
             self.counter = 0
-            self.mainWeights = None
             self.enabled = False
             self.lossContainer.reset()
             self.lastKLossAverage.reset()
@@ -643,7 +634,7 @@ class DefaultSmoothingOscilationMovingMean(SmoothingOscilationBase):
             self.tensorPrevSum_2.reset()
             self.divisionCounter = 0
 
-class DefaultSmoothingOscilationWeightedMean(SmoothingOscilationBase):
+class DefaultSmoothingOscilationWeightedMean(_SmoothingOscilationBase):
     """
     Włącza wygładzanie gdy zostaną spełnione określone warunki:
     - po przekroczeniu pewnej minimalnej ilości iteracji pętli oraz 
@@ -657,11 +648,13 @@ class DefaultSmoothingOscilationWeightedMean(SmoothingOscilationBase):
         device = 'cpu', avgOfAvgUpdateFreq = 10, whenCheckCanComputeWeights = 5,
         endSmoothingFreq = 10, softMarginAdditionalLoops = 20, 
         numbOfBatchMaxStart = 3100, numbOfBatchMinStart = 500, epsilon = 1e-3, weightsEpsilon = 1e-6,
+        lossContainer=50, lastKLossAverage=25, weightsArraySize=20,
         test_epsilon = 1e-2, test_weightsEpsilon = 1e-4):
 
         super().__init__(device=device, avgOfAvgUpdateFreq=avgOfAvgUpdateFreq, whenCheckCanComputeWeights=whenCheckCanComputeWeights,
         endSmoothingFreq=endSmoothingFreq, softMarginAdditionalLoops=softMarginAdditionalLoops, numbOfBatchMaxStart=numbOfBatchMaxStart,
         numbOfBatchMinStart=numbOfBatchMinStart, epsilon=epsilon, weightsEpsilon=weightsEpsilon,
+        lossContainer=lossContainer, lastKLossAverage=lastKLossAverage,
         test_epsilon=test_epsilon, test_weightsEpsilon=test_weightsEpsilon)
 
         # dane do konfiguracji
@@ -672,31 +665,17 @@ class DefaultSmoothingOscilationWeightedMean(SmoothingOscilationBase):
         ###############################
 
         # trzeba uważać na zajętość w pamięci. Zapamiętuje wszystkie wagi modelu, co może sumować się do dużych rozmiarów
-        self.weightsArray = CircularList(20) 
-        self.lossContainer = CircularList(50)
-        self.lastKLossAverage = CircularList(25)
+        self.weightsArray = CircularList(weightsArraySize) 
 
     def __strAppend__(self):
         return super().__strAppend__()
 
-    def calcAvgWeightedMean(self, model):
+    def calcMean(self, model):
         with torch.no_grad():
             tmpDict = {}
             for key, val in model.getNNModelModule().named_parameters():
                 tmpDict[key] = val.clone().to(self.device)
             self.weightsArray.pushBack(tmpDict)
-
-    def __call__(self, helperEpoch, helper, model, dataMetadata, modelMetadata, metadata):
-        super().__call__(helperEpoch, helper, model, dataMetadata, modelMetadata, metadata)
-        self.counter += 1
-        self.lossContainer.pushBack(helper.loss.item())
-        avg = self.lossContainer.getAverage()
-        if(self.counter % self.avgOfAvgUpdateFreq == 0):
-            self.lastKLossAverage.pushBack(helper.loss.item())
-        metadata.stream.print("Loss avg debug:" + str(abs(avg - self.lastKLossAverage.getAverage())), 'debug:0')
-        if(self.canComputeWeights()):
-            self.countWeights += 1
-            self.calcAvgWeightedMean(model)
 
     def __getSmoothedWeights__(self, metadata):
         average = super().__getSmoothedWeights__(metadata)
@@ -734,7 +713,6 @@ class DefaultSmoothingOscilationWeightedMean(SmoothingOscilationBase):
         if(self.only_Key_Ingredients):
             del state['countWeights']
             del state['counter']
-            del state['mainWeights']
             del state['weightsArray']
             del state['enabled']
         return state
@@ -744,7 +722,6 @@ class DefaultSmoothingOscilationWeightedMean(SmoothingOscilationBase):
         if(self.only_Key_Ingredients):
             self.countWeights = 0
             self.counter = 0
-            self.mainWeights = None
             self.weightsArray.reset()
             self.enabled = False
             self.lossContainer.reset()
