@@ -634,6 +634,23 @@ class DefaultSmoothingOscilationMovingMean(_SmoothingOscilationBase):
             self.tensorPrevSum_2.reset()
             self.divisionCounter = 0
 
+class DefaultWeightDecay():
+    def __init__(self, weightDecay = 1.1):
+        self.weightDecay = weightDecay
+
+    def __iter__(self):
+        self.currentWd = 1.0
+        return self
+
+    def __next__(self):
+        x = self.currentWd
+        self.currentWd /= self.weightDecay
+        return x
+
+    def __str__(self):
+        tmp_str = ('Weight decay:\t{}\n'.format(self.weightDecay))
+        return tmp_str
+
 class DefaultSmoothingOscilationWeightedMean(_SmoothingOscilationBase):
     """
     Włącza wygładzanie gdy zostaną spełnione określone warunki:
@@ -644,7 +661,7 @@ class DefaultSmoothingOscilationWeightedMean(_SmoothingOscilationBase):
 
     Liczy średnią ważoną dla wag. Wagi są nadawane względem starości zapamiętanej wagi. Im starsza tym ma mniejszą wagę.
     """
-    def __init__(self, weightDecay=1.1,
+    def __init__(self, weightIter = DefaultWeightDecay(), 
         device = 'cpu', avgOfAvgUpdateFreq = 10, whenCheckCanComputeWeights = 5,
         endSmoothingFreq = 10, softMarginAdditionalLoops = 20, 
         numbOfBatchMaxStart = 3100, numbOfBatchMinStart = 500, epsilon = 1e-3, weightsEpsilon = 1e-6,
@@ -660,7 +677,7 @@ class DefaultSmoothingOscilationWeightedMean(_SmoothingOscilationBase):
         # dane do konfiguracji
 
         # jak bardzo następne wagi w kolejce mają stracić na wartości. Kolejne wagi dzieli się przez wielokrotność tej wartości.
-        self.weightDecay = weightDecay
+        self.weightIter = weightIter
 
         ###############################
 
@@ -668,9 +685,11 @@ class DefaultSmoothingOscilationWeightedMean(_SmoothingOscilationBase):
         self.weightsArray = CircularList(weightsArraySize) 
 
     def __strAppend__(self):
-        str_tmp = super().__strAppend__()
-        tmp_str += ('Weight decay:\t{}\n'.format(self.weightDecay))
-        return str_tmp
+        tmp_str = super().__strAppend__()
+        tmp_str += ('\nStart inner {} class\n+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++\n'.format(type(self.weightIter).__name__))
+        tmp_str += str(self.weightIter)
+        tmp_str += ('+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++\nEnd inner {} class\n'.format(type(self.weightIter).__name__))
+        return tmp_str
 
     def calcMean(self, model):
         with torch.no_grad():
@@ -692,13 +711,13 @@ class DefaultSmoothingOscilationWeightedMean(_SmoothingOscilationBase):
                 average[key] = torch.zeros_like(val, requires_grad=False, device=self.device)
             break
 
-        weight = 1.0
+        iterWg = iter(self.weightIter)
         wgSum = 0.0
         for wg in self.weightsArray:
+            weight = next(iterWg)
             for key, val in wg.items(): 
                 average[key] += val.mul(weight)
             wgSum += weight 
-            weight /= self.weightDecay
 
         for key, val in average.items():
             val.div_(wgSum)
