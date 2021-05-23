@@ -181,6 +181,7 @@ class DefaultSmoothingBorderline(sf.Smoothing):
     Włącza wygładzanie po przejściu przez określoną ilość iteracji pętli.
     Wygładzanie polega na liczeniu średnich tensorów.
     Wygładzanie włączane jest od momentu wykonania określonej ilości pętli oraz jest liczone od końca iteracji.
+    Liczy średnią arytmetyczną.
     """
     def __init__(self,
         device = 'cpu',
@@ -200,9 +201,8 @@ class DefaultSmoothingBorderline(sf.Smoothing):
         self.countWeights = 0
         self.counter = 0
 
-
     def __isSmoothingGoodEnough__(self, helperEpoch, helper, model, dataMetadata, modelMetadata, metadata):
-        False
+        return False
 
     def __call__(self, helperEpoch, helper, model, dataMetadata, modelMetadata, metadata):
         super().__call__(helperEpoch, helper, model, dataMetadata, modelMetadata, metadata)
@@ -431,7 +431,7 @@ class DefaultSmoothingOscilationGeneralizedMean(_SmoothingOscilationBase):
         a średnią średnich N ostatnich strat treningowych modelu jest mniejsza niż epsilon.
     - po przekroczeniu pewnej maksymalnej ilości iteracji pętli.
 
-    Liczy średnią generalizowaną dla wag.
+    Liczy średnią generalizowaną dla wag (domyślne średnia arytmetyzna).
     """
     def __init__(self, generalizedMeanPower = 1,
         device = 'cpu', avgOfAvgUpdateFreq = 10, whenCheckCanComputeWeights = 5,
@@ -591,7 +591,7 @@ class DefaultSmoothingOscilationMovingMean(_SmoothingOscilationBase):
     def calcMean(self, model):
         with torch.no_grad():
             for key, val in model.getNNModelModule().named_parameters():
-                self.weightsSum[key] = self.weightsSum[key].mul_(self.movingAvgTensorHigh).add_(val.to(self.device).mul_(self.movingAvgTensorLow))
+                self.weightsSum[key] = self.weightsSum[key].mul_(self.movingAvgTensorHigh).add_(val.mul(self.movingAvgTensorLow))
 
     def __getSmoothedWeights__(self, metadata):
         average = super().__getSmoothedWeights__(metadata)
@@ -644,7 +644,7 @@ class DefaultSmoothingOscilationWeightedMean(_SmoothingOscilationBase):
 
     Liczy średnią ważoną dla wag. Wagi są nadawane względem starości zapamiętanej wagi. Im starsza tym ma mniejszą wagę.
     """
-    def __init__(self, weightDecay=1.5,
+    def __init__(self, weightDecay=1.1,
         device = 'cpu', avgOfAvgUpdateFreq = 10, whenCheckCanComputeWeights = 5,
         endSmoothingFreq = 10, softMarginAdditionalLoops = 20, 
         numbOfBatchMaxStart = 3100, numbOfBatchMinStart = 500, epsilon = 1e-3, weightsEpsilon = 1e-6,
@@ -668,7 +668,9 @@ class DefaultSmoothingOscilationWeightedMean(_SmoothingOscilationBase):
         self.weightsArray = CircularList(weightsArraySize) 
 
     def __strAppend__(self):
-        return super().__strAppend__()
+        str_tmp = super().__strAppend__()
+        tmp_str += ('Weight decay:\t{}\n'.format(self.weightDecay))
+        return str_tmp
 
     def calcMean(self, model):
         with torch.no_grad():

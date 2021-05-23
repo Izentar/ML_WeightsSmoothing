@@ -1,4 +1,7 @@
-from framework.test.CircularList import run
+from framework.test.test_DefaultClasses import *
+import unittest
 
 if __name__ == "__main__":
-    run()
+    #sf.useDeterministic()
+    unittest.main()
+    #run()

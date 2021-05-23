@@ -1518,6 +1518,7 @@ def printClassToLog(metadata, *obj):
     where = ['debug:0', 'model:0']
     metadata.stream.print(str(metadata), where)
     for o in obj:
+        print('AAAAAAAAAAAAa', type(o))
         metadata.stream.print(str(o), where)
 
 def modelRun(Metadata_Class, Data_Metadata_Class, Model_Metadata_Class, Data_Class, Model_Class, Smoothing_Class, modelObj = None, load = True, save = True,
