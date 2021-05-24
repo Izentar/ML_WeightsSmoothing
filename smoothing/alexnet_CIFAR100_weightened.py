@@ -10,7 +10,7 @@ import torchvision.models as models
 from framework import defaultClasses as dc
 
 if(__name__ == '__main__'):
-    #sf.StaticData.TEST_MODE = True
+    sf.StaticData.TEST_MODE = True
     torch.backends.cudnn.benchmark = True
     obj = models.alexnet()
 

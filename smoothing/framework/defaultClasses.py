@@ -754,10 +754,9 @@ class DefaultSmoothingOscilationWeightedMean(_SmoothingOscilationBase):
 
 
 class DefaultData(sf.Data):
-    def __init__(self,
-        statLogName = 'statLossTest'):
+    def __init__(self):
         super().__init__()
-        self.statLogName = statLogName
+        self.testAlias = 'statLossTest_normal'
 
     def __customizeState__(self, state):
         super().__customizeState__(state)
@@ -801,7 +800,6 @@ class DefaultData(sf.Data):
 
     def __beforeTrainLoop__(self, helperEpoch: 'EpochDataContainer', helper, model: 'Model', dataMetadata: 'Data_Metadata', modelMetadata: 'Model_Metadata', metadata: 'Metadata', smoothing: 'Smoothing'):
         helper.tmp_sumLoss = 0.0
-        metadata.stream.print("Loss", ['statLossTrain'])
 
     def __beforeTrain__(self, helperEpoch: 'EpochDataContainer', helper, model: 'Model', dataMetadata: 'Data_Metadata', modelMetadata: 'Model_Metadata', metadata: 'Metadata', smoothing: 'Smoothing'):
         helper.inputs, helper.labels = helper.inputs.to(modelMetadata.device), helper.labels.to(modelMetadata.device)
@@ -828,7 +826,6 @@ class DefaultData(sf.Data):
 
     def __beforeTestLoop__(self, helperEpoch: 'EpochDataContainer', helper, model: 'Model', dataMetadata: 'Data_Metadata', modelMetadata: 'Model_Metadata', metadata: 'Metadata', smoothing: 'Smoothing'):
         metadata.stream.print("\n\ntestLoop;\nAverage test time;Loop test time;Accuracy;Avg loss", ['stat'])
-        #metadata.stream.print('\n\nTest loss', ['statLossTest'])
 
     def __beforeTest__(self, helperEpoch: 'EpochDataContainer', helper, model: 'Model', dataMetadata: 'Data_Metadata', modelMetadata: 'Model_Metadata', metadata: 'Metadata', smoothing: 'Smoothing'):
         helper.inputs = helper.inputs.to(modelMetadata.device)
@@ -836,7 +833,7 @@ class DefaultData(sf.Data):
 
     def __afterTest__(self, helperEpoch: 'EpochDataContainer', helper, model: 'Model', dataMetadata: 'Data_Metadata', modelMetadata: 'Model_Metadata', metadata: 'Metadata', smoothing: 'Smoothing'):
         super().__afterTest__(helperEpoch, helper, model, dataMetadata, modelMetadata, metadata, smoothing)
-        metadata.stream.print(helper.test_loss, self.statLogName)
+        metadata.stream.print(helper.test_loss, self.testAlias)
 
     def __afterTestLoop__(self, helperEpoch: 'EpochDataContainer', helper, model: 'Model', dataMetadata: 'Data_Metadata', modelMetadata: 'Model_Metadata', metadata: 'Metadata', smoothing: 'Smoothing'):
         lossRatio = helper.testLossSum / helper.predSizeSum
@@ -846,14 +843,10 @@ class DefaultData(sf.Data):
         metadata.stream.print(f" Time to complete the entire loop ({helper.timer.getUnits()}): {helper.loopTimer.getDiff():>3f}\n", ['model:0'])
         metadata.stream.print(f"{helper.timer.getAverage()};{helper.loopTimer.getDiff()};{(correctRatio):>0.0001f};{lossRatio:>8f}", ['stat'])
 
-    def __beforeEpochLoop__(self, helperEpoch: 'EpochDataContainer', model: 'Model', dataMetadata: 'Data_Metadata', modelMetadata: 'Model_Metadata', metadata: 'Metadata', smoothing: 'Smoothing'):
-        metadata.stream.open(outputType="formatedLog", alias='statLossTrain', pathName='statLossTrain')
-        metadata.stream.open(outputType="formatedLog", alias='statLossTest', pathName='statLossTest')
-        metadata.stream.open(outputType="formatedLog", alias='statLossTestSmoothing', pathName='statLossTestSmoothing')
-
     def __epoch__(self, helperEpoch: 'EpochDataContainer', model: 'Model', dataMetadata: 'Data_Metadata', 
         modelMetadata: 'Model_Metadata', metadata: 'Metadata', smoothing: 'Smoothing'):
         if(metadata.shouldTrain()):
+            helperEpoch.currentLoopTimeAlias = 'loopTrainTime'
             self.trainLoop(model, helperEpoch, dataMetadata, modelMetadata, metadata, smoothing)
         
         if(sf.enabledSaveAndExit()):
@@ -861,17 +854,15 @@ class DefaultData(sf.Data):
 
         with torch.no_grad():
             if(metadata.shouldTest()):
-                #metadata.stream.write("Plain weights, ")
-                #metadata.stream.write("Plain weights;", 'stat')
+
+                helperEpoch.currentLoopTimeAlias = 'loopTestTime_normal'
                 self.testLoop(helperEpoch, model, dataMetadata, modelMetadata, metadata, smoothing)
                 smoothing.saveWeights(model.getNNModelModule().named_parameters(), 'main')
                 wg = smoothing.__getSmoothedWeights__(metadata)
                 if(wg):
-                    #metadata.stream.print("Smoothing:", 'statLossTest')
                     model.setWeights(wg)
-                    #metadata.stream.write("Smoothing weights, ")
-                    #metadata.stream.write("Smoothing weights;", 'stat')
-                    self.statLogName = 'statLossTestSmoothing'
+                    helperEpoch.currentLoopTimeAlias = 'loopTestTime_smooothing'
+                    self.testAlias = 'statLossTest_smooothing'
                     self.testLoop(helperEpoch, model, dataMetadata, modelMetadata, metadata, smoothing)
                     model.setWeights(smoothing.getWeights('main'))
                 else:

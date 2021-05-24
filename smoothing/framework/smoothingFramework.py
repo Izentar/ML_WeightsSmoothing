@@ -196,6 +196,7 @@ class Metadata(SaveClass, BaseMainClass):
         self.bashFlag = False
         self.name = None
         self.formatedOutput = None
+        self.loopTimeOutput = None
 
         self.logFolderSuffix = None
 
@@ -268,11 +269,19 @@ class Metadata(SaveClass, BaseMainClass):
 
     def prepareOutput(self):
         """
-        Spróbowano stworzyć aliasy:
-        debug:0
-        model:0
-        stat
-        oraz spróbowano otworzyć tryb 'bash'
+        Spróbowano stworzyć alias:
+            debug:0
+        Stworzono aliasy:
+            model:0
+            stat
+            loopTrainTime
+            loopTestTime_normal
+            loopTestTime_smooothing
+            statLossTrain
+            statLossTest_normal
+            statLossTest_smooothing
+        oraz otwarto tryb 
+            'bash'
         """
         if(self.noPrepareOutput):
             return
@@ -281,14 +290,17 @@ class Metadata(SaveClass, BaseMainClass):
             self.stream = Output(self.logFolderSuffix)
 
         if(self.debugInfo == True):
-            if(self.debugOutput is not None):
-                self.stream.open('debug', 'debug:0', self.debugOutput)
-        if(self.modelOutput is not None):
-            self.stream.open('model', 'model:0', self.modelOutput)
-        if(self.bashFlag == True):
-            self.stream.open('bash')
-        if(self.formatedOutput is not None):
-            self.stream.open('formatedLog', 'stat', self.formatedOutput)
+            self.stream.open('debug', 'debug:0', 'debug')
+        self.stream.open('model', 'model:0', 'model')
+        self.stream.open('bash')
+        self.stream.open('formatedLog', 'stat', 'statistics')
+        self.stream.open('formatedLog', 'loopTrainTime', 'loopTrainTime')
+        self.stream.open('formatedLog', 'loopTestTime_normal', 'loopTestTime_normal')
+        self.stream.open('formatedLog', 'loopTestTime_smooothing', 'loopTestTime_smooothing')
+
+        self.stream.open('formatedLog', 'statLossTrain', 'statLossTrain')
+        self.stream.open('formatedLog', 'statLossTest_normal', 'statLossTest_normal')
+        self.stream.open('formatedLog', 'statLossTest_smooothing', 'statLossTest_smooothing')
         Output.printBash('Default outputs prepared.', 'info')
 
         self.noPrepareOutput = True
@@ -447,6 +459,7 @@ class Output(SaveClass):
 
         self.folderSuffix = folderSuffix
         self.folderInstanceStr = None
+        self.currentDefaultAlias = None
 
     def __getstate__(self):
         state = self.__dict__.copy()
@@ -454,6 +467,13 @@ class Output(SaveClass):
 
     def __setstate__(self, state):
         self.__dict__.update(state)
+
+    def setDefaultAlias(self, name):
+        if(name not in self.aliasToFH):
+            self.printBash("Setting default alias in Output failed. Could not find '{}' in existing list: {}".format(name, list(self.aliasToFH.keys())), 'warn')
+            return False
+        self.currentDefaultAlias = name
+        return True
 
     def __open(self, alias, pathName, outputType):
         if(alias in self.aliasToFH and self.aliasToFH[alias].exist()):
@@ -472,21 +492,21 @@ class Output(SaveClass):
         if((outputType != 'debug' and outputType != 'model' and outputType != 'bash' and outputType != 'formatedLog') or outputType is None):
             if(warnings()):
                 Output.printBash("Unknown command in open for Output class.", 'warn')
-            return
+            return False
 
         if(alias == 'debug' or alias == 'model' or alias == 'bash' or alias == 'formatedLog'):
             if(warnings()):
                 Output.printBash("Alias cannot have the same name as output configuration in open for Output class.", 'warn')
-            return
+            return False
 
         if(outputType == 'bash'):
             self.bash = True
-            return
+            return True
 
         if(alias is None):
             if(warnings()):
                 Output.printBash("Alias is None but the output is not 'bash'; it is: {}.".format(outputType), 'warn')
-            return
+            return False
 
         if(pathName is not None):
             pathName = self.createLogFolder() + pathName
@@ -500,14 +520,14 @@ class Output(SaveClass):
                                 raise Exception("Output for type 'formatedLog' for provided pathName can have only one instance. For this pathName file in different mode is already opened.")
                             self.filesDict[pathName][outputType] = self.filesDict[pathName][list(self.filesDict[pathName].keys())[-1]].counterUp().addOType(outputType)
                             self.aliasToFH[alias] = self.filesDict[pathName][outputType]
-                            return
+                            return True
                         else:
                             del val
             self.__open(alias, pathName, outputType)
         else:
             if(warnings()):
                 Output.printBash("For this '{}' Output type pathName should not be None.".format(outputType), 'warn')
-            return
+            return True
     
     def createLogFolder(self):
         if(self.folderInstanceStr is None):
@@ -533,7 +553,7 @@ class Output(SaveClass):
             Output.printBash("Unrecognized mode in Output.printBash method. Printing without prefix.", 'warn')
         return prefix
 
-    def write(self, arg, alias: list = None, ignore = False, end = '', mode: str = None):
+    def write(self, arg, alias: list = None, ignoreWarnings = False, end = '', mode: str = None):
         """
         Przekazuje argument do wszystkich możliwych, aktywnych strumieni wyjściowych.\n
         Na końcu argumentu nie daje znaku nowej linii.
@@ -554,16 +574,26 @@ class Output(SaveClass):
                     self.aliasToFH[al].get().write(str(arg) + end)
                     if('formatedLog' in self.aliasToFH[al].OType):
                         prBash = False
-                elif(warnings() and not (ignore or StaticData.IGNORE_IO_WARNINGS)):
+                elif(warnings() and not (ignoreWarnings or StaticData.IGNORE_IO_WARNINGS)):
                     print("WARNING: Output alias for 'write / print' not found: '{}'".format(al), end=end)
                     print(al, self.aliasToFH.keys())
                 
-    def print(self, arg, alias: list = None, ignore = False, mode: str = None):
+    def print(self, arg, alias: list = None, ignoreWarnings = False, mode: str = None):
         """
         Przekazuje argument do wszystkich możliwych, aktywnych strumieni wyjściowych.\n
         Na końcu argumentu dodaje znak nowej linii.
         """
-        self.write(arg, alias, ignore, '\n', mode)
+        self.write(arg, alias, ignoreWarnings, '\n', mode)
+
+    def writeDefault(self, arg, ignoreWarnings = False, end = '', mode: str = None):
+        if(self.currentDefaultAlias is None):
+            self.printBash("Default output alias not set but called 'writeDefault'.", 'warn')
+        self.write(arg, alias=self.currentDefaultAlias, ignoreWarnings=ignoreWarnings, end=end, mode=mode)
+        
+    def printDefault(self, arg, ignoreWarnings = False, mode: str = None):
+        if(self.currentDefaultAlias is None):
+            self.printBash("Default output alias not set but called 'printDefault'.", 'warn')
+        self.print(arg, alias=self.currentDefaultAlias, ignoreWarnings=ignoreWarnings, mode=mode)
 
     def __del__(self):
         for _, fh in self.aliasToFH.items():
@@ -795,6 +825,7 @@ class EpochDataContainer():
     def __init__(self):
         self.epochNumber = None
         self.returnObj = None
+        self.currentLoopTimeAlias = None
         self.loopsState = LoopsState()
         self.statistics = Statistics()
 
@@ -1020,6 +1051,11 @@ class Data(SaveClass, BaseMainClass):
             self.__train__(helperEpoch, self.trainHelper, model, dataMetadata, modelMetadata, metadata, smoothing)
 
             self.trainHelper.timer.end()
+            if(helperEpoch.currentLoopTimeAlias is None and warnings()):
+                Output.printBash("Alias for test loop file was not set. Variable helperEpoch.currentLoopTimeAlias may be set" +
+                " as:\n\t'loopTestTime_normal'\n\t'loopTestTime_smooothing'\n\t'loopTrainTime'\n", 'warn')
+            else:
+                metadata.stream.print(self.trainHelper.timer.getDiff() , helperEpoch.currentLoopTimeAlias)
             self.trainHelper.timer.addToStatistics()
 
             self.__afterTrain__(helperEpoch, self.trainHelper, model, dataMetadata, modelMetadata, metadata, smoothing)
@@ -1099,6 +1135,11 @@ class Data(SaveClass, BaseMainClass):
                 self.testHelper.timer.start()
                 self.__test__(helperEpoch, self.testHelper, model, dataMetadata, modelMetadata, metadata, smoothing)
                 self.testHelper.timer.end()
+                if(helperEpoch.currentLoopTimeAlias is None and warnings()):
+                    Output.printBash("Alias for test loop file was not set. Variable helperEpoch.currentLoopTimeAlias may be set" +
+                    " as:\n\t'loopTestTime_normal'\n\t'loopTestTime_smooothing'\n\t'loopTrainTime'\n", 'warn')
+                else:
+                    metadata.stream.print(self.testHelper.timer.getDiff() , helperEpoch.currentLoopTimeAlias)
                 self.testHelper.timer.addToStatistics()
 
                 self.testHelper.predSizeSum += labels.size(0)
@@ -1510,6 +1551,9 @@ def commandLineArg(metadata, dataMetadata, modelMetadata, argv, enableLoad = Tru
     if(metadata.formatedOutput is None):
         metadata.formatedOutput = 'default_formatedOutput' 
     
+    if(metadata.loopTimeOutput is None):
+        metadata.loopTimeOutput = 'default_loopTime'
+
     metadata.noPrepareOutput = False
 
     return metadata, False
