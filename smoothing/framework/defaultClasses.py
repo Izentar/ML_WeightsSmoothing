@@ -303,11 +303,11 @@ class _SmoothingOscilationBase(sf.Smoothing):
 
         if(sf.test_mode.isActivated()):
             # po ilu maksymalnie iteracjach wygładzanie powinno zostać włączone
-            self.numbOfBatchMaxStart = sf.StaticData.MAX_TEST_LOOPS - 10 if sf.StaticData.MAX_TEST_LOOPS - 10 >= 0 else 0
+            self.numbOfBatchMaxStart = sf.StaticData.MAX_DEBUG_LOOPS - 10 if sf.StaticData.MAX_DEBUG_LOOPS - 10 >= 0 else 0
 
             # minimalna ilość iteracji po których wygładzanie może zostać włączone
             # zapobiega problemom: mała ilośc zgromadzonych danych => niemiarodajne wyniki dla średnich =? zbyt wczesne zatrzymanie treningu
-            self.numbOfBatchMinStart = sf.StaticData.MAX_TEST_LOOPS - 30 if sf.StaticData.MAX_TEST_LOOPS - 30 >= 0 else 0
+            self.numbOfBatchMinStart = sf.StaticData.MAX_DEBUG_LOOPS - 30 if sf.StaticData.MAX_DEBUG_LOOPS - 30 >= 0 else 0
             self.epsilon = test_epsilon # kiedy można uzać, że wygładzania powinno zostać włączone 
             self.weightsEpsilon = test_weightsEpsilon # kiedy można uznać, że wygładzanie powinno zostać zakończone wraz z zakończeniem pętli treningowej.
         else:

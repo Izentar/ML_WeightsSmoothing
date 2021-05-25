@@ -6,16 +6,13 @@ import torch.nn.functional as F
 import torch.optim as optim
 import os, sys, getopt
 from os.path import expanduser
-import statistics
 import signal
 from datetime import datetime
 import time
-import copy as cp
 import random
-from torch.utils.data.dataloader import Sampler
-import torchvision.models as models
 from pathlib import Path
 import pandas as pd
+import errno
 
 import matplotlib.pyplot as plt
 import numpy
@@ -80,7 +77,7 @@ class StaticData:
     LOG_FOLDER = './savedLogs/'
     IGNORE_IO_WARNINGS = False
     TEST_MODE = False
-    MAX_TEST_LOOPS = 51
+    MAX_DEBUG_LOOPS = 51
 
 class SaveClass:
     def __init__(self):
@@ -196,7 +193,6 @@ class Metadata(SaveClass, BaseMainClass):
         self.bashFlag = False
         self.name = None
         self.formatedOutput = None
-        self.loopTimeOutput = None
 
         self.logFolderSuffix = None
 
@@ -398,12 +394,21 @@ class Timer(SaveClass):
         return False
 
 class Output(SaveClass):
-
+    """
+    Instancja tego obiektu odpowiada instancji jednego folderu, w którym będą się znajdowały wszystkie otwarte pliki.
+    """
     class FileHandler():
-        def __init__(self, fullPathName, mode, OType):
-            self.handler = open(fullPathName, mode)
+        def __init__(self, root, pathName, mode, OType):
+            if not os.path.exists(os.path.dirname(root + pathName)):
+                try:
+                    os.makedirs(os.path.dirname(filename))
+                except OSError as exc: # Guard against race condition
+                    if exc.errno != errno.EEXIST:
+                        raise
+
+            self.handler = open(root + pathName, mode)
             self.counter = 1
-            self.pathName = fullPathName
+            self.pathName = pathName
             self.mode = mode
             self.OType = [OType]
 
@@ -458,7 +463,7 @@ class Output(SaveClass):
         Path(StaticData.LOG_FOLDER).mkdir(parents=True, exist_ok=True)
 
         self.folderSuffix = folderSuffix
-        self.folderInstanceStr = None
+        self.root = None
         self.currentDefaultAlias = None
 
     def __getstate__(self):
@@ -475,7 +480,7 @@ class Output(SaveClass):
         self.currentDefaultAlias = name
         return True
 
-    def __open(self, alias, pathName, outputType):
+    def __open(self, alias, root, pathName, outputType):
         if(alias in self.aliasToFH and self.aliasToFH[alias].exist()):
             if(warnings()):
                 Output.printBash("Provided alias '{}' with opened file already exist: {}.".format(alias, outputType), 'This may be due to loaded Metadata object.',
@@ -484,7 +489,7 @@ class Output(SaveClass):
         suffix = '.log'
         if(outputType == 'formatedLog'):
             suffix = '.csv'
-        fh = self.FileHandler(pathName + suffix, 'a', outputType)
+        fh = self.FileHandler(root, pathName + suffix, 'a', outputType)
         self.filesDict[pathName] = {outputType: fh}
         self.aliasToFH[alias] = fh
 
@@ -509,7 +514,7 @@ class Output(SaveClass):
             return False
 
         if(pathName is not None):
-            pathName = self.createLogFolder() + pathName
+            root = self.createLogFolder()
             if(pathName in self.filesDict):
                 if(outputType in self.filesDict[pathName] and self.filesDict[pathName][outputType].exist()):
                     pass # do nothing, already opened
@@ -523,21 +528,21 @@ class Output(SaveClass):
                             return True
                         else:
                             del val
-            self.__open(alias, pathName, outputType)
+            self.__open(alias, root, pathName, outputType)
         else:
             if(warnings()):
                 Output.printBash("For this '{}' Output type pathName should not be None.".format(outputType), 'warn')
             return True
     
     def createLogFolder(self):
-        if(self.folderInstanceStr is None):
+        if(self.root is None):
             dt_string = datetime.now().strftime("%d.%m.%Y_%H-%M-%S_")
             prfx = self.folderSuffix if self.folderSuffix is not None else ""
             path = StaticData.LOG_FOLDER + "/" + str(dt_string) + prfx + "/"
             Path(path).mkdir(parents=True, exist_ok=False)
-            self.folderInstanceStr = path
+            self.root = path
             return path
-        return self.folderInstanceStr
+        return self.root
 
     def __getPrefix(mode):
         prefix = ''
@@ -594,6 +599,18 @@ class Output(SaveClass):
         if(self.currentDefaultAlias is None):
             self.printBash("Default output alias not set but called 'printDefault'.", 'warn')
         self.print(arg, alias=self.currentDefaultAlias, ignoreWarnings=ignoreWarnings, mode=mode)
+
+    def getFileName(self, alias):
+        if(alias in self.aliasToFH):
+            return os.path.basename(self.aliasToFH[alias].handler.name)
+        self.printBash("Could not find alias '{}' in opened files.".format(alias), 'warn')
+        return None
+
+    def getRelativeFilePath(self, alias):
+        if(alias in self.aliasToFH):
+            return self.aliasToFH[alias].handler.name
+        self.printBash("Could not find alias '{}' in opened files.".format(alias), 'warn')
+        return None
 
     def __del__(self):
         for _, fh in self.aliasToFH.items():
@@ -836,6 +853,13 @@ class Statistics():
     def __init__(self):
         super().__init__()
         self.logFolder = None # folder w którym zapisują się logi
+        self.plotBatches = {} # słownik {nazwa_nowego_pliku: [lista_nazw_plików_do_przeczytania]}
+
+    def printPlots(self, fileFormat = '.svg', dpi = 900):
+        for name, val in self.plotBatches.items():
+            if(val is None):
+                Output.printBash("Some of the files to plot were not properly created. Instance ignored. Method Statistics.printPlots", 'warn')
+            plot(val, name=name, plotRoot=self.logFolder, fileFormat=fileFormat, dpi=dpi)
 
 class Data(SaveClass, BaseMainClass):
     """
@@ -1037,7 +1061,7 @@ class Data(SaveClass, BaseMainClass):
                 self.__trainLoopExit__(helperEpoch, self.trainHelper, model, dataMetadata, modelMetadata, metadata, smoothing)
                 return
 
-            if(StaticData.TEST_MODE and batch >= StaticData.MAX_TEST_LOOPS):
+            if(StaticData.TEST_MODE and batch >= StaticData.MAX_DEBUG_LOOPS):
                 break
             
             self.__beforeTrain__(helperEpoch, self.trainHelper, model, dataMetadata, modelMetadata, metadata, smoothing)
@@ -1126,7 +1150,7 @@ class Data(SaveClass, BaseMainClass):
                     self.__testLoopExit__(helperEpoch, self.testHelper, model, dataMetadata, modelMetadata, metadata, smoothing)
                     return
 
-                if(StaticData.TEST_MODE and batch >= StaticData.MAX_TEST_LOOPS):
+                if(StaticData.TEST_MODE and batch >= StaticData.MAX_DEBUG_LOOPS):
                     break
 
                 self.__beforeTest__(helperEpoch, self.testHelper, model, dataMetadata, modelMetadata, metadata, smoothing)
@@ -1176,7 +1200,7 @@ class Data(SaveClass, BaseMainClass):
     def epochLoop(self, model: 'Model', dataMetadata: 'Data_Metadata', modelMetadata: 'Model_Metadata', metadata: 'Metadata', smoothing: 'Smoothing'):
         metadata.prepareOutput()
         self.epochHelper = EpochDataContainer()
-        self.epochHelper.statistics.logFolder = metadata.stream.folderInstanceStr
+        self.epochHelper.statistics.logFolder = metadata.stream.root
 
         self.__beforeEpochLoop__(self.epochHelper, model, dataMetadata, modelMetadata, metadata, smoothing)
 
@@ -1195,6 +1219,19 @@ class Data(SaveClass, BaseMainClass):
 
         self.__afterEpochLoop__(self.epochHelper, model, dataMetadata, modelMetadata, metadata, smoothing)
         self.__epochLoopExit__(self.epochHelper, model, dataMetadata, modelMetadata, metadata, smoothing)
+
+        a = metadata.stream.getRelativeFilePath('loopTrainTime')
+        b = metadata.stream.getRelativeFilePath('loopTestTime_normal')
+        c = metadata.stream.getRelativeFilePath('loopTestTime_smooothing')
+        self.epochHelper.statistics.plotBatches['loopTimeTrain'] = [a]
+        self.epochHelper.statistics.plotBatches['loopTimeTest'] = [b, c]
+
+        a = metadata.stream.getRelativeFilePath('statLossTrain')
+        b = metadata.stream.getRelativeFilePath('statLossTest_normal')
+        c = metadata.stream.getRelativeFilePath('statLossTest_smooothing')
+        self.epochHelper.statistics.plotBatches['lossTrain'] = [a]
+        self.epochHelper.statistics.plotBatches['lossTest'] = [b, c]
+
         self.resetEpochState()
         metadata.stream.flushAll()
         stat = self.epochHelper.statistics
@@ -1550,9 +1587,6 @@ def commandLineArg(metadata, dataMetadata, modelMetadata, argv, enableLoad = Tru
 
     if(metadata.formatedOutput is None):
         metadata.formatedOutput = 'default_formatedOutput' 
-    
-    if(metadata.loopTimeOutput is None):
-        metadata.loopTimeOutput = 'default_loopTime'
 
     metadata.noPrepareOutput = False
 
@@ -1564,8 +1598,8 @@ def printClassToLog(metadata, *obj):
     for o in obj:
         metadata.stream.print(str(o), where)
 
-def modelRun(Metadata_Class, Data_Metadata_Class, Model_Metadata_Class, Data_Class, Model_Class, Smoothing_Class, modelObj = None, load = True, save = True,
-    folderLogNameSuffix = None):
+def modelRun(Metadata_Class, Data_Metadata_Class, Model_Metadata_Class, Data_Class, Model_Class, Smoothing_Class, 
+    modelObj = None, load = True, save = True, folderLogNameSuffix = None):
     dictObjs = {}
     dictObjs[Metadata_Class.__name__] = Metadata_Class()
     loadedSuccessful = False
@@ -1663,16 +1697,61 @@ def selectCPU(device, metadata):
         'debug')
     return device
 
-def plot(fileNames: list):
+def plot(filePath: list, name = None, root = None, plotRoot = None, fileFormat = '.svg', dpi = 900, widthTickFreq = 0.05, aspectRatio = 0.5):
     """
     Dane przedstawiane na jednym wykresie powinny być tej samej ilości.
     """
-    if(isinstance(fileNames, str)):
-        fileNames = [fileNames]
-    for fn in fileNames:
+    if(isinstance(filePath, str)):
+        filePath = [filePath]
+
+    if(len(filePath) == 0):
+        Output.printBash("Could not create plot. Input files names are empty.", 'warn')
+        return
+
+    fp = []
+    xleft, xright = [], []
+    ybottom, ytop = [], []
+
+    sampleMaxSize = 0
+    ax = plt.gca()
+    if(root is not None):
+        for fn in filePath:
+            fp.append(root + '/' + fn)
+    else:
+        fp = filePath
+
+    for fn in fp:
         data = pd.read_csv(fn, header=None)
+        if(len(data) > sampleMaxSize):
+            sampleMaxSize = len(data)
         plt.plot(data, label=os.path.basename(fn))
+
+        xleft2, xright2 = ax.get_xlim()
+        xleft.append(xleft2)
+        xright.append(xright2)
+        ybottom2, ytop2 = ax.get_ylim()
+        ybottom.append(ybottom2)
+        ytop.append(ytop2)
+
+    xleft = min(xleft)
+    xright = max(xright)
+    ybottom = min(ybottom)
+    ytop = max(ytop)
+
+    aspect = abs((xright-xleft)/(ybottom-ytop))*aspectRatio
+    ax.set_aspect(aspect)
+    ax.xaxis.set_ticks(numpy.arange(xleft, xright, sampleMaxSize*(widthTickFreq/aspectRatio)))
     plt.legend()
+    plt.grid()
+
+
+    if(name is not None):
+        if(plotRoot is not None):
+            plt.savefig(plotRoot + '/' + name + fileFormat, bbox_inches='tight', dpi=dpi)
+        else:
+            plt.savefig(name + fileFormat, bbox_inches='tight', dpi=dpi)
+        plt.clf()
+        return
     plt.show()
 
 
