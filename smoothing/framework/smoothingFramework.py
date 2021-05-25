@@ -276,6 +276,7 @@ class Metadata(SaveClass, BaseMainClass):
             statLossTrain
             statLossTest_normal
             statLossTest_smooothing
+            weightsSumTrain
         oraz otwarto tryb 
             'bash'
         """
@@ -290,6 +291,7 @@ class Metadata(SaveClass, BaseMainClass):
         self.stream.open('model', 'model:0', 'model')
         self.stream.open('bash')
         self.stream.open('formatedLog', 'stat', 'statistics')
+
         self.stream.open('formatedLog', 'loopTrainTime', 'loopTrainTime')
         self.stream.open('formatedLog', 'loopTestTime_normal', 'loopTestTime_normal')
         self.stream.open('formatedLog', 'loopTestTime_smooothing', 'loopTestTime_smooothing')
@@ -297,6 +299,9 @@ class Metadata(SaveClass, BaseMainClass):
         self.stream.open('formatedLog', 'statLossTrain', 'statLossTrain')
         self.stream.open('formatedLog', 'statLossTest_normal', 'statLossTest_normal')
         self.stream.open('formatedLog', 'statLossTest_smooothing', 'statLossTest_smooothing')
+
+        self.stream.open('formatedLog', 'weightsSumTrain', 'weightsSumTrain')
+
         Output.printBash('Default outputs prepared.', 'info')
 
         self.noPrepareOutput = True
@@ -350,6 +355,9 @@ class Timer(SaveClass):
         if(tmp is not None):
             self.modelTimeSum += self.getDiff()
             self.modelTimeCount += 1
+
+    def getTimeSum(self):
+        return self.modelTimeSum
 
     def clearTime(self):
         self.timeStart = None
@@ -855,11 +863,13 @@ class Statistics():
         self.logFolder = None # folder w którym zapisują się logi
         self.plotBatches = {} # słownik {nazwa_nowego_pliku: [lista_nazw_plików_do_przeczytania]}
 
-    def printPlots(self, fileFormat = '.svg', dpi = 900):
+    def printPlots(self, fileFormat = '.svg', dpi = 900, widthTickFreq = 0.08, aspectRatio = 0.3,
+    startAt = None, resolutionInches = 11.5):
         for name, val in self.plotBatches.items():
             if(val is None):
                 Output.printBash("Some of the files to plot were not properly created. Instance ignored. Method Statistics.printPlots", 'warn')
-            plot(val, name=name, plotRoot=self.logFolder, fileFormat=fileFormat, dpi=dpi)
+            plot(val, name=name, plotRoot=self.logFolder, fileFormat=fileFormat, dpi=dpi, widthTickFreq=widthTickFreq,
+            aspectRatio=aspectRatio, startAt=startAt, resolutionInches=resolutionInches)
 
 class Data(SaveClass, BaseMainClass):
     """
@@ -1081,6 +1091,8 @@ class Data(SaveClass, BaseMainClass):
             else:
                 metadata.stream.print(self.trainHelper.timer.getDiff() , helperEpoch.currentLoopTimeAlias)
             self.trainHelper.timer.addToStatistics()
+            weightsSum = sumAllWeights(dict(model.getNNModelModule().named_parameters()))
+            metadata.stream.print(str(weightsSum), 'weightsSumTrain')
 
             self.__afterTrain__(helperEpoch, self.trainHelper, model, dataMetadata, modelMetadata, metadata, smoothing)
 
@@ -1092,6 +1104,10 @@ class Data(SaveClass, BaseMainClass):
 
         self.__afterTrainLoop__(helperEpoch, self.trainHelper, model, dataMetadata, modelMetadata, metadata, smoothing)
         self.__trainLoopExit__(helperEpoch, self.trainHelper, model, dataMetadata, modelMetadata, metadata, smoothing)
+
+        metadata.stream.print('Train time;', 'stat')
+        metadata.stream.print(str(self.trainHelper.loopTimer.getTimeSum()) + ';', 'stat')
+
         self.trainHelper = None
         
     def __test__(self, helperEpoch: 'EpochDataContainer', helper, model: 'Model', dataMetadata: 'Data_Metadata', modelMetadata: 'Model_Metadata', metadata: 'Metadata', smoothing: 'Smoothing'):
@@ -1231,6 +1247,10 @@ class Data(SaveClass, BaseMainClass):
         c = metadata.stream.getRelativeFilePath('statLossTest_smooothing')
         self.epochHelper.statistics.plotBatches['lossTrain'] = [a]
         self.epochHelper.statistics.plotBatches['lossTest'] = [b, c]
+
+        a = metadata.stream.getRelativeFilePath('weightsSumTrain')
+        self.epochHelper.statistics.plotBatches['weightsSumTrain'] = [a]
+
 
         self.resetEpochState()
         metadata.stream.flushAll()
@@ -1680,6 +1700,13 @@ def moveToDevice(weights: dict, toDevice):
             weights[key] = val.to(toDevice)
         return weights
 
+def sumAllWeights(weights):
+    sumArray = []
+    for val in weights.values():
+        sumArray.append(torch.sum(torch.abs(val)))
+    absSum = torch.sum(torch.stack(sumArray)).item()
+    return absSum
+
 def checkStrCUDA(string):
         return string.startswith('cuda')
 
@@ -1697,9 +1724,10 @@ def selectCPU(device, metadata):
         'debug')
     return device
 
-def plot(filePath: list, name = None, root = None, plotRoot = None, fileFormat = '.svg', dpi = 900, widthTickFreq = 0.05, aspectRatio = 0.5):
+def plot(filePath: list, name = None, fetchedFilesRoot = None, plotRoot = None, fileFormat = '.svg', dpi = 900, widthTickFreq = 0.08, 
+    aspectRatio = 0.3, startAt = None, resolutionInches = 11.5):
     """
-    Dane przedstawiane na jednym wykresie powinny być tej samej ilości.
+    Rozmiar wyjściowej grafiki jest podana wzorem [resolutionInches; resolutionInches / aspectRatio]
     """
     if(isinstance(filePath, str)):
         filePath = [filePath]
@@ -1714,9 +1742,10 @@ def plot(filePath: list, name = None, root = None, plotRoot = None, fileFormat =
 
     sampleMaxSize = 0
     ax = plt.gca()
-    if(root is not None):
+    fig = plt.gcf()
+    if(fetchedFilesRoot is not None):
         for fn in filePath:
-            fp.append(root + '/' + fn)
+            fp.append(fetchedFilesRoot + '/' + fn)
     else:
         fp = filePath
 
@@ -1737,10 +1766,16 @@ def plot(filePath: list, name = None, root = None, plotRoot = None, fileFormat =
     xright = max(xright)
     ybottom = min(ybottom)
     ytop = max(ytop)
+    fig.set_size_inches(resolutionInches/aspectRatio, resolutionInches)
+
+    if(startAt is None):
+        startAt=xleft
 
     aspect = abs((xright-xleft)/(ybottom-ytop))*aspectRatio
-    ax.set_aspect(aspect)
-    ax.xaxis.set_ticks(numpy.arange(xleft, xright, sampleMaxSize*(widthTickFreq/aspectRatio)))
+    #ax.set_aspect(aspect)
+    tmp = sampleMaxSize / widthTickFreq
+    ax.xaxis.set_ticks(numpy.arange(startAt, xright, (sampleMaxSize*widthTickFreq)*aspectRatio))
+    ax.set_xlim(xmin=startAt)
     plt.legend()
     plt.grid()
 

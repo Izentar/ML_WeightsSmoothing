@@ -371,11 +371,7 @@ class _SmoothingOscilationBase(sf.Smoothing):
 
     def _sumAllWeights(self, metadata):
         smWg = self.__getSmoothedWeights__(metadata)
-        sumArray = []
-        for val in smWg.values():
-            sumArray.append(torch.sum(torch.abs(val)))
-        absSum = torch.sum(torch.stack(sumArray)).item()
-        return absSum
+        return sf.sumAllWeights(smWg)
 
     def _smoothingGoodEnoughCheck(self, avg_1, avg_2):
         ret = bool(abs(avg_1 - avg_2) < self.weightsEpsilon)

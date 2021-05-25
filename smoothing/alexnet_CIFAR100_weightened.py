@@ -20,7 +20,7 @@ if(__name__ == '__main__'):
         obj, 
         load=False
         )
-    stat.printPlots()
+    stat.printPlots(startAt=-10)
 
     #sf.plot([stat.logFolder + '/statLossTest.csv', stat.logFolder + '/statLossTestSmoothing.csv'])
 
