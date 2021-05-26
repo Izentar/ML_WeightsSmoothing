@@ -1162,7 +1162,10 @@ class Data(SaveClass, BaseMainClass, BaseLogicClass):
 
             self.__afterTrain__(helperEpoch=helperEpoch, helper=self.trainHelper, model=model, dataMetadata=dataMetadata, modelMetadata=modelMetadata, metadata=metadata, smoothing=smoothing, smoothingMetadata=smoothingMetadata)
 
-            if(smoothing.__isSmoothingGoodEnough__(helperEpoch=helperEpoch, helper=self.trainHelper, model=model, dataMetadata=dataMetadata, modelMetadata=modelMetadata, metadata=metadata, smoothingMetadata=smoothingMetadata)):
+            if(self.trainHelper.smoothingSuccess and smoothing.__isSmoothingGoodEnough__(
+                helperEpoch=helperEpoch, helper=self.trainHelper, model=model, dataMetadata=dataMetadata, 
+                modelMetadata=modelMetadata, metadata=metadata, smoothingMetadata=smoothingMetadata)
+            ):
                 break
 
             self.trainHelper.smoothingSuccess = False
@@ -1394,6 +1397,9 @@ class Smoothing(SaveClass, BaseMainClass, BaseLogicClass):
             None
 
     def __isSmoothingGoodEnough__(self, helperEpoch, helper, model, dataMetadata, modelMetadata, metadata, smoothingMetadata):
+        """
+            Zostaje wywołane tylko wtedy, gdy w danej iteracji pętli pomyślnie wywołano wygładzanie (__call__)
+        """
         raise Exception("Not implemented.")
 
     def getWeights(self, key, toDevice=None, copy = False):

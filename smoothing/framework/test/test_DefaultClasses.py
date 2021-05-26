@@ -211,8 +211,6 @@ class Test_DefaultSmoothing(unittest.TestCase):
 
     def checkSmoothedWeights(self, smoothing, smoothingMetadata, helper, model, metadata, w, b):
         weights = self.setWeightDict(w, b)
-        for _ in range(smoothingMetadata.avgOfAvgUpdateFreq): # aby przejść przez obszar w którym nie wykonuje się aktualizacji wag wygładzania
-            smoothing(helperEpoch=None, helper=helper, model=model, dataMetadata=None, modelMetadata=None, metadata=metadata, smoothingMetadata=smoothingMetadata) 
         self.compareDictTensorToNumpy(iterator=smoothing.__getSmoothedWeights__(smoothingMetadata=smoothingMetadata, metadata=metadata), numpyDict=weights)
 
     def checkOscilation__isSmoothingGoodEnough__(self, avgLoss, avgKLoss, smoothing, smoothingMetadata, helper, model, metadata, booleanIsGood):
@@ -222,37 +220,6 @@ class Test_DefaultSmoothing(unittest.TestCase):
         testCmpPandas(smoothing.__isSmoothingGoodEnough__(helperEpoch=None, helper=helper, model=model, dataMetadata=None, modelMetadata=None, metadata=metadata, smoothingMetadata=smoothingMetadata), 'isSmoothingGoodEnough', booleanIsGood)
 
 class Test__SmoothingOscilationBase(Test_DefaultSmoothing):
-
-    def test__saveAvgSum(self):
-        metadata = sf.Metadata()
-        modelMetadata = TestModel_Metadata()
-        model = TestModel(modelMetadata)
-        smoothingMetadata = dc.DefaultSmoothingOscilationWeightedMean_Metadata()
-
-        smoothing = dc.DefaultSmoothingOscilationWeightedMean(smoothingMetadata=smoothingMetadata)
-        smoothing.__setDictionary__(smoothingMetadata=smoothingMetadata, dictionary=model.getNNModelModule().named_parameters())
-
-        sumAvg = 5
-        smoothing.divisionCounter += 1
-        a, b = smoothing._saveAvgSum(sumAvg)
-        testCmpPandas(a, 'weight_sum', 0)
-        testCmpPandas(b, 'weight_sum', 5.0)
-        sumAvg = 7
-        smoothing.divisionCounter += 1
-        a, b = smoothing._saveAvgSum(sumAvg)
-        testCmpPandas(a, 'weight_sum', 7.0)
-        testCmpPandas(b, 'weight_sum', 5.0)
-        sumAvg = 11
-        smoothing.divisionCounter += 1
-        a, b = smoothing._saveAvgSum(sumAvg)
-        testCmpPandas(a, 'weight_sum', 7.0)
-        testCmpPandas(b, 'weight_sum', 8.0)
-        sumAvg = 13
-        smoothing.divisionCounter += 1
-        a, b = smoothing._saveAvgSum(sumAvg)
-        testCmpPandas(a, 'weight_sum', 10.0)
-        testCmpPandas(b, 'weight_sum', 8.0)
-
     def test__isSmoothingGoodEnough__(self):
         metadata = sf.Metadata()
         metadata.debugInfo = True
@@ -262,7 +229,7 @@ class Test__SmoothingOscilationBase(Test_DefaultSmoothing):
         modelMetadata = TestModel_Metadata()
         model = TestModel(modelMetadata)
         helper = sf.TrainDataContainer()
-        smoothingMetadata = dc.DefaultSmoothingOscilationWeightedMean_Metadata(epsilon=1.0, avgOfAvgUpdateFreq=2, whenCheckCanComputeWeights=1,
+        smoothingMetadata = dc.DefaultSmoothingOscilationWeightedMean_Metadata(epsilon=1.0,
         weightsEpsilon=1.0, numbOfBatchMinStart=1, endSmoothingFreq=2, softMarginAdditionalLoops=1,
         lossContainer=3, lossContainerDelayedStartAt=1, weightsArraySize=3)
 
@@ -335,7 +302,7 @@ class Test_DefaultSmoothingOscilationWeightedMean(Test_DefaultSmoothing):
         model = TestModel(modelMetadata)
         helper = sf.TrainDataContainer()
         smoothingMetadata = dc.DefaultSmoothingOscilationWeightedMean_Metadata(weightIter=dc.DefaultWeightDecay(2), 
-        epsilon=1.0, avgOfAvgUpdateFreq=2, whenCheckCanComputeWeights=1, weightsEpsilon=1.0, numbOfBatchMinStart=1, endSmoothingFreq=2, 
+        epsilon=1.0, weightsEpsilon=1.0, numbOfBatchMinStart=1, endSmoothingFreq=2, 
         softMarginAdditionalLoops=1, lossContainer=3, lossContainerDelayedStartAt=1, weightsArraySize=2)
 
         smoothing = dc.DefaultSmoothingOscilationWeightedMean(smoothingMetadata=smoothingMetadata)
@@ -471,7 +438,7 @@ class Test_DefaultSmoothingOscilationMovingMean(Test_DefaultSmoothing):
         modelMetadata = TestModel_Metadata()
         model = TestModel(modelMetadata)
         helper = sf.TrainDataContainer()
-        smoothingMetadata = dc.DefaultSmoothingOscilationMovingMean_Metadata(movingAvgParam=0.5, epsilon=1.0, avgOfAvgUpdateFreq=2, whenCheckCanComputeWeights=1,
+        smoothingMetadata = dc.DefaultSmoothingOscilationMovingMean_Metadata(movingAvgParam=0.5, epsilon=1.0,
         weightsEpsilon=1.0, numbOfBatchMinStart=1, endSmoothingFreq=2, softMarginAdditionalLoops=1,
         lossContainer=3, lossContainerDelayedStartAt=1)
 
