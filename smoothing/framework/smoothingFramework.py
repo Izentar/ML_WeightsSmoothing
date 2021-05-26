@@ -864,6 +864,8 @@ class TrainDataContainer():
         self.diff = None
         self.inputs = None
         self.labels = None
+        self.smoothingSuccess = False # flaga mówiąca czy wygładzanie wzięło pod uwagę wagi modelu w danej iteracji
+        self.firstSmoothingSuccess = False # flaga zostaje zapalona, gdy po raz pierwszy wygładzanie zostało włączone
 
         self.batchNumber = None # current batch number
         self.loopEnded = False # check if loop ened
@@ -1068,7 +1070,7 @@ class Data(SaveClass, BaseMainClass, BaseLogicClass):
         model.optimizer.step()
 
         # run smoothing
-        smoothing(helperEpoch=helperEpoch, helper=helper, model=model, dataMetadata=dataMetadata, modelMetadata=modelMetadata, smoothingMetadata=smoothingMetadata, metadata=metadata)
+        helper.smoothingSuccess = smoothing(helperEpoch=helperEpoch, helper=helper, model=model, dataMetadata=dataMetadata, modelMetadata=modelMetadata, smoothingMetadata=smoothingMetadata, metadata=metadata)
 
     def setTrainLoop(self, model: 'Model', modelMetadata: 'Model_Metadata', metadata: 'Metadata'):
         helper = TrainDataContainer()
@@ -1148,10 +1150,19 @@ class Data(SaveClass, BaseMainClass, BaseLogicClass):
             weightsSum = sumAllWeights(dict(model.getNNModelModule().named_parameters()))
             metadata.stream.print(str(weightsSum), 'weightsSumTrain')
 
+            if(self.trainHelper.smoothingSuccess):
+                if(self.trainHelper.firstSmoothingSuccess == False):
+                    metadata.stream.print("Successful first smoothing call while train at batch {}".format(batch), ['model:0', 'debug:0'])
+                    self.trainHelper.firstSmoothingSuccess = True
+                else:
+                    metadata.stream.print("Successful smoothing call while train at batch {}".format(batch), 'debug:0')
+
             self.__afterTrain__(helperEpoch=helperEpoch, helper=self.trainHelper, model=model, dataMetadata=dataMetadata, modelMetadata=modelMetadata, metadata=metadata, smoothing=smoothing, smoothingMetadata=smoothingMetadata)
 
             if(smoothing.__isSmoothingGoodEnough__(helperEpoch=helperEpoch, helper=self.trainHelper, model=model, dataMetadata=dataMetadata, modelMetadata=modelMetadata, metadata=metadata, smoothingMetadata=smoothingMetadata)):
                 break
+
+            self.trainHelper.smoothingSuccess = False
 
         self.trainHelper.loopTimer.end()
         self.trainHelper.loopEnded = True
@@ -1357,8 +1368,11 @@ class Smoothing(SaveClass, BaseMainClass, BaseLogicClass):
         self.savedWeights = {}
 
     def __call__(self, helperEpoch, helper, model, dataMetadata, modelMetadata, smoothingMetadata, metadata):
-        if(self.enabled == False):
-            return
+        """
+            Zwraca True jeżeli wygładzanie wzięło pod uwagę wagi modelu.
+            Jeżeli wygładzone wagi nie zostały zmienione, zwraca False. 
+        """
+        return False
 
     def __getSmoothedWeights__(self, smoothingMetadata, metadata):
         """

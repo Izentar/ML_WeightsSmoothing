@@ -171,7 +171,7 @@ class DisabledSmoothing(sf.Smoothing):
 
     def __call__(self, helperEpoch, helper, model, dataMetadata, modelMetadata, metadata, smoothingMetadata):
         super().__call__(helperEpoch=helperEpoch, helper=helper, model=model, dataMetadata=dataMetadata, modelMetadata=modelMetadata, metadata=metadata, smoothingMetadata=smoothingMetadata)
-        return
+        return False
 
     def __getSmoothedWeights__(self, smoothingMetadata, metadata):
         super().__getSmoothedWeights__(smoothingMetadata=smoothingMetadata, metadata=metadata)
@@ -347,9 +347,13 @@ class _SmoothingOscilationBase(sf.Smoothing):
         if(self.counter % smoothingMetadata.avgOfAvgUpdateFreq == 0):
             self.lastKLossAverage.pushBack(helper.loss.item())
         metadata.stream.print("Loss avg diff : " + str(abs(avg - self.lastKLossAverage.getAverage())), 'debug:0')
+
         if(self.canComputeWeights(smoothingMetadata)):
             self.countWeights += 1
             self.calcMean(model=model, smoothingMetadata=smoothingMetadata)
+            return True
+
+        return False
 
     def createDefaultMetadataObj(self):
         return _SmoothingOscilationBase_Metadata()
@@ -408,6 +412,8 @@ class DefaultSmoothingBorderline(sf.Smoothing):
                     #helper.substract[key] = arg.sub(self.previousWeights[key])
                     helper.substract[key] = self.previousWeights[key].sub_(cpuArg).multiply_(-1)
                     self.previousWeights[key].detach().copy_(cpuArg.detach())
+            return True
+        return False
 
     def __getSmoothedWeights__(self, smoothingMetadata, metadata):
         average = super().__getSmoothedWeights__(smoothingMetadata=smoothingMetadata, metadata=metadata)
