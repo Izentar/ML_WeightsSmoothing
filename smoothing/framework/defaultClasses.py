@@ -106,6 +106,33 @@ class DefaultWeightDecay():
         return tmp_str
 
 
+class DefaultValues():
+    device = 'cpu'
+    avgOfAvgUpdateFreq = 10
+    whenCheckCanComputeWeights = 5
+    endSmoothingFreq = 10
+    softMarginAdditionalLoops = 20
+    numbOfBatchMaxStart = 3100
+    numbOfBatchMinStart = 500
+    epsilon = 1e-3
+    hardEpsilon=1e-4
+    weightsEpsilon = 1e-6
+    lossContainer=50
+    lossContainerDelayedStartAt = 25
+
+    test_device = 'cpu'
+    test_avgOfAvgUpdateFreq = 10
+    test_whenCheckCanComputeWeights = 5
+    test_endSmoothingFreq = 10
+    test_softMarginAdditionalLoops = 20
+    test_numbOfBatchMaxStartDifference = 10
+    test_numbOfBatchMinStartDifference = 30
+    test_epsilon = 1e-2
+    test_hardEpsilon=1e-3
+    test_weightsEpsilon = 1e-4
+    test_lossContainer=50
+    test_lossContainerDelayedStartAt = 25
+
 # model classes
 class DefaultModel_Metadata(sf.Model_Metadata):
     def __init__(self,
@@ -226,53 +253,79 @@ class _SmoothingOscilationBase_Metadata(sf.Smoothing_Metadata):
     def __init__(self, 
         device = 'cpu', avgOfAvgUpdateFreq = 10, whenCheckCanComputeWeights = 5,
         endSmoothingFreq = 10, softMarginAdditionalLoops = 20, 
-        numbOfBatchMaxStart = 3100, numbOfBatchMinStart = 500, epsilon = 1e-3, weightsEpsilon = 1e-6,
+        numbOfBatchMaxStart = 3100, numbOfBatchMinStart = 500, 
+        epsilon = 1e-3, hardEpsilon=1e-4, weightsEpsilon = 1e-6,
         lossContainer=50, lossContainerDelayedStartAt = 25,
-        test_epsilon = 1e-2, test_weightsEpsilon = 1e-4):
+
+        test_device = 'cpu', test_avgOfAvgUpdateFreq = 10, test_whenCheckCanComputeWeights = 5,
+        test_endSmoothingFreq = 10, test_softMarginAdditionalLoops = 20, 
+        test_numbOfBatchMaxStartDifference = 10, test_numbOfBatchMinStartDifference = 30, 
+        test_epsilon = 1e-2, test_hardEpsilon=1e-3, test_weightsEpsilon = 1e-4,
+        test_lossContainer=50, test_lossContainerDelayedStartAt = 25):
+        """
+            device - urządzenie na którym ma działać wygładzanie
+            avgOfAvgUpdateFreq - jak częto powinno się zapisywać średnią odnoszącą się do akumulatora straty.
+                Średnia ta jest później porównywana ze średnią N ostatnich zapisanych strat, 
+                która mówi o tym czy nie znaleziono otoczenia minimum lokalnego.
+            whenCheckCanComputeWeights - wartość musi znaleźć się w przeidzale <0, avgOfAvgUpdateFreq]. Musi być integerem.
+            endSmoothingFreq - jak często powinno się sprawdzać, czy wygładzanie jest dostatecznie dobre. Min val = 1.
+            softMarginAdditionalLoops - margines błędu mówiący ile razy __isSmoothingGoodEnough__ powinno dawać pozytywną informację, 
+                zanim można będzie uznać, że wygładzanie jest dostatecznie dobre. Funkcjonuje jako pojemność akumulatora.
+            lossContainerSize - rozmiar kontenera, który trzyma N ostatnich strat modelu.
+            lossContainerDelayedStartAt - dla jak bardzo starych wartości powinno się policzyć średnią przy 
+                porównaniu ze średnią z całego kontenera strat.
+            numbOfBatchMaxStart - po ilu maksymalnie iteracjach wygładzanie powinno zostać włączone.
+            numbOfBatchMinStart - minimalna ilość iteracji po których wygładzanie może zostać włączone.
+            epsilon - kiedy można uzać, że wygładzania powinno zostać włączone dla danej iteracji. Jeżeli warunek nie zostanie
+                spełniony, to możliwe jest, że wygładzanie nie uzwględni nowych wag.
+            hardEpsilon - kiedy wygładzanie powinno zostać włączone pernamentnie, niezależnie od parametru 'epsilon'.
+            weightsEpsilon - kiedy można uznać, że wygładzanie powinno zostać zakończone wraz z zakończeniem pętli treningowej.
+
+            Wartości z dopiskiem test_ są uzywane tylko, gdy włączony jest tryb testowy. 
+            Stworzone jest to po to, aby w łatwy sposób móc przetestować klasę, bez wcześniejszego definiowania od nowa wartości.
+
+            W trybie testowym nstępuje:
+                test_numbOfBatchMaxStartDifference - o ile mniej względem StaticData.MAX_DEBUG_LOOPS powinna wynosić wartość numbOfBatchMaxStart.
+                    Minimalna wartość różnicy to 0.
+                test_numbOfBatchMinStartDifference - o ile mniej względem StaticData.MAX_DEBUG_LOOPS powinna wynosić wartość numbOfBatchMinStart.
+                    Minimalna wartość różnicy to 0.
+        """
 
         super().__init__()
 
-        self.device = device
-
-        # jak częto powinno się zapisywać średnią odnoszącą się do akumulatora straty.
-        # ta średnia jest później porównywana ze średnią N ostatnich zapisanych strat, 
-        # która mówi o tym czy nie znaleziono otoczenia minimum lokalnego
-        self.avgOfAvgUpdateFreq = avgOfAvgUpdateFreq 
-        
-        # wartość musi znaleźć się w przeidzale <0, avgOfAvgUpdateFreq]. Musi być integerem.
-        self.whenCheckCanComputeWeights = whenCheckCanComputeWeights
-
-        # jak często powinno się sprawdzać, czy wygładzanie jest dostatecznie dobre. Min val = 1
-        self.endSmoothingFreq = endSmoothingFreq
-
-        # margines błędu mówiący ile razy __isSmoothingGoodEnough__ powinno dawać pozytywną informację, zanim można
-        # będzie uznać, że wygładzanie jest dostatecznie dobre. Funkcjonuje jako pojemność akumulatora.
-        self.softMarginAdditionalLoops = softMarginAdditionalLoops
-
-        self.lossContainerSize = lossContainer
-
-        # dla jak bardzo starych wartości powinno się policzyć średnią przy porównaniu ze średnią z całego kontenera strat
-        self.lossContainerDelayedStartAt = lossContainerDelayedStartAt 
-
         if(sf.test_mode.isActivated()):
-            # po ilu maksymalnie iteracjach wygładzanie powinno zostać włączone
-            self.numbOfBatchMaxStart = sf.StaticData.MAX_DEBUG_LOOPS - 10 if sf.StaticData.MAX_DEBUG_LOOPS - 10 >= 0 else 0
-
-            # minimalna ilość iteracji po których wygładzanie może zostać włączone
-            # zapobiega problemom: mała ilośc zgromadzonych danych => niemiarodajne wyniki dla średnich =? zbyt wczesne zatrzymanie treningu
-            self.numbOfBatchMinStart = sf.StaticData.MAX_DEBUG_LOOPS - 30 if sf.StaticData.MAX_DEBUG_LOOPS - 30 >= 0 else 0
-            self.epsilon = test_epsilon # kiedy można uzać, że wygładzania powinno zostać włączone 
-            self.weightsEpsilon = test_weightsEpsilon # kiedy można uznać, że wygładzanie powinno zostać zakończone wraz z zakończeniem pętli treningowej.
+            self.device = test_device
+            self.avgOfAvgUpdateFreq = test_avgOfAvgUpdateFreq 
+            self.whenCheckCanComputeWeights = test_whenCheckCanComputeWeights
+            self.endSmoothingFreq = test_endSmoothingFreq
+            self.softMarginAdditionalLoops = test_softMarginAdditionalLoops
+            self.lossContainerSize = test_lossContainer
+            self.lossContainerDelayedStartAt = test_lossContainerDelayedStartAt 
+            self.numbOfBatchMaxStart = sf.StaticData.MAX_DEBUG_LOOPS - test_numbOfBatchMaxStartDifference if \
+                sf.StaticData.MAX_DEBUG_LOOPS - test_numbOfBatchMaxStartDifference >= 0 else 0
+            self.numbOfBatchMinStart = sf.StaticData.MAX_DEBUG_LOOPS - test_numbOfBatchMinStartDifference if \
+                sf.StaticData.MAX_DEBUG_LOOPS - test_numbOfBatchMinStartDifference >= 0 else 0
+            self.epsilon = test_epsilon 
+            self.hardEpsilon = test_hardEpsilon 
+            self.weightsEpsilon = test_weightsEpsilon 
         else:
+            self.device = device
+            self.avgOfAvgUpdateFreq = avgOfAvgUpdateFreq 
+            self.whenCheckCanComputeWeights = whenCheckCanComputeWeights
+            self.endSmoothingFreq = endSmoothingFreq
+            self.softMarginAdditionalLoops = softMarginAdditionalLoops
+            self.lossContainerSize = lossContainer
+            self.lossContainerDelayedStartAt = lossContainerDelayedStartAt
             self.numbOfBatchMaxStart = numbOfBatchMaxStart
             self.numbOfBatchMinStart = numbOfBatchMinStart
             self.epsilon = epsilon
+            self.hardEpsilon = hardEpsilon 
             self.weightsEpsilon = weightsEpsilon
 
         # data validation
-        if(avgOfAvgUpdateFreq <= 1):
+        if(self.avgOfAvgUpdateFreq <= 1):
             raise Exception("Wrong frequency of avgOfAvgUpdateFreq: '{}'".format(self.avgOfAvgUpdateFreq))
-        if(endSmoothingFreq <= 1):
+        if(self.endSmoothingFreq <= 1):
             raise Exception("Wrong frequency of endSmoothingFreq: '{}'".format(self.endSmoothingFreq))
         if(not isinstance(self.whenCheckCanComputeWeights, int)):
             raise Exception("Wrong datatype of whenCheckCanComputeWeights")
@@ -386,7 +439,6 @@ class _SmoothingOscilationBase(sf.Smoothing):
         super().__call__(helperEpoch=helperEpoch, helper=helper, model=model, dataMetadata=dataMetadata, modelMetadata=modelMetadata, metadata=metadata, smoothingMetadata=smoothingMetadata)
         self.counter += 1
         self.lossContainer.pushBack(helper.loss.item())
-        avg = self.lossContainer.getAverage()
         metadata.stream.print("Loss avg diff : " + 
             str(abs(self.lossContainer.getAverage() - self.lossContainer.getAverage(smoothingMetadata.lossContainerDelayedStartAt))), 'debug:0')
 
@@ -505,15 +557,26 @@ class DefaultSmoothingOscilationGeneralizedMean_Metadata(_SmoothingOscilationBas
     def __init__(self, generalizedMeanPower = 1,
         device = 'cpu', avgOfAvgUpdateFreq = 10, whenCheckCanComputeWeights = 5,
         endSmoothingFreq = 10, softMarginAdditionalLoops = 20, 
-        numbOfBatchMaxStart = 3100, numbOfBatchMinStart = 500, epsilon = 1e-3, weightsEpsilon = 1e-6,
+        numbOfBatchMaxStart = 3100, numbOfBatchMinStart = 500, 
+        epsilon = 1e-3, hardEpsilon=1e-4, weightsEpsilon = 1e-6,
         lossContainer=50, lossContainerDelayedStartAt = 25,
-        test_epsilon = 1e-2, test_weightsEpsilon = 1e-4):
+
+        test_device = 'cpu', test_avgOfAvgUpdateFreq = 10, test_whenCheckCanComputeWeights = 5,
+        test_endSmoothingFreq = 10, test_softMarginAdditionalLoops = 20, 
+        test_numbOfBatchMaxStartDifference = 10, test_numbOfBatchMinStartDifference = 30, 
+        test_epsilon = 1e-2, test_hardEpsilon=1e-3, test_weightsEpsilon = 1e-4,
+        test_lossContainer=50, test_lossContainerDelayedStartAt = 25):
 
         super().__init__(device=device, avgOfAvgUpdateFreq=avgOfAvgUpdateFreq, whenCheckCanComputeWeights=whenCheckCanComputeWeights,
         endSmoothingFreq=endSmoothingFreq, softMarginAdditionalLoops=softMarginAdditionalLoops, numbOfBatchMaxStart=numbOfBatchMaxStart,
-        numbOfBatchMinStart=numbOfBatchMinStart, epsilon=epsilon, weightsEpsilon=weightsEpsilon,
+        numbOfBatchMinStart=numbOfBatchMinStart, epsilon=epsilon, hardEpsilon=hardEpsilon, weightsEpsilon=weightsEpsilon,
         lossContainer=lossContainer, lossContainerDelayedStartAt=lossContainerDelayedStartAt,
-        test_epsilon=test_epsilon, test_weightsEpsilon=test_weightsEpsilon)
+        
+        test_device=test_device, test_avgOfAvgUpdateFreq=test_avgOfAvgUpdateFreq, test_whenCheckCanComputeWeights=test_whenCheckCanComputeWeights,
+        test_endSmoothingFreq=test_endSmoothingFreq, test_softMarginAdditionalLoops=test_softMarginAdditionalLoops, test_numbOfBatchMaxStart=test_numbOfBatchMaxStart,
+        test_numbOfBatchMinStart=test_numbOfBatchMinStart, test_epsilon=test_epsilon, test_hardEpsilon=test_hardEpsilon, test_weightsEpsilon=test_weightsEpsilon,
+        test_lossContainer=test_lossContainer, test_lossContainerDelayedStartAt=test_lossContainerDelayedStartAt
+        )
 
         self.generalizedMeanPower = generalizedMeanPower # tylko dla 1 dobrze działa, reszta daje gorsze wyniki, info do opisania
 
@@ -617,15 +680,26 @@ class DefaultSmoothingOscilationMovingMean_Metadata(_SmoothingOscilationBase_Met
     def __init__(self, movingAvgParam = 0.27,
         device = 'cpu', avgOfAvgUpdateFreq = 10, whenCheckCanComputeWeights = 5,
         endSmoothingFreq = 10, softMarginAdditionalLoops = 20, 
-        numbOfBatchMaxStart = 3100, numbOfBatchMinStart = 500, epsilon = 1e-3, weightsEpsilon = 1e-6,
+        numbOfBatchMaxStart = 3100, numbOfBatchMinStart = 500, 
+        epsilon = 1e-3, hardEpsilon=1e-4, weightsEpsilon = 1e-6,
         lossContainer=50, lossContainerDelayedStartAt = 25,
-        test_epsilon = 1e-2, test_weightsEpsilon = 1e-4):
+
+        test_device = 'cpu', test_avgOfAvgUpdateFreq = 10, test_whenCheckCanComputeWeights = 5,
+        test_endSmoothingFreq = 10, test_softMarginAdditionalLoops = 20, 
+        test_numbOfBatchMaxStartDifference = 10, test_numbOfBatchMinStartDifference = 30, 
+        test_epsilon = 1e-2, test_hardEpsilon=1e-3, test_weightsEpsilon = 1e-4,
+        test_lossContainer=50, test_lossContainerDelayedStartAt = 25):
 
         super().__init__(device=device, avgOfAvgUpdateFreq=avgOfAvgUpdateFreq, whenCheckCanComputeWeights=whenCheckCanComputeWeights,
         endSmoothingFreq=endSmoothingFreq, softMarginAdditionalLoops=softMarginAdditionalLoops, numbOfBatchMaxStart=numbOfBatchMaxStart,
-        numbOfBatchMinStart=numbOfBatchMinStart, epsilon=epsilon, weightsEpsilon=weightsEpsilon,
+        numbOfBatchMinStart=numbOfBatchMinStart, epsilon=epsilon, hardEpsilon=hardEpsilon, weightsEpsilon=weightsEpsilon,
         lossContainer=lossContainer, lossContainerDelayedStartAt=lossContainerDelayedStartAt,
-        test_epsilon=test_epsilon, test_weightsEpsilon=test_weightsEpsilon)
+        
+        test_device=test_device, test_avgOfAvgUpdateFreq=test_avgOfAvgUpdateFreq, test_whenCheckCanComputeWeights=test_whenCheckCanComputeWeights,
+        test_endSmoothingFreq=test_endSmoothingFreq, test_softMarginAdditionalLoops=test_softMarginAdditionalLoops, test_numbOfBatchMaxStart=test_numbOfBatchMaxStart,
+        test_numbOfBatchMinStart=test_numbOfBatchMinStart, test_epsilon=test_epsilon, test_hardEpsilon=test_hardEpsilon, test_weightsEpsilon=test_weightsEpsilon,
+        test_lossContainer=test_lossContainer, test_lossContainerDelayedStartAt=test_lossContainerDelayedStartAt
+        )
 
         # movingAvgParam jest parametrem 'a' dla wzoru: S = ax + (1-a)S
         self.movingAvgParam = movingAvgParam
@@ -712,18 +786,28 @@ class DefaultSmoothingOscilationMovingMean(_SmoothingOscilationBase):
 
 # oscilation weighted mean
 class DefaultSmoothingOscilationWeightedMean_Metadata(_SmoothingOscilationBase_Metadata):
-    def __init__(self, weightIter = DefaultWeightDecay(), 
+    def __init__(self, weightIter = DefaultWeightDecay(), weightsArraySize=20,
         device = 'cpu', avgOfAvgUpdateFreq = 10, whenCheckCanComputeWeights = 5,
         endSmoothingFreq = 10, softMarginAdditionalLoops = 20, 
-        numbOfBatchMaxStart = 3100, numbOfBatchMinStart = 500, epsilon = 1e-3, weightsEpsilon = 1e-6,
-        lossContainer=50, lossContainerDelayedStartAt = 25, weightsArraySize=20,
-        test_epsilon = 1e-2, test_weightsEpsilon = 1e-4):
+        numbOfBatchMaxStart = 3100, numbOfBatchMinStart = 500, 
+        epsilon = 1e-3, hardEpsilon=1e-4, weightsEpsilon = 1e-6,
+        lossContainer=50, lossContainerDelayedStartAt = 25,
+
+        test_device = 'cpu', test_avgOfAvgUpdateFreq = 10, test_whenCheckCanComputeWeights = 5,
+        test_endSmoothingFreq = 10, test_softMarginAdditionalLoops = 20, 
+        test_numbOfBatchMaxStartDifference = 10, test_numbOfBatchMinStartDifference = 30, 
+        test_epsilon = 1e-2, test_hardEpsilon=1e-3, test_weightsEpsilon = 1e-4,
+        test_lossContainer=50, test_lossContainerDelayedStartAt = 25):
 
         super().__init__(device=device, avgOfAvgUpdateFreq=avgOfAvgUpdateFreq, whenCheckCanComputeWeights=whenCheckCanComputeWeights,
         endSmoothingFreq=endSmoothingFreq, softMarginAdditionalLoops=softMarginAdditionalLoops, numbOfBatchMaxStart=numbOfBatchMaxStart,
-        numbOfBatchMinStart=numbOfBatchMinStart, epsilon=epsilon, weightsEpsilon=weightsEpsilon,
+        numbOfBatchMinStart=numbOfBatchMinStart, epsilon=epsilon, hardEpsilon=hardEpsilon, weightsEpsilon=weightsEpsilon,
         lossContainer=lossContainer, lossContainerDelayedStartAt=lossContainerDelayedStartAt,
-        test_epsilon=test_epsilon, test_weightsEpsilon=test_weightsEpsilon)
+        
+        test_device=test_device, test_avgOfAvgUpdateFreq=test_avgOfAvgUpdateFreq, test_whenCheckCanComputeWeights=test_whenCheckCanComputeWeights,
+        test_endSmoothingFreq=test_endSmoothingFreq, test_softMarginAdditionalLoops=test_softMarginAdditionalLoops, test_numbOfBatchMaxStart=test_numbOfBatchMaxStart,
+        test_numbOfBatchMinStart=test_numbOfBatchMinStart, test_epsilon=test_epsilon, test_hardEpsilon=test_hardEpsilon, test_weightsEpsilon=test_weightsEpsilon,
+        test_lossContainer=test_lossContainer, test_lossContainerDelayedStartAt=test_lossContainerDelayedStartAt)
 
         # jak bardzo następne wagi w kolejce mają stracić na wartości. Kolejne wagi dzieli się przez wielokrotność tej wartości.
         self.weightIter = weightIter
