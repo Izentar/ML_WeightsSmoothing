@@ -16,6 +16,7 @@ if(__name__ == '__main__'):
     #####################
     types = ('simpleConvModel', 'MINST', 'disabled')
     try:
+        obj = models.alexnet()
         metadata = sf.Metadata(testFlag=True, trainFlag=True, debugInfo=True)
         dataMetadata = dc.DefaultData_Metadata(pin_memoryTest=True, pin_memoryTrain=True)
         
@@ -23,7 +24,7 @@ if(__name__ == '__main__'):
         modelMetadata = dc.DefaultModel_Metadata()
 
         stat=dc.run(modelType=types[0], dataType=types[1], smoothingType=types[2], metadataObj=metadata, 
-            modelMetadata=modelMetadata, dataMetadata=dataMetadata, smoothingMetadata=smoothingMetadata)
+            modelMetadata=modelMetadata, dataMetadata=dataMetadata, smoothingMetadata=smoothingMetadata, modelPredefObj=obj)
         stat.printPlots(startAt=-10)
     except Exception as ex:
         experiments.printException(ex, types)

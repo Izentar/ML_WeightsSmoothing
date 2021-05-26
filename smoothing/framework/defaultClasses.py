@@ -85,7 +85,11 @@ class DefaultModel_Metadata(sf.Model_Metadata):
         tmp_str += ('Model device :\t{}\n'.format(self.device))
         return tmp_str
 
+
 class DefaultModelSimpleConv(sf.Model):
+    """
+    Z powodu jego prostoty i słabych wyników zaleca się go używać podczas testowania sieci.
+    """
     def __init__(self, modelMetadata):
         super().__init__(modelMetadata)
 
