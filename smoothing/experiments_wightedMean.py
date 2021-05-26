@@ -14,7 +14,7 @@ if(__name__ == '__main__'):
     #sf.StaticData.TEST_MODE = True
 
     #####################
-    types = ('simpleConvModel', 'MINST', 'weightedMean')
+    types = ('predefModel', 'MINST', 'weightedMean')
     try:
         obj = models.alexnet()
         metadata = sf.Metadata(testFlag=True, trainFlag=True, debugInfo=True)
@@ -31,7 +31,7 @@ if(__name__ == '__main__'):
 
 
     #####################
-    types = ('simpleConvModel', 'MINST', 'weightedMean')
+    types = ('predefModel', 'MINST', 'weightedMean')
     try:
         obj = models.alexnet()
         metadata = sf.Metadata(testFlag=True, trainFlag=True, debugInfo=True)
@@ -47,7 +47,7 @@ if(__name__ == '__main__'):
         experiments.printException(ex, types)
 
     #####################
-    types = ('simpleConvModel', 'MINST', 'weightedMean')
+    types = ('predefModel', 'MINST', 'weightedMean')
     try:
         obj = models.alexnet()
         metadata = sf.Metadata(testFlag=True, trainFlag=True, debugInfo=True)
@@ -63,7 +63,7 @@ if(__name__ == '__main__'):
         experiments.printException(ex, types)
 
     #####################
-    types = ('simpleConvModel', 'MINST', 'weightedMean')
+    types = ('predefModel', 'MINST', 'weightedMean')
     try:
         obj = models.alexnet()
         metadata = sf.Metadata(testFlag=True, trainFlag=True, debugInfo=True)
@@ -79,7 +79,7 @@ if(__name__ == '__main__'):
         experiments.printException(ex, types)
 
     #####################
-    types = ('simpleConvModel', 'MINST', 'weightedMean')
+    types = ('predefModel', 'MINST', 'weightedMean')
     try:
         obj = models.alexnet()
         metadata = sf.Metadata(testFlag=True, trainFlag=True, debugInfo=True)
@@ -95,7 +95,7 @@ if(__name__ == '__main__'):
         experiments.printException(ex, types)
 
     #####################
-    types = ('simpleConvModel', 'MINST', 'weightedMean')
+    types = ('predefModel', 'MINST', 'weightedMean')
     try:
         obj = models.alexnet()
         metadata = sf.Metadata(testFlag=True, trainFlag=True, debugInfo=True)

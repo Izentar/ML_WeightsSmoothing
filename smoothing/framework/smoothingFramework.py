@@ -1290,7 +1290,7 @@ class Data(SaveClass, BaseMainClass, BaseLogicClass):
         self.__beforeEpochLoop__(helperEpoch=self.epochHelper, model=model, dataMetadata=dataMetadata, modelMetadata=modelMetadata, metadata=metadata, smoothing=smoothing, smoothingMetadata=smoothingMetadata)
 
         for ep, (loopEpoch) in enumerate(range(dataMetadata.epoch)):  # loop over the dataset multiple times
-            if(batch < self.epochNumb): # already iterated
+            if(ep < self.epochNumb): # already iterated
                 continue
             self.epochHelper.epochNumber = ep
             metadata.stream.print(f"\nEpoch {loopEpoch+1}\n-------------------------------")

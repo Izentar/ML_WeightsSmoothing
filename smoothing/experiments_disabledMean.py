@@ -14,7 +14,7 @@ if(__name__ == '__main__'):
     #sf.StaticData.TEST_MODE = True
 
     #####################
-    types = ('simpleConvModel', 'MINST', 'disabled')
+    types = ('predefModel', 'MINST', 'disabled')
     try:
         obj = models.alexnet()
         metadata = sf.Metadata(testFlag=True, trainFlag=True, debugInfo=True)

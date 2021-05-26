@@ -288,7 +288,7 @@ class _SmoothingOscilationBase_Metadata(sf.Smoothing_Metadata):
         tmp_str += ('Epsilon to check when start compute weights:\t{}\n'.format(self.epsilon))
         tmp_str += ('Epsilon to check when weights are good enough to stop:\t{}\n'.format(self.weightsEpsilon))
         tmp_str += ('Loop soft margin:\t{}\n'.format(self.softMarginAdditionalLoops))
-        tmp_str += ('Loss container size:\t{}\n'.format(self.lossContainer))
+        tmp_str += ('Loss container size:\t{}\n'.format(self.lossContainerSize))
         tmp_str += ('Loss container delayed start:\t{}\n'.format(self.lossContainerDelayedStartAt))
         tmp_str += ('Device:\t{}\n'.format(self.device))
         tmp_str += ('When to check if can compute weights (a%b==X):\t{}\n'.format(self.whenCheckCanComputeWeights))
@@ -1079,6 +1079,9 @@ def run(modelType, dataType, smoothingType, metadataObj, modelMetadata, dataMeta
         return
     if(smoothingType not in SmoothingMap):
         sf.Output.printBash("Cannot run test, because smoothing '{}' not found.".format(smoothingType), 'warn')
+        return
+    if(modelPredefObj is not None and modelType != 'predefModel'):
+        sf.Output.printBash("Cannot run test, because modelObj is not None and choosed model type '{}'.".format(modelType), 'warn')
         return
     logFolderSuffix = modelType + '_' + dataType + '_' + smoothingType
     metadataObj.name = logFolderSuffix
