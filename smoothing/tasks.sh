@@ -1,7 +1,7 @@
 #!/bin/bash 
 
 declare -a commands=(
-    "python smoothing/alexnet_CIFAR100_weightened.py -l alexnet_CIFAR100_weightened_load -s alexnet_CIFAR100_weightened_save --log alexnet_CIFAR100_weightened --mname alexnet_CIFAR100_weightened --test true --train true --pinTest false -d --bashOutput true"
+    "python smoothing/experiments.py"
 )
 
 declare -a names=(

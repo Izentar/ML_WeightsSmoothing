@@ -183,28 +183,31 @@ class test_mode():
         return bool(StaticData.TEST_MODE)
 
 class Metadata(SaveClass, BaseMainClass):
-    def __init__(self):
+    def __init__(self, fileNameSave=None, fileNameLoad=None, testFlag=False, trainFlag=False, debugInfo=False, modelOutput=None,
+            debugOutput=None, stream=None, bashFlag=False, name=None, formatedOutput=None, logFolderSuffix=None):
         super().__init__()
-        self.fileNameSave = None
-        self.fileNameLoad = None
+        self.fileNameSave = fileNameSave
+        self.fileNameLoad = fileNameLoad
 
-        self.testFlag = False
-        self.trainFlag = False
+        self.testFlag = testFlag
+        self.trainFlag = trainFlag
 
-        self.debugInfo = False
-        self.modelOutput = None
-        self.debugOutput = None
-        self.stream = None
-        self.bashFlag = False
-        self.name = None
-        self.formatedOutput = None
+        self.debugInfo = debugInfo
+        self.modelOutput = modelOutput
+        self.debugOutput = debugOutput
+        self.stream = stream
+        self.bashFlag = bashFlag
+        self.name = name
+        self.formatedOutput = formatedOutput
 
-        self.logFolderSuffix = None
+        self.logFolderSuffix = logFolderSuffix
 
+        # zmienne wewnętrzne
         self.noPrepareOutput = False
 
     def __strAppend__(self):
-        tmp_str = ('Save path:\t{}\n'.format(StaticData.PATH + self.fileNameSave if self.fileNameSave is not None else 'Not set'))
+        tmp_str = super().__strAppend__()
+        tmp_str += ('Save path:\t{}\n'.format(StaticData.PATH + self.fileNameSave if self.fileNameSave is not None else 'Not set'))
         tmp_str += ('Load path:\t{}\n'.format(StaticData.PATH + self.fileNameLoad if self.fileNameLoad is not None else 'Not set'))
         tmp_str += ('Test flag:\t{}\n'.format(self.testFlag))
         tmp_str += ('Train flag:\t{}\n'.format(self.trainFlag))
@@ -671,6 +674,7 @@ class DefaultMethods():
         del calcLoss
         del current
 
+    # niepotrzebna
     def printWeightDifference(metadata, helper, alias: list = None):
         """
         Potrzebuje\n
@@ -705,6 +709,9 @@ class LoopsState():
         self.popNumbArray = None
 
     def imprint(self, numb, isEnd):
+        """
+        Dodaje do listy numer iteracji pętli oraz to, czy ona się skończyła.
+        """
         if(len(self.popNumbArray) == 1 and self.popNumbArray[0][1] == False):
             self.numbArray[0][0] = numb
             self.numbArray[0][0] = True
@@ -722,6 +729,12 @@ class LoopsState():
             self.popNumbArray = self.numbArray.copy()
 
     def canRun(self):
+        """
+        Sprawdza, czy w buforze występują jeszcze jakieś pętle.
+        Jeżeli dana pętla się skończyła, to zwraca None.
+        Jeżeli dana pętla wykonała się tylko w części, to zwraca wartość od której pętla ma zacząć iterować.
+        Jeżeli bufor jest pusty, to zwraca 0 - wartość od której pętla ma się rozpocząć.
+        """
         if(self.popNumbArray is None):
             raise Exception("State not started")
         if(len(self.popNumbArray) != 0):
@@ -740,23 +753,23 @@ class LoopsState():
 
 
 class Data_Metadata(SaveClass, BaseMainClass):
-    def __init__(self):
+    def __init__(self, worker_seed = 841874, train = True, download = True, pin_memoryTrain = False, pin_memoryTest = False,
+            epoch = 1, batchTrainSize = 4, batchTestSize = 4, howOftenPrintTrain = 2000):
         super().__init__()
 
         # default values:
-        self.worker_seed = 841874
+        self.worker_seed = worker_seed # ziarno dla torch.utils.data.DataLoader - worker_init_fn
         
-        self.train = True
-        self.download = True
-        self.pin_memoryTrain = False
-        self.pin_memoryTest = False
+        self.download = download
+        self.pin_memoryTrain = pin_memoryTrain
+        self.pin_memoryTest = pin_memoryTest
 
-        self.epoch = 1
-        self.batchTrainSize = 4
-        self.batchTestSize = 4
+        self.epoch = epoch
+        self.batchTrainSize = batchTrainSize
+        self.batchTestSize = batchTestSize
 
         # print = batch size * howOftenPrintTrain
-        self.howOftenPrintTrain = 2000
+        self.howOftenPrintTrain = howOftenPrintTrain
 
     def tryPinMemoryTrain(self, metadata, modelMetadata):
         if(torch.cuda.is_available()):
@@ -773,7 +786,7 @@ class Data_Metadata(SaveClass, BaseMainClass):
         return bool(self.pin_memoryTest)
 
     def __strAppend__(self):
-        tmp_str = ('Should train data:\t{}\n'.format(self.train))
+        tmp_str = super().__strAppend__()
         tmp_str += ('Download data:\t{}\n'.format(self.download))
         tmp_str += ('Pin memory train:\t{}\n'.format(self.pin_memoryTrain))
         tmp_str += ('Pin memory test:\t{}\n'.format(self.pin_memoryTest))
@@ -837,8 +850,10 @@ class Smoothing_Metadata(SaveClass, BaseMainClass):
         return False
 
 
-
 class TrainDataContainer():
+    """
+    trainHelper
+    """
     def __init__(self):
         self.size = None
         self.timer = None
@@ -854,6 +869,9 @@ class TrainDataContainer():
         self.loopEnded = False # check if loop ened
 
 class TestDataContainer():
+    """
+    testHelper
+    """
     def __init__(self):
         self.size = None
         self.timer = None
@@ -875,6 +893,9 @@ class TestDataContainer():
         self.predSizeSum = 0
 
 class EpochDataContainer():
+    """
+    epochHelper
+    """
     def __init__(self):
         self.epochNumber = None
         self.returnObj = None
@@ -939,6 +960,8 @@ class Data(SaveClass, BaseMainClass, BaseLogicClass):
     """
     def __init__(self, dataMetadata):
         super().__init__()
+
+        # dane wewnętrzne
         self.trainset = None
         self.trainloader = None
         self.testset = None
@@ -960,8 +983,11 @@ class Data(SaveClass, BaseMainClass, BaseLogicClass):
         self.testHelper = None
         self.epochHelper = None
 
+        self.__prepare__(dataMetadata)
+
     def __strAppend__(self):
-        tmp_str = ('Is trainset set:\t{}\n'.format(self.trainset is not None))
+        tmp_str = super().__strAppend__()
+        tmp_str += ('Is trainset set:\t{}\n'.format(self.trainset is not None))
         tmp_str += ('Is trainloader set:\t{}\n'.format(self.trainloader is not None))
         tmp_str += ('Is testset set:\t\t{}\n'.format(self.testset is not None))
         tmp_str += ('Is testloader set:\t{}\n'.format(self.testloader is not None))
@@ -1324,6 +1350,8 @@ class Smoothing(SaveClass, BaseMainClass, BaseLogicClass):
     """
     def __init__(self, smoothingMetadata):
         super().__init__()
+
+        # dane wewnętrzne
         self.enabled = False # used only to prevent using smoothing when weights and dict are not set
 
         self.savedWeights = {}
@@ -1410,7 +1438,9 @@ class Model(nn.Module, SaveClass, BaseMainClass, BaseLogicClass):
         def __initializeWeights__(self)\n
         """
         super().__init__()
-        self.weightsInit = False
+
+        # dane wewnętrzne
+        self.weightsInit = False # flaga mówiąca, czy wagi zostały zainicjalizowane
 
     def __initializeWeights__(self):
         self.weightsInit = True
@@ -1703,7 +1733,7 @@ def modelRun(Metadata_Class, Data_Metadata_Class, Model_Metadata_Class, Smoothin
         dictObjs[Metadata_Class.__name__].printStartNewModel()
         dictObjs[Data_Class.__name__] = Data_Class(dataMetadata=dictObjs[Data_Metadata_Class.__name__])
         
-        dictObjs[Data_Class.__name__].__prepare__(dataMetadata=dictObjs[Data_Metadata_Class.__name__])
+        #dictObjs[Data_Class.__name__].__prepare__(dataMetadata=dictObjs[Data_Metadata_Class.__name__])
         
         dictObjs[Smoothing_Class.__name__] = Smoothing_Class(smoothingMetadata=dictObjs[Smoothing_Metadata_Class.__name__])
         if(issubclass(Model_Class, PredefinedModel)):
@@ -1870,7 +1900,7 @@ def modelDetermTest(Metadata_Class, Data_Metadata_Class, Model_Metadata_Class, D
         dictObjs[Metadata_Class.__name__].printStartNewModel()
         dictObjs[Data_Class.__name__] = Data_Class()
         
-        dictObjs[Data_Class.__name__].__prepare__(dataMetadata=dictObjs[Data_Metadata_Class.__name__])
+        #dictObjs[Data_Class.__name__].__prepare__(dataMetadata=dictObjs[Data_Metadata_Class.__name__])
         
         dictObjs[Smoothing_Class.__name__] = Smoothing_Class()
         if(issubclass(Model_Class, PredefinedModel)):

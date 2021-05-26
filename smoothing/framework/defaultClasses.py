@@ -329,8 +329,8 @@ class _SmoothingOscilationBase(sf.Smoothing):
             avg_1, avg_2 = self._saveAvgSum(absSum)
 
             metadata.stream.print("Sum debug:" + str(absSum), 'debug:0')
-            metadata.stream.print("Weight avg debug:" + str(abs(avg_1 - avg_2)), 'debug:0')
-            metadata.stream.print("Weight avg bool:" + str(bool(abs(avg_1 - avg_2) < smoothingMetadata.weightsEpsilon)), 'debug:0')
+            metadata.stream.print("Weight avg diff: " + str(abs(avg_1 - avg_2)), 'debug:0')
+            metadata.stream.print("Weight avg diff bool: " + str(bool(abs(avg_1 - avg_2) < smoothingMetadata.weightsEpsilon)), 'debug:0')
             
             return self._smoothingGoodEnoughCheck(avg_1=avg_1, avg_2=avg_2, smoothingMetadata=smoothingMetadata)
         return False
@@ -342,7 +342,7 @@ class _SmoothingOscilationBase(sf.Smoothing):
         avg = self.lossContainer.getAverage()
         if(self.counter % smoothingMetadata.avgOfAvgUpdateFreq == 0):
             self.lastKLossAverage.pushBack(helper.loss.item())
-        metadata.stream.print("Loss avg difference debug:" + str(abs(avg - self.lastKLossAverage.getAverage())), 'debug:0')
+        metadata.stream.print("Loss avg diff : " + str(abs(avg - self.lastKLossAverage.getAverage())), 'debug:0')
         if(self.canComputeWeights(smoothingMetadata)):
             self.countWeights += 1
             self.calcMean(model=model, smoothingMetadata=smoothingMetadata)
@@ -593,7 +593,7 @@ class DefaultSmoothingOscilationMovingMean_Metadata(_SmoothingOscilationBase_Met
 
     def __strAppend__(self):
         tmp_str = super().__strAppend__()
-        tmp_str += ('Moving average parameter:\t{}\n'.format(self.movingAvgTensorLow.item()))
+        tmp_str += ('Moving average parameter a:(ax + (a-1)S):\t{}\n'.format(self.movingAvgParam))
         return tmp_str
 
 class DefaultSmoothingOscilationMovingMean(_SmoothingOscilationBase):
@@ -622,7 +622,10 @@ class DefaultSmoothingOscilationMovingMean(_SmoothingOscilationBase):
     def calcMean(self, model, smoothingMetadata):
         with torch.no_grad():
             for key, val in model.getNNModelModule().named_parameters():
-                self.weightsSum[key] = self.weightsSum[key].mul_(self.movingAvgTensorHigh).add_(val.mul(self.movingAvgTensorLow))
+                valDevice = val.device
+                self.weightsSum[key] = self.weightsSum[key].mul_(self.movingAvgTensorHigh).add_(
+                    (val.mul(self.movingAvgTensorLow.to(valDevice))).to(smoothingMetadata.device)
+                    )
 
     def __getSmoothedWeights__(self, smoothingMetadata, metadata):
         average = super().__getSmoothedWeights__(smoothingMetadata=smoothingMetadata, metadata=metadata)
@@ -673,7 +676,7 @@ class DefaultSmoothingOscilationMovingMean(_SmoothingOscilationBase):
 class DefaultSmoothingOscilationWeightedMean_Metadata(_SmoothingOscilationBase_Metadata):
     def __init__(self, weightIter = DefaultWeightDecay(), 
         device = 'cpu', avgOfAvgUpdateFreq = 10, whenCheckCanComputeWeights = 5,
-        endSmoothingFreq = 10, softMarginAdditionalLoops = 2000, 
+        endSmoothingFreq = 10, softMarginAdditionalLoops = 20, 
         numbOfBatchMaxStart = 3100, numbOfBatchMinStart = 500, epsilon = 1e-3, weightsEpsilon = 1e-6,
         lossContainer=50, lastKLossAverage=25, weightsArraySize=20,
         test_epsilon = 1e-2, test_weightsEpsilon = 1e-4):
@@ -778,15 +781,14 @@ class DefaultSmoothingOscilationWeightedMean(_SmoothingOscilationBase):
 
 # data classes
 class DefaultData_Metadata(sf.Data_Metadata):
-    def __init__(self, 
-        worker_seed = 8418748, train = True, download = True, pin_memoryTrain = False, pin_memoryTest = False,
+    def __init__(self, worker_seed = 8418748, download = True, pin_memoryTrain = False, pin_memoryTest = False,
         epoch = 1, batchTrainSize = 16, batchTestSize = 16, fromGrayToRGB = True,
         test_howOftenPrintTrain = 200, howOftenPrintTrain = 2000):
 
-        super().__init__()
+        super().__init__(worker_seed = worker_seed, train = True, download = download, pin_memoryTrain = pin_memoryTrain, pin_memoryTest = pin_memoryTest,
+            epoch = epoch, batchTrainSize = batchTrainSize, batchTestSize = batchTestSize, howOftenPrintTrain = howOftenPrintTrain)
         self.worker_seed = worker_seed
         
-        self.train = train
         self.download = download
         self.pin_memoryTrain = pin_memoryTrain
         self.pin_memoryTest = pin_memoryTest
@@ -867,8 +869,7 @@ class DefaultData(sf.Data):
             metadata.stream.print(helper.loss.item(), ['statLossTrain'])
 
             if(bool(metadata.debugInfo) and dataMetadata.howOftenPrintTrain is not None and (helper.batchNumber % dataMetadata.howOftenPrintTrain == 0 or sf.test_mode.isActivated())):
-                sf.DefaultMethods.printLoss(metadata, helper)                
-                sf.DefaultMethods.printWeightDifference(metadata, helper)
+                sf.DefaultMethods.printLoss(metadata, helper)
 
     def __afterTrainLoop__(self, helperEpoch: 'EpochDataContainer', helper, model: 'Model', dataMetadata: 'Data_Metadata', modelMetadata: 'Model_Metadata', metadata: 'Metadata', smoothing: 'Smoothing', smoothingMetadata: 'Smoothing_Metadata'):
         super().__afterTrainLoop__(helperEpoch=helperEpoch, helper=helper, model=model, dataMetadata=dataMetadata, modelMetadata=modelMetadata, metadata=metadata, smoothing=smoothing, smoothingMetadata=smoothingMetadata)
@@ -1022,14 +1023,17 @@ DataMap = {
 }
 
 SmoothingMap = {
-    'disable': DisabledSmoothing,
+    'disabled': DisabledSmoothing,
     'borderline': DefaultSmoothingBorderline,
     'generMean': DefaultSmoothingOscilationGeneralizedMean,
     'movingMean': DefaultSmoothingOscilationMovingMean,
     'oscilMean': DefaultSmoothingOscilationWeightedMean
 }
 
-def run(modelType, dataType, smoothingType, modelPredefObj = None, metadataObj=None, modelMetadata=None, dataMetadata=None):
+def run(modelType, dataType, smoothingType, metadataObj, modelMetadata, dataMetadata, smoothingMetadata, modelPredefObj = None):
+    if(modelPredefObj is None and modelType == 'predefModel'):
+        sf.Output.printBash("Cannot run test, because model '{}' does not have provided object.".format(modelType), 'warn')
+        return
     if(modelType not in ModelMap):
         sf.Output.printBash("Cannot run test, because model '{}' not found.".format(modelType), 'warn')
         return
@@ -1039,18 +1043,28 @@ def run(modelType, dataType, smoothingType, modelPredefObj = None, metadataObj=N
     if(smoothingType not in SmoothingMap):
         sf.Output.printBash("Cannot run test, because smoothing '{}' not found.".format(smoothingType), 'warn')
         return
-    model = ModelMap[modelType]
-    data = DataMap[dataType]
-    smoothing = SmoothingMap[smoothingType]
-    statistics = None
     logFolderSuffix = modelType + '_' + dataType + '_' + smoothingType
+    metadataObj.name = logFolderSuffix
+    metadataObj.logFolderSuffix = logFolderSuffix
+    metadataObj.prepareOutput()
+    
+    model = None
+    data = DataMap[dataType](dataMetadata)
+    smoothing = SmoothingMap[smoothingType](smoothingMetadata)
+    statistics = None
 
     if(modelPredefObj is None):
-        statistics = f.modelRun(sf.Metadata, DefaultData_Metadata, DefaultModel_Metadata, Data_Class=data, 
-            Model_Class=model, Smoothing_Class=smoothing, load=False, save=False, folderLogNameSuffix=logFolderSuffix)
+        model = ModelMap[modelType](modelMetadata=modelMetadata)
     else:
-        statistics = f.modelRun(sf.Metadata, DefaultData_Metadata, DefaultModel_Metadata, Data_Class=data, modelObj=modelPredefObj,
-            Model_Class=model, Smoothing_Class=smoothing, load=False, save=False, folderLogNameSuffix=logFolderSuffix)
+        model = ModelMap[modelType](obj=modelPredefObj, modelMetadata=modelMetadata)
+    smoothing.__setDictionary__(smoothingMetadata=smoothingMetadata, dictionary=model.getNNModelModule().named_parameters())
+
+    metadataObj.printStartNewModel()
+
+    statistics = sf.runObjs(metadataObj=metadataObj, dataMetadataObj=dataMetadata, modelMetadataObj=modelMetadata, 
+            smoothingMetadataObj=smoothingMetadata, smoothingObj=smoothing, dataObj=data, modelObj=model, folderLogNameSuffix=logFolderSuffix)
+
+    metadataObj.printEndModel()
 
     return statistics
 
