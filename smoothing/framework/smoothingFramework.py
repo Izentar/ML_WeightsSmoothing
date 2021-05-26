@@ -1116,7 +1116,10 @@ class Data(SaveClass, BaseMainClass, BaseLogicClass):
         self.__beforeTrainLoop__(helperEpoch=helperEpoch, helper=self.trainHelper, model=model, dataMetadata=dataMetadata, modelMetadata=modelMetadata, metadata=metadata, smoothing=smoothing, smoothingMetadata=smoothingMetadata)
 
         self.trainHelper.loopTimer.start()
-        for batch, (inputs, labels) in enumerate(self.trainloader, start=startNumb):
+        for batch, (inputs, labels) in enumerate(self.trainloader):
+            if(batch < startNumb): # already iterated
+                continue
+
             del self.trainHelper.inputs
             del self.trainHelper.labels
 
@@ -1223,7 +1226,9 @@ class Data(SaveClass, BaseMainClass, BaseLogicClass):
 
         with torch.no_grad():
             self.testHelper.loopTimer.start()
-            for batch, (inputs, labels) in enumerate(self.testloader, startNumb):
+            for batch, (inputs, labels) in enumerate(self.testloader):
+                if(batch < startNumb): # already iterated
+                    continue
                 self.testHelper.inputs = inputs
                 self.testHelper.labels = labels
                 self.testHelper.batchNumber = batch
@@ -1284,7 +1289,9 @@ class Data(SaveClass, BaseMainClass, BaseLogicClass):
 
         self.__beforeEpochLoop__(helperEpoch=self.epochHelper, model=model, dataMetadata=dataMetadata, modelMetadata=modelMetadata, metadata=metadata, smoothing=smoothing, smoothingMetadata=smoothingMetadata)
 
-        for ep, (loopEpoch) in enumerate(range(dataMetadata.epoch), start=self.epochNumb):  # loop over the dataset multiple times
+        for ep, (loopEpoch) in enumerate(range(dataMetadata.epoch)):  # loop over the dataset multiple times
+            if(batch < self.epochNumb): # already iterated
+                continue
             self.epochHelper.epochNumber = ep
             metadata.stream.print(f"\nEpoch {loopEpoch+1}\n-------------------------------")
             metadata.stream.flushAll()

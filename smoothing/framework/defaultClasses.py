@@ -8,7 +8,31 @@ import torch.nn as nn
 import torch.nn.functional as F
 import torchvision.models as models
 
+import copy
+
+
 class CircularList():
+    class CircularListIter():
+        def __init__(self, circularList):
+            self.circularList = circularList
+            self.__iter__()
+
+        def __iter__(self):
+            lo = list(range(self.circularList.arrayIndex))
+            hi = list(range(self.circularList.arrayIndex, len(self.circularList.array)))
+            lo.reverse()
+            hi.reverse()
+            self.indexArray = lo + hi
+            return self
+
+        def __next__(self):
+            if(self.indexArray):
+                idx = self.indexArray.pop(0)
+                return self.circularList.array[idx]
+            else:
+                raise StopIteration
+
+
     def __init__(self, maxCapacity):
         self.array = []
         self.arrayIndex = 0
@@ -20,9 +44,34 @@ class CircularList():
         self.array.insert(self.arrayIndex, number)
         self.arrayIndex = (1 + self.arrayIndex) % self.arrayMax
 
-    def getAverage(self):
+    def getAverage(self, startAt=0):
+        """
+            Zwraca średnią.
+            Argument startAt mówi o tym, od którego momentu w kolejce należy liczyć średnią.
+
+            Można jej użyć tylko do typów, które wspierają dodawanie, które
+            powinny implementować metody __copy__(self) oraz __deepcopy__(self)
+        """
         l = len(self.array)
-        return sum(self.array) / l if l else 0
+        if(startAt == 0):
+            return sum(self.array) / l if l else 0
+        if(l <= startAt):
+            return 0
+        l -= startAt
+        tmpSum = None
+
+        for i, (obj) in enumerate(iter(self)):
+            if(i < startAt):
+                continue
+            tmpSum = copy.deepcopy(obj) # because of unknown type
+            break
+
+        for i, (obj) in enumerate(iter(self)):
+            if(i < startAt + 1):
+                continue
+            tmpSum += obj
+
+        return tmpSum / l
 
     def __setstate__(self):
         self.__dict__.update(state)
@@ -34,19 +83,7 @@ class CircularList():
         self.arrayIndex = 0
 
     def __iter__(self):
-        lo = list(range(self.arrayIndex))
-        hi = list(range(self.arrayIndex, len(self.array)))
-        lo.reverse()
-        hi.reverse()
-        self.indexArray = lo + hi
-        return self
-
-    def __next__(self):
-        if(self.indexArray):
-            idx = self.indexArray.pop(0)
-            return self.array[idx]
-        else:
-            raise StopIteration
+        return CircularList.CircularListIter(self)
 
     def __len__(self):
         return len(self.array)

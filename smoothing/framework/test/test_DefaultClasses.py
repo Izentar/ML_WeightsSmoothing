@@ -53,16 +53,22 @@ class Test_CircularList(unittest.TestCase):
         testCmpPandas(inst.getAverage(), 'average', 1.5)
         inst.pushBack(3)
         testCmpPandas(inst.getAverage(), 'average', 2.0)
+        testCmpPandas(inst.getAverage(startAt=1), 'average', 1.5)
         inst.pushBack(4)
         testCmpPandas(inst.getAverage(), 'average', 3.0)
         inst.pushBack(5)
         testCmpPandas(inst.getAverage(), 'average', 4.0)
+
+        testCmpPandas(inst.getAverage(startAt=1), 'average', 3.5)
+        testCmpPandas(inst.getAverage(startAt=2), 'average', 3.0)
 
         inst.reset()
         testCmpPandas(len(inst.array), 'array_length', 0)
         inst.pushBack(10)
         testCmpPandas(inst.getAverage(), 'average', 10.0)
         testCmpPandas(len(inst.array), 'array_length', 1)
+
+        testCmpPandas(inst.getAverage(startAt=1), 'average', 0)
 
     def test_iteration(self):
         inst = dc.CircularList(3)
