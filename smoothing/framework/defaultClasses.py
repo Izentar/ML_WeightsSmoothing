@@ -227,7 +227,7 @@ class _SmoothingOscilationBase_Metadata(sf.Smoothing_Metadata):
         device = 'cpu', avgOfAvgUpdateFreq = 10, whenCheckCanComputeWeights = 5,
         endSmoothingFreq = 10, softMarginAdditionalLoops = 20, 
         numbOfBatchMaxStart = 3100, numbOfBatchMinStart = 500, epsilon = 1e-3, weightsEpsilon = 1e-6,
-        lossContainer=50, lastKLossAverage=25,
+        lossContainer=50, lossContainerDelayedStartAt = 25,
         test_epsilon = 1e-2, test_weightsEpsilon = 1e-4):
 
         super().__init__()
@@ -250,7 +250,9 @@ class _SmoothingOscilationBase_Metadata(sf.Smoothing_Metadata):
         self.softMarginAdditionalLoops = softMarginAdditionalLoops
 
         self.lossContainerSize = lossContainer
-        self.lastKLossAverageSize = lastKLossAverage
+
+        # dla jak bardzo starych wartości powinno się policzyć średnią przy porównaniu ze średnią z całego kontenera strat
+        self.lossContainerDelayedStartAt = lossContainerDelayedStartAt 
 
         if(sf.test_mode.isActivated()):
             # po ilu maksymalnie iteracjach wygładzanie powinno zostać włączone
@@ -286,6 +288,10 @@ class _SmoothingOscilationBase_Metadata(sf.Smoothing_Metadata):
         tmp_str += ('Epsilon to check when start compute weights:\t{}\n'.format(self.epsilon))
         tmp_str += ('Epsilon to check when weights are good enough to stop:\t{}\n'.format(self.weightsEpsilon))
         tmp_str += ('Loop soft margin:\t{}\n'.format(self.softMarginAdditionalLoops))
+        tmp_str += ('Loss container size:\t{}\n'.format(self.lossContainer))
+        tmp_str += ('Loss container delayed start:\t{}\n'.format(self.lossContainerDelayedStartAt))
+        tmp_str += ('Device:\t{}\n'.format(self.device))
+        tmp_str += ('When to check if can compute weights (a%b==X):\t{}\n'.format(self.whenCheckCanComputeWeights))
         return tmp_str
 
 class _SmoothingOscilationBase(sf.Smoothing):
@@ -312,7 +318,6 @@ class _SmoothingOscilationBase(sf.Smoothing):
         self.goodEnoughCounter = 0
 
         self.lossContainer = CircularList(smoothingMetadata.lossContainerSize)
-        self.lastKLossAverage = CircularList(smoothingMetadata.lastKLossAverageSize)
 
     def canComputeWeights(self, smoothingMetadata):
         """
@@ -324,7 +329,8 @@ class _SmoothingOscilationBase(sf.Smoothing):
         """
         if(self.counter % smoothingMetadata.avgOfAvgUpdateFreq == smoothingMetadata.whenCheckCanComputeWeights): # liczenie kolejnej średniej od razu po dodaniu nowego elementu dużo nie da
             return bool(
-                (abs(self.lossContainer.getAverage() - self.lastKLossAverage.getAverage()) < smoothingMetadata.epsilon and self.counter > smoothingMetadata.numbOfBatchMinStart) 
+                (abs(self.lossContainer.getAverage() - self.lossContainer.getAverage(smoothingMetadata.lossContainerDelayedStartAt)) < smoothingMetadata.epsilon 
+                    and self.counter > smoothingMetadata.numbOfBatchMinStart) 
                 or self.counter > smoothingMetadata.numbOfBatchMaxStart
                 )
         return False
@@ -381,9 +387,8 @@ class _SmoothingOscilationBase(sf.Smoothing):
         self.counter += 1
         self.lossContainer.pushBack(helper.loss.item())
         avg = self.lossContainer.getAverage()
-        if(self.counter % smoothingMetadata.avgOfAvgUpdateFreq == 0):
-            self.lastKLossAverage.pushBack(helper.loss.item())
-        metadata.stream.print("Loss avg diff : " + str(abs(avg - self.lastKLossAverage.getAverage())), 'debug:0')
+        metadata.stream.print("Loss avg diff : " + 
+            str(abs(self.lossContainer.getAverage() - self.lossContainer.getAverage(smoothingMetadata.lossContainerDelayedStartAt))), 'debug:0')
 
         if(self.canComputeWeights(smoothingMetadata)):
             self.countWeights += 1
@@ -501,13 +506,13 @@ class DefaultSmoothingOscilationGeneralizedMean_Metadata(_SmoothingOscilationBas
         device = 'cpu', avgOfAvgUpdateFreq = 10, whenCheckCanComputeWeights = 5,
         endSmoothingFreq = 10, softMarginAdditionalLoops = 20, 
         numbOfBatchMaxStart = 3100, numbOfBatchMinStart = 500, epsilon = 1e-3, weightsEpsilon = 1e-6,
-        lossContainer=50, lastKLossAverage=25,
+        lossContainer=50, lossContainerDelayedStartAt = 25,
         test_epsilon = 1e-2, test_weightsEpsilon = 1e-4):
 
         super().__init__(device=device, avgOfAvgUpdateFreq=avgOfAvgUpdateFreq, whenCheckCanComputeWeights=whenCheckCanComputeWeights,
         endSmoothingFreq=endSmoothingFreq, softMarginAdditionalLoops=softMarginAdditionalLoops, numbOfBatchMaxStart=numbOfBatchMaxStart,
         numbOfBatchMinStart=numbOfBatchMinStart, epsilon=epsilon, weightsEpsilon=weightsEpsilon,
-        lossContainer=lossContainer, lastKLossAverage=lastKLossAverage,
+        lossContainer=lossContainer, lossContainerDelayedStartAt=lossContainerDelayedStartAt,
         test_epsilon=test_epsilon, test_weightsEpsilon=test_weightsEpsilon)
 
         self.generalizedMeanPower = generalizedMeanPower # tylko dla 1 dobrze działa, reszta daje gorsze wyniki, info do opisania
@@ -601,7 +606,6 @@ class DefaultSmoothingOscilationGeneralizedMean(_SmoothingOscilationBase):
             self.divisionCounter = 0
 
             self.lossContainer.reset()
-            self.lastKLossAverage.reset()
             self.tensorPrevSum_1.reset()
             self.tensorPrevSum_2.reset()
 
@@ -614,13 +618,13 @@ class DefaultSmoothingOscilationMovingMean_Metadata(_SmoothingOscilationBase_Met
         device = 'cpu', avgOfAvgUpdateFreq = 10, whenCheckCanComputeWeights = 5,
         endSmoothingFreq = 10, softMarginAdditionalLoops = 20, 
         numbOfBatchMaxStart = 3100, numbOfBatchMinStart = 500, epsilon = 1e-3, weightsEpsilon = 1e-6,
-        lossContainer=50, lastKLossAverage=25,
+        lossContainer=50, lossContainerDelayedStartAt = 25,
         test_epsilon = 1e-2, test_weightsEpsilon = 1e-4):
 
         super().__init__(device=device, avgOfAvgUpdateFreq=avgOfAvgUpdateFreq, whenCheckCanComputeWeights=whenCheckCanComputeWeights,
         endSmoothingFreq=endSmoothingFreq, softMarginAdditionalLoops=softMarginAdditionalLoops, numbOfBatchMaxStart=numbOfBatchMaxStart,
         numbOfBatchMinStart=numbOfBatchMinStart, epsilon=epsilon, weightsEpsilon=weightsEpsilon,
-        lossContainer=lossContainer, lastKLossAverage=lastKLossAverage,
+        lossContainer=lossContainer, lossContainerDelayedStartAt=lossContainerDelayedStartAt,
         test_epsilon=test_epsilon, test_weightsEpsilon=test_weightsEpsilon)
 
         # movingAvgParam jest parametrem 'a' dla wzoru: S = ax + (1-a)S
@@ -700,7 +704,6 @@ class DefaultSmoothingOscilationMovingMean(_SmoothingOscilationBase):
             self.divisionCounter = 0
 
             self.lossContainer.reset()
-            self.lastKLossAverage.reset()
             self.tensorPrevSum_1.reset()
             self.tensorPrevSum_2.reset()
 
@@ -713,13 +716,13 @@ class DefaultSmoothingOscilationWeightedMean_Metadata(_SmoothingOscilationBase_M
         device = 'cpu', avgOfAvgUpdateFreq = 10, whenCheckCanComputeWeights = 5,
         endSmoothingFreq = 10, softMarginAdditionalLoops = 20, 
         numbOfBatchMaxStart = 3100, numbOfBatchMinStart = 500, epsilon = 1e-3, weightsEpsilon = 1e-6,
-        lossContainer=50, lastKLossAverage=25, weightsArraySize=20,
+        lossContainer=50, lossContainerDelayedStartAt = 25, weightsArraySize=20,
         test_epsilon = 1e-2, test_weightsEpsilon = 1e-4):
 
         super().__init__(device=device, avgOfAvgUpdateFreq=avgOfAvgUpdateFreq, whenCheckCanComputeWeights=whenCheckCanComputeWeights,
         endSmoothingFreq=endSmoothingFreq, softMarginAdditionalLoops=softMarginAdditionalLoops, numbOfBatchMaxStart=numbOfBatchMaxStart,
         numbOfBatchMinStart=numbOfBatchMinStart, epsilon=epsilon, weightsEpsilon=weightsEpsilon,
-        lossContainer=lossContainer, lastKLossAverage=lastKLossAverage,
+        lossContainer=lossContainer, lossContainerDelayedStartAt=lossContainerDelayedStartAt,
         test_epsilon=test_epsilon, test_weightsEpsilon=test_weightsEpsilon)
 
         # jak bardzo następne wagi w kolejce mają stracić na wartości. Kolejne wagi dzieli się przez wielokrotność tej wartości.
@@ -807,7 +810,6 @@ class DefaultSmoothingOscilationWeightedMean(_SmoothingOscilationBase):
             self.divisionCounter = 0
 
             self.lossContainer.reset()
-            self.lastKLossAverage.reset()
             self.tensorPrevSum_1.reset()
             self.tensorPrevSum_2.reset()
 

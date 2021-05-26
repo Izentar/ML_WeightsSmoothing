@@ -218,7 +218,7 @@ class Test_DefaultSmoothing(unittest.TestCase):
     def checkOscilation__isSmoothingGoodEnough__(self, avgLoss, avgKLoss, smoothing, smoothingMetadata, helper, model, metadata, booleanIsGood):
         smoothing(helperEpoch=None, helper=helper, model=model, dataMetadata=None, modelMetadata=None, metadata=metadata, smoothingMetadata=smoothingMetadata)
         testCmpPandas(smoothing.lossContainer.getAverage(), 'average', avgLoss)
-        testCmpPandas(smoothing.lastKLossAverage.getAverage(), 'average', avgKLoss)
+        testCmpPandas(smoothing.lossContainer.getAverage(smoothingMetadata.lossContainerDelayedStartAt), 'average', avgKLoss)
         testCmpPandas(smoothing.__isSmoothingGoodEnough__(helperEpoch=None, helper=helper, model=model, dataMetadata=None, modelMetadata=None, metadata=metadata, smoothingMetadata=smoothingMetadata), 'isSmoothingGoodEnough', booleanIsGood)
 
 class Test__SmoothingOscilationBase(Test_DefaultSmoothing):
@@ -264,7 +264,7 @@ class Test__SmoothingOscilationBase(Test_DefaultSmoothing):
         helper = sf.TrainDataContainer()
         smoothingMetadata = dc.DefaultSmoothingOscilationWeightedMean_Metadata(epsilon=1.0, avgOfAvgUpdateFreq=2, whenCheckCanComputeWeights=1,
         weightsEpsilon=1.0, numbOfBatchMinStart=1, endSmoothingFreq=2, softMarginAdditionalLoops=1,
-        lossContainer=3, lastKLossAverage=2, weightsArraySize=3)
+        lossContainer=3, lossContainerDelayedStartAt=1, weightsArraySize=3)
 
         smoothing = dc.DefaultSmoothingOscilationWeightedMean(smoothingMetadata=smoothingMetadata)
         smoothing.__setDictionary__(smoothingMetadata=smoothingMetadata, dictionary=model.getNNModelModule().named_parameters())
@@ -273,13 +273,13 @@ class Test__SmoothingOscilationBase(Test_DefaultSmoothing):
         self.checkOscilation__isSmoothingGoodEnough__(avgLoss=1.0, avgKLoss=0, smoothing=smoothing, smoothingMetadata=smoothingMetadata,
             helper=helper, model=model, metadata=metadata, booleanIsGood=False)
         helper.loss = torch.Tensor([0.5])
-        self.checkOscilation__isSmoothingGoodEnough__(avgLoss=1.5/2, avgKLoss=0.5, smoothing=smoothing, smoothingMetadata=smoothingMetadata,
+        self.checkOscilation__isSmoothingGoodEnough__(avgLoss=1.5/2, avgKLoss=1.0, smoothing=smoothing, smoothingMetadata=smoothingMetadata,
             helper=helper, model=model, metadata=metadata, booleanIsGood=False)
-        self.checkOscilation__isSmoothingGoodEnough__(avgLoss=2/3, avgKLoss=0.5, smoothing=smoothing, smoothingMetadata=smoothingMetadata,
+        self.checkOscilation__isSmoothingGoodEnough__(avgLoss=2/3, avgKLoss=1.5/2, smoothing=smoothing, smoothingMetadata=smoothingMetadata,
             helper=helper, model=model, metadata=metadata, booleanIsGood=False)
 
         helper.loss = torch.Tensor([1.5])
-        self.checkOscilation__isSmoothingGoodEnough__(avgLoss=2.5/3, avgKLoss=2/2, smoothing=smoothing, smoothingMetadata=smoothingMetadata,
+        self.checkOscilation__isSmoothingGoodEnough__(avgLoss=2.5/3, avgKLoss=1/2, smoothing=smoothing, smoothingMetadata=smoothingMetadata,
             helper=helper, model=model, metadata=metadata, booleanIsGood=False)
         self.checkOscilation__isSmoothingGoodEnough__(avgLoss=3.5/3, avgKLoss=2/2, smoothing=smoothing, smoothingMetadata=smoothingMetadata,
             helper=helper, model=model, metadata=metadata, booleanIsGood=False)
@@ -336,7 +336,7 @@ class Test_DefaultSmoothingOscilationWeightedMean(Test_DefaultSmoothing):
         helper = sf.TrainDataContainer()
         smoothingMetadata = dc.DefaultSmoothingOscilationWeightedMean_Metadata(weightIter=dc.DefaultWeightDecay(2), 
         epsilon=1.0, avgOfAvgUpdateFreq=2, whenCheckCanComputeWeights=1, weightsEpsilon=1.0, numbOfBatchMinStart=1, endSmoothingFreq=2, 
-        softMarginAdditionalLoops=1, lossContainer=3, lastKLossAverage=2, weightsArraySize=2)
+        softMarginAdditionalLoops=1, lossContainer=3, lossContainerDelayedStartAt=1, weightsArraySize=2)
 
         smoothing = dc.DefaultSmoothingOscilationWeightedMean(smoothingMetadata=smoothingMetadata)
         smoothing.__setDictionary__(smoothingMetadata=smoothingMetadata, dictionary=model.getNNModelModule().named_parameters())
@@ -473,7 +473,7 @@ class Test_DefaultSmoothingOscilationMovingMean(Test_DefaultSmoothing):
         helper = sf.TrainDataContainer()
         smoothingMetadata = dc.DefaultSmoothingOscilationMovingMean_Metadata(movingAvgParam=0.5, epsilon=1.0, avgOfAvgUpdateFreq=2, whenCheckCanComputeWeights=1,
         weightsEpsilon=1.0, numbOfBatchMinStart=1, endSmoothingFreq=2, softMarginAdditionalLoops=1,
-        lossContainer=3, lastKLossAverage=2)
+        lossContainer=3, lossContainerDelayedStartAt=1)
 
         helper.loss = torch.Tensor([1.0])
 
