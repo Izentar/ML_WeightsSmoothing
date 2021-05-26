@@ -345,7 +345,6 @@ class _SmoothingOscilationBase(sf.Smoothing):
         W przeciwnym wypadku zwróci False.
         """
         absAvgDiff = abs(self.lossContainer.getAverage() - self.lossContainer.getAverage(smoothingMetadata.lossContainerDelayedStartAt))
-        print(absAvgDiff)
         if(absAvgDiff < smoothingMetadata.hardEpsilon and self.counter > smoothingMetadata.numbOfBatchMinStart):
             self.alwaysOn = True
         return bool(
