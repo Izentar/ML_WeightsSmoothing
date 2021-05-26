@@ -1,7 +1,11 @@
 #!/bin/bash 
 
 declare -a commands=(
-    "python smoothing/experiments.py"
+    "python smoothing/experiments_arithmeticMean.py"
+    "python smoothing/experiments_borderline.py"
+    "python smoothing/experiments_disabledMean.py"
+    "python smoothing/experiments_movingMean.py"
+    "python smoothing/experiments_wightedMean.py"
 )
 
 declare -a names=(

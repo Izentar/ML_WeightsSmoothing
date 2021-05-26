@@ -1810,6 +1810,9 @@ def selectCPU(device, metadata):
         'debug')
     return device
 
+def checkForEmptyFile(filePath):
+    return os.path.isfile(filePath) and os.path.getsize(filePath) > 0
+
 def plot(filePath: list, name = None, fetchedFilesRoot = None, plotRoot = None, fileFormat = '.svg', dpi = 900, widthTickFreq = 0.08, 
     aspectRatio = 0.3, startAt = None, resolutionInches = 11.5):
     """
@@ -1836,6 +1839,9 @@ def plot(filePath: list, name = None, fetchedFilesRoot = None, plotRoot = None, 
         fp = filePath
 
     for fn in fp:
+        if(not checkForEmptyFile(fn)):
+            Output.printBash("Cannot plot file '{}'. File is empty or does not exist.".format(fn), 'warn')
+            continue
         data = pd.read_csv(fn, header=None)
         if(len(data) > sampleMaxSize):
             sampleMaxSize = len(data)

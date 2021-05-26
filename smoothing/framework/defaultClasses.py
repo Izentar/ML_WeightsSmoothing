@@ -121,7 +121,7 @@ class DefaultModelSimpleConv(sf.Model):
         self.optimizer = optim.SGD(self.getNNModelModule().parameters(), lr=modelMetadata.learning_rate, momentum=modelMetadata.momentum)
 
     def __initializeWeights__(self):
-        for m in model.modules():
+        for m in self.modules():
             if(isinstance(m, (nn.Conv2d, nn.ConvTranspose2d, nn.BatchNorm2d))):
                 nn.init.kaiming_normal_(m.weight, mode='fan_out', nonlinearity='relu')
                 if m.bias is not None:
@@ -509,22 +509,10 @@ class DefaultSmoothingOscilationGeneralizedMean(_SmoothingOscilationBase):
     def methodDiv_1(self, arg, smoothingMetadata):
         return (arg / self.countWeights)
 
-    def calcAvgArithmeticMean(self, model, smoothingMetadata):
+    def calcMean(self, model, smoothingMetadata):
         with torch.no_grad():
             for key, arg in model.getNNModelModule().named_parameters():
                 self.methodPow(key=key, arg=arg, smoothingMetadata=smoothingMetadata)
-
-    def __call__(self, helperEpoch, helper, model, dataMetadata, modelMetadata, metadata, smoothingMetadata):
-        super().__call__(helperEpoch=helperEpoch, helper=helper, model=model, dataMetadata=dataMetadata, modelMetadata=modelMetadata, metadata=metadata, smoothingMetadata=smoothingMetadata)
-        self.counter += 1
-        self.lossContainer.pushBack(helper.loss.item())
-        avg = self.lossContainer.getAverage()
-        if(self.counter % smoothingMetadata.avgOfAvgUpdateFreq):
-            self.lastKLossAverage.pushBack(avg)
-        metadata.stream.print("Loss avg debug:" + str(abs(avg - self.lastKLossAverage.getAverage())), 'debug:0')
-        if(self.canComputeWeights()):
-            self.countWeights += 1
-            self.calcAvgArithmeticMean(model=model, smoothingMetadata=smoothingMetadata)
 
     def __getSmoothedWeights__(self, smoothingMetadata, metadata):
         average = super().__getSmoothedWeights__(smoothingMetadata=smoothingMetadata, metadata=metadata)
@@ -1025,9 +1013,9 @@ DataMap = {
 SmoothingMap = {
     'disabled': DisabledSmoothing,
     'borderline': DefaultSmoothingBorderline,
-    'generMean': DefaultSmoothingOscilationGeneralizedMean,
+    'generalizedMean': DefaultSmoothingOscilationGeneralizedMean,
     'movingMean': DefaultSmoothingOscilationMovingMean,
-    'oscilMean': DefaultSmoothingOscilationWeightedMean
+    'weightedMean': DefaultSmoothingOscilationWeightedMean
 }
 
 def run(modelType, dataType, smoothingType, metadataObj, modelMetadata, dataMetadata, smoothingMetadata, modelPredefObj = None):
