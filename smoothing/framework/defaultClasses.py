@@ -226,14 +226,14 @@ class _SmoothingOscilationBase_Metadata(sf.Smoothing_Metadata):
     def __init__(self, 
         device = 'cpu',
         weightSumContainerSize = 10, weightSumContainerSizeStartAt=5, softMarginAdditionalLoops = 20, 
-        numbOfBatchMaxStart = 3100, numbOfBatchMinStart = 500, 
-        epsilon = 1e-3, hardEpsilon=1e-3, weightsEpsilon = 1e-6,
+        batchPercentMaxStart = 0.9988, batchPercentMinStart = 0.02, 
+        epsilon = 1e-5, hardEpsilon=1e-7, weightsEpsilon = 1e-6,
         lossContainer=50, lossContainerDelayedStartAt = 25,
 
         test_device = 'cpu',
         test_weightSumContainerSize = 10, test_weightSumContainerSizeStartAt=5, test_softMarginAdditionalLoops = 3, 
-        test_numbOfBatchMaxStartDifference = 10, test_numbOfBatchMinStartDifference = 15, 
-        test_epsilon = 1.0, test_hardEpsilon=1e-9, test_weightsEpsilon = 1.0,
+        test_batchPercentMaxStart = 0.85, test_batchPercentMinStart = 0.1, 
+        test_epsilon = 1e-4, test_hardEpsilon=1e-9, test_weightsEpsilon = 1e-5,
         test_lossContainer=5, test_lossContainerDelayedStartAt = 2):
         """
             device - urządzenie na którym ma działać wygładzanie
@@ -243,8 +243,10 @@ class _SmoothingOscilationBase_Metadata(sf.Smoothing_Metadata):
             lossContainerSize - rozmiar kontenera, który trzyma N ostatnich strat modelu.
             lossContainerDelayedStartAt - dla jak bardzo starych wartości powinno się policzyć średnią przy 
                 porównaniu ze średnią z całego kontenera strat.
-            numbOfBatchMaxStart - po ilu maksymalnie iteracjach wygładzanie powinno zostać włączone.
-            numbOfBatchMinStart - minimalna ilość iteracji po których wygładzanie może zostać włączone.
+            batchPercentMaxStart - po ilu maksymalnie iteracjach wygładzanie powinno zostać włączone. Wartość w przedziale [0; 1], gdzie
+                większa wskazuje na większą liczbę wykonanych iteracji.
+            batchPercentMinStart - minimalna ilość iteracji po których wygładzanie może zostać włączone. Wartość w przedziale [0; 1], gdzie
+                większa wskazuje na większą liczbę wykonanych iteracji.
             epsilon - kiedy można uzać, że wygładzania powinno zostać włączone dla danej iteracji. Jeżeli warunek nie zostanie
                 spełniony, to możliwe jest, że wygładzanie nie uzwględni nowych wag.
             hardEpsilon - kiedy wygładzanie powinno zostać włączone pernamentnie, niezależnie od parametru 'epsilon'.
@@ -252,26 +254,18 @@ class _SmoothingOscilationBase_Metadata(sf.Smoothing_Metadata):
 
             Wartości z dopiskiem test_ są uzywane tylko, gdy włączony jest tryb testowy. 
             Stworzone jest to po to, aby w łatwy sposób móc przetestować klasę, bez wcześniejszego definiowania od nowa wartości.
-
-            W trybie testowym nstępuje:
-                test_numbOfBatchMaxStartDifference - o ile mniej względem StaticData.MAX_DEBUG_LOOPS powinna wynosić wartość numbOfBatchMaxStart.
-                    Minimalna wartość różnicy to 0.
-                test_numbOfBatchMinStartDifference - o ile mniej względem StaticData.MAX_DEBUG_LOOPS powinna wynosić wartość numbOfBatchMinStart.
-                    Minimalna wartość różnicy to 0.
         """
 
         super().__init__()
 
-        if(sf.test_mode.isActivated()):
+        if(sf.test_mode.isActive()):
             self.device = test_device
             self.weightSumContainerSize = test_weightSumContainerSize
             self.softMarginAdditionalLoops = test_softMarginAdditionalLoops
             self.lossContainerSize = test_lossContainer
             self.lossContainerDelayedStartAt = test_lossContainerDelayedStartAt 
-            self.numbOfBatchMaxStart = sf.StaticData.MAX_DEBUG_LOOPS - test_numbOfBatchMaxStartDifference if \
-                sf.StaticData.MAX_DEBUG_LOOPS - test_numbOfBatchMaxStartDifference >= 0 else 0
-            self.numbOfBatchMinStart = sf.StaticData.MAX_DEBUG_LOOPS - test_numbOfBatchMinStartDifference if \
-                sf.StaticData.MAX_DEBUG_LOOPS - test_numbOfBatchMinStartDifference >= 0 else 0
+            self.batchPercentMaxStart = test_batchPercentMaxStart
+            self.batchPercentMinStart = test_batchPercentMinStart
             self.epsilon = test_epsilon 
             self.hardEpsilon = test_hardEpsilon 
             self.weightsEpsilon = test_weightsEpsilon 
@@ -282,8 +276,8 @@ class _SmoothingOscilationBase_Metadata(sf.Smoothing_Metadata):
             self.softMarginAdditionalLoops = softMarginAdditionalLoops
             self.lossContainerSize = lossContainer
             self.lossContainerDelayedStartAt = lossContainerDelayedStartAt
-            self.numbOfBatchMaxStart = numbOfBatchMaxStart
-            self.numbOfBatchMinStart = numbOfBatchMinStart
+            self.batchPercentMaxStart = batchPercentMaxStart
+            self.batchPercentMinStart = batchPercentMinStart
             self.epsilon = epsilon
             self.hardEpsilon = hardEpsilon 
             self.weightsEpsilon = weightsEpsilon
@@ -301,8 +295,8 @@ class _SmoothingOscilationBase_Metadata(sf.Smoothing_Metadata):
         tmp_str = super().__strAppend__()
         tmp_str += ('Size of the weight sum container:\t{}\n'.format(self.weightSumContainerSize))
         tmp_str += ('Weight sum container delayed start:\t{}\n'.format(self.weightSumContainerSizeStartAt))
-        tmp_str += ('Max loops to start:\t{}\n'.format(self.numbOfBatchMaxStart))
-        tmp_str += ('Min loops to start:\t{}\n'.format(self.numbOfBatchMinStart))
+        tmp_str += ('Max loops to start (%):\t{}\n'.format(self.batchPercentMaxStart))
+        tmp_str += ('Min loops to start (%):\t{}\n'.format(self.batchPercentMinStart))
         tmp_str += ('Epsilon to check when to start compute weights:\t{}\n'.format(self.epsilon))
         tmp_str += ('Hard epsilon to check to when start compute weights:\t{}\n'.format(self.hardEpsilon))
         tmp_str += ('Epsilon to check when weights are good enough to stop:\t{}\n'.format(self.weightsEpsilon))
@@ -346,16 +340,17 @@ class _SmoothingOscilationBase(sf.Smoothing):
         avg_2 = self.lossContainer.getAverage(smoothingMetadata.lossContainerDelayedStartAt)
         metadata.stream.print("Loss average: {} : {}".format(avg_1, avg_2), 'debug:0')
         absAvgDiff = abs(avg_1 - avg_2)
-        if(absAvgDiff < smoothingMetadata.hardEpsilon and helper.batchNumber > smoothingMetadata.numbOfBatchMinStart):
+        minStart = smoothingMetadata.batchPercentMinStart * helperEpoch.maxTrainTotalNumber
+
+        if(absAvgDiff < smoothingMetadata.hardEpsilon and helperEpoch.trainTotalNumber > (minStart)):
             self.alwaysOn = True
             metadata.stream.print("Reached hard epsilon.", 'debug:0')
         return bool(
             (
-                absAvgDiff < smoothingMetadata.epsilon and helper.batchNumber >= smoothingMetadata.numbOfBatchMinStart
+                absAvgDiff < smoothingMetadata.epsilon and helperEpoch.trainTotalNumber >= minStart
             )
             or (
-                helper.batchNumber > smoothingMetadata.numbOfBatchMaxStart 
-                and sf.Data.lastEpoch(helperEpoch, dataMetadata)# only at the last iteration of epoch
+                helperEpoch.trainTotalNumber > (smoothingMetadata.batchPercentMaxStart * helperEpoch.maxTrainTotalNumber)
             )
         )
 
@@ -422,7 +417,7 @@ class DefaultSmoothingBorderline_Metadata(sf.Smoothing_Metadata):
 
         self.device = device
 
-        if(sf.test_mode.isActivated()):
+        if(sf.test_mode.isActive()):
             self.numbOfBatchAfterSwitchOn = test_numbOfBatchAfterSwitchOn
         else:
             self.numbOfBatchAfterSwitchOn = numbOfBatchAfterSwitchOn # dla 50000 / 32 ~= 1500, 50000 / 16 ~= 3000
@@ -517,26 +512,26 @@ class DefaultSmoothingOscilationGeneralizedMean_Metadata(_SmoothingOscilationBas
     def __init__(self, generalizedMeanPower = 1,
         device = 'cpu',
         weightSumContainerSize = 10, weightSumContainerSizeStartAt=5, softMarginAdditionalLoops = 20, 
-        numbOfBatchMaxStart = 3100, numbOfBatchMinStart = 500, 
-        epsilon = 1e-3, hardEpsilon=1e-4, weightsEpsilon = 1e-6,
+        batchPercentMaxStart = 0.9988, batchPercentMinStart = 0.02, 
+        epsilon = 1e-5, hardEpsilon=1e-7, weightsEpsilon = 1e-6,
         lossContainer=50, lossContainerDelayedStartAt = 25,
 
         test_device = 'cpu',
         test_weightSumContainerSize = 10, test_weightSumContainerSizeStartAt=5, test_softMarginAdditionalLoops = 3, 
-        test_numbOfBatchMaxStartDifference = 10, test_numbOfBatchMinStartDifference = 15, 
-        test_epsilon = 1.0, test_hardEpsilon=1e-9, test_weightsEpsilon = 1.0,
+        test_batchPercentMaxStart = 0.85, test_batchPercentMinStart = 0.1, 
+        test_epsilon = 1e-4, test_hardEpsilon=1e-9, test_weightsEpsilon = 1e-5,
         test_lossContainer=5, test_lossContainerDelayedStartAt = 2):
 
         super().__init__(device=device,
         weightSumContainerSize=weightSumContainerSize, weightSumContainerSizeStartAt=weightSumContainerSizeStartAt, 
-        softMarginAdditionalLoops=softMarginAdditionalLoops, numbOfBatchMaxStart=numbOfBatchMaxStart,
-        numbOfBatchMinStart=numbOfBatchMinStart, epsilon=epsilon, hardEpsilon=hardEpsilon, weightsEpsilon=weightsEpsilon,
+        softMarginAdditionalLoops=softMarginAdditionalLoops, batchPercentMaxStart=batchPercentMaxStart,
+        batchPercentMinStart=batchPercentMinStart, epsilon=epsilon, hardEpsilon=hardEpsilon, weightsEpsilon=weightsEpsilon,
         lossContainer=lossContainer, lossContainerDelayedStartAt=lossContainerDelayedStartAt,
         
         test_device=test_device,
         test_weightSumContainerSize=test_weightSumContainerSize, test_weightSumContainerSizeStartAt=test_weightSumContainerSizeStartAt,
-        test_softMarginAdditionalLoops=test_softMarginAdditionalLoops, test_numbOfBatchMaxStartDifference=test_numbOfBatchMaxStartDifference,
-        test_numbOfBatchMinStartDifference=test_numbOfBatchMinStartDifference, test_epsilon=test_epsilon, test_hardEpsilon=test_hardEpsilon, test_weightsEpsilon=test_weightsEpsilon,
+        test_softMarginAdditionalLoops=test_softMarginAdditionalLoops, test_batchPercentMaxStart=test_batchPercentMaxStart,
+        test_batchPercentMinStart=test_batchPercentMinStart, test_epsilon=test_epsilon, test_hardEpsilon=test_hardEpsilon, test_weightsEpsilon=test_weightsEpsilon,
         test_lossContainer=test_lossContainer, test_lossContainerDelayedStartAt=test_lossContainerDelayedStartAt
         )
 
@@ -641,26 +636,26 @@ class DefaultSmoothingOscilationMovingMean_Metadata(_SmoothingOscilationBase_Met
     def __init__(self, movingAvgParam = 0.27,
         device = 'cpu',
         weightSumContainerSize = 10, weightSumContainerSizeStartAt=5, softMarginAdditionalLoops = 20, 
-        numbOfBatchMaxStart = 3100, numbOfBatchMinStart = 500, 
-        epsilon = 1e-3, hardEpsilon=1e-4, weightsEpsilon = 1e-6,
+        batchPercentMaxStart = 0.9988, batchPercentMinStart = 0.02, 
+        epsilon = 1e-5, hardEpsilon=1e-7, weightsEpsilon = 1e-6,
         lossContainer=50, lossContainerDelayedStartAt = 25,
 
         test_device = 'cpu',
         test_weightSumContainerSize = 10, test_weightSumContainerSizeStartAt=5, test_softMarginAdditionalLoops = 3, 
-        test_numbOfBatchMaxStartDifference = 10, test_numbOfBatchMinStartDifference = 15, 
-        test_epsilon = 1.0, test_hardEpsilon=1e-9, test_weightsEpsilon = 1.0,
+        test_batchPercentMaxStart = 0.85, test_batchPercentMinStart = 0.1, 
+        test_epsilon = 1e-4, test_hardEpsilon=1e-9, test_weightsEpsilon = 1e-5,
         test_lossContainer=5, test_lossContainerDelayedStartAt = 2):
 
         super().__init__(device=device,
         weightSumContainerSize=weightSumContainerSize, weightSumContainerSizeStartAt=weightSumContainerSizeStartAt, 
-        softMarginAdditionalLoops=softMarginAdditionalLoops, numbOfBatchMaxStart=numbOfBatchMaxStart,
-        numbOfBatchMinStart=numbOfBatchMinStart, epsilon=epsilon, hardEpsilon=hardEpsilon, weightsEpsilon=weightsEpsilon,
+        softMarginAdditionalLoops=softMarginAdditionalLoops, batchPercentMaxStart=batchPercentMaxStart,
+        batchPercentMinStart=batchPercentMinStart, epsilon=epsilon, hardEpsilon=hardEpsilon, weightsEpsilon=weightsEpsilon,
         lossContainer=lossContainer, lossContainerDelayedStartAt=lossContainerDelayedStartAt,
         
         test_device=test_device,
         test_weightSumContainerSize=test_weightSumContainerSize, test_weightSumContainerSizeStartAt=test_weightSumContainerSizeStartAt,
-        test_softMarginAdditionalLoops=test_softMarginAdditionalLoops, test_numbOfBatchMaxStartDifference=test_numbOfBatchMaxStartDifference,
-        test_numbOfBatchMinStartDifference=test_numbOfBatchMinStartDifference, test_epsilon=test_epsilon, test_hardEpsilon=test_hardEpsilon, test_weightsEpsilon=test_weightsEpsilon,
+        test_softMarginAdditionalLoops=test_softMarginAdditionalLoops, test_batchPercentMaxStart=test_batchPercentMaxStart,
+        test_batchPercentMinStart=test_batchPercentMinStart, test_epsilon=test_epsilon, test_hardEpsilon=test_hardEpsilon, test_weightsEpsilon=test_weightsEpsilon,
         test_lossContainer=test_lossContainer, test_lossContainerDelayedStartAt=test_lossContainerDelayedStartAt
         )
 
@@ -757,26 +752,26 @@ class DefaultSmoothingOscilationWeightedMean_Metadata(_SmoothingOscilationBase_M
     def __init__(self, weightIter = DefaultWeightDecay(), weightsArraySize=20, smoothingEndCheckType='std',
         device = 'cpu',
         weightSumContainerSize = 10, weightSumContainerSizeStartAt=5, softMarginAdditionalLoops = 20, 
-        numbOfBatchMaxStart = 3100, numbOfBatchMinStart = 500, 
-        epsilon = 1e-3, hardEpsilon=1e-4, weightsEpsilon = 1e-6,
+        batchPercentMaxStart = 0.9988, batchPercentMinStart = 0.02, 
+        epsilon = 1e-5, hardEpsilon=1e-7, weightsEpsilon = 1e-6,
         lossContainer=50, lossContainerDelayedStartAt = 25,
 
         test_device = 'cpu',
         test_weightSumContainerSize = 10, test_weightSumContainerSizeStartAt=5, test_softMarginAdditionalLoops = 3, 
-        test_numbOfBatchMaxStartDifference = 10, test_numbOfBatchMinStartDifference = 15, 
-        test_epsilon = 1.0, test_hardEpsilon=1e-9, test_weightsEpsilon = 1.0,
+        test_batchPercentMaxStart = 0.85, test_batchPercentMinStart = 0.1, 
+        test_epsilon = 1e-4, test_hardEpsilon=1e-9, test_weightsEpsilon = 1e-5,
         test_lossContainer=5, test_lossContainerDelayedStartAt = 2):
 
         super().__init__(device=device,
         weightSumContainerSize=weightSumContainerSize, weightSumContainerSizeStartAt=weightSumContainerSizeStartAt, 
-        softMarginAdditionalLoops=softMarginAdditionalLoops, numbOfBatchMaxStart=numbOfBatchMaxStart,
-        numbOfBatchMinStart=numbOfBatchMinStart, epsilon=epsilon, hardEpsilon=hardEpsilon, weightsEpsilon=weightsEpsilon,
+        softMarginAdditionalLoops=softMarginAdditionalLoops, batchPercentMaxStart=batchPercentMaxStart,
+        batchPercentMinStart=batchPercentMinStart, epsilon=epsilon, hardEpsilon=hardEpsilon, weightsEpsilon=weightsEpsilon,
         lossContainer=lossContainer, lossContainerDelayedStartAt=lossContainerDelayedStartAt,
         
         test_device=test_device,
         test_weightSumContainerSize=test_weightSumContainerSize, test_weightSumContainerSizeStartAt=test_weightSumContainerSizeStartAt, 
-        test_softMarginAdditionalLoops=test_softMarginAdditionalLoops, test_numbOfBatchMaxStartDifference=test_numbOfBatchMaxStartDifference,
-        test_numbOfBatchMinStartDifference=test_numbOfBatchMinStartDifference, test_epsilon=test_epsilon, test_hardEpsilon=test_hardEpsilon, test_weightsEpsilon=test_weightsEpsilon,
+        test_softMarginAdditionalLoops=test_softMarginAdditionalLoops, test_batchPercentMaxStart=test_batchPercentMaxStart,
+        test_batchPercentMinStart=test_batchPercentMinStart, test_epsilon=test_epsilon, test_hardEpsilon=test_hardEpsilon, test_weightsEpsilon=test_weightsEpsilon,
         test_lossContainer=test_lossContainer, test_lossContainerDelayedStartAt=test_lossContainerDelayedStartAt)
 
         # jak bardzo następne wagi w kolejce mają stracić na wartości. Kolejne wagi dzieli się przez wielokrotność tej wartości.
@@ -934,7 +929,7 @@ class DefaultData_Metadata(sf.Data_Metadata):
         self.fromGrayToRGB = fromGrayToRGB
 
         # batch size * howOftenPrintTrain
-        if(sf.test_mode.isActivated()):
+        if(sf.test_mode.isActive()):
             self.howOftenPrintTrain = test_howOftenPrintTrain
         else:
             self.howOftenPrintTrain = howOftenPrintTrain
@@ -1002,7 +997,7 @@ class DefaultData(sf.Data):
 
             metadata.stream.print(helper.loss.item(), ['statLossTrain'])
 
-            if(bool(metadata.debugInfo) and dataMetadata.howOftenPrintTrain is not None and (helper.batchNumber % dataMetadata.howOftenPrintTrain == 0 or sf.test_mode.isActivated())):
+            if(bool(metadata.debugInfo) and dataMetadata.howOftenPrintTrain is not None and (helper.batchNumber % dataMetadata.howOftenPrintTrain == 0 or sf.test_mode.isActive())):
                 sf.DefaultMethods.printLoss(metadata, helper)
 
     def __afterTrainLoop__(self, helperEpoch: 'EpochDataContainer', helper, model: 'Model', dataMetadata: 'Data_Metadata', modelMetadata: 'Model_Metadata', metadata: 'Metadata', smoothing: 'Smoothing', smoothingMetadata: 'Smoothing_Metadata'):
@@ -1032,6 +1027,12 @@ class DefaultData(sf.Data):
         metadata.stream.print(f" Average test execution time in a loop ({helper.timer.getUnits()}): {helper.timer.getAverage():>3f}", ['model:0'])
         metadata.stream.print(f" Time to complete the entire loop ({helper.timer.getUnits()}): {helper.loopTimer.getDiff():>3f}\n", ['model:0'])
         metadata.stream.print(f"{helper.timer.getAverage()};{helper.loopTimer.getDiff()};{(correctRatio):>0.0001f};{lossRatio:>8f}", ['stat'])
+
+    def __howManyTestInvInOneEpoch__(self):
+        return 2
+
+    def __howManyTrainInvInOneEpoch__(self):
+        return 1
 
     def __epoch__(self, helperEpoch: 'EpochDataContainer', model: 'Model', dataMetadata: 'Data_Metadata', modelMetadata: 'Model_Metadata', metadata: 'Metadata', smoothing: 'Smoothing', smoothingMetadata: 'Smoothing_Metadata'):
         if(metadata.shouldTrain()):

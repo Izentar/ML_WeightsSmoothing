@@ -179,7 +179,7 @@ class test_mode():
     def __exit__(self, exc_type, exc_val, exc_traceback):
         StaticData.TEST_MODE = self.prev
 
-    def isActivated(self = None):
+    def isActive(self = None):
         return bool(StaticData.TEST_MODE)
 
 class Metadata(SaveClass, BaseMainClass):
@@ -899,12 +899,19 @@ class EpochDataContainer():
     """
     def __init__(self):
         self.epochNumber = None
+        self.trainTotalNumber = None
+        self.testTotalNumber = None
+        self.maxTrainTotalNumber = None
+        self.maxTestTotalNumber = None
+
         self.returnObj = None
         self.currentLoopTimeAlias = None
         self.loopsState = LoopsState()
         self.statistics = Statistics()
 
         self.firstSmoothingSuccess = False # flaga zostaje zapalona, gdy po raz pierwszy wygładzanie zostało włączone
+
+
 
 class Statistics():
     """
@@ -933,6 +940,8 @@ class Data(SaveClass, BaseMainClass, BaseLogicClass):
         __prepare__
         __update__
         __epoch__
+        __howManyTestInvInOneEpoch__
+        __howManyTrainInvInOneEpoch__
 
         Metody możliwe do przeciążenia, które wymagają użycia super().
         __customizeState__
@@ -1056,6 +1065,24 @@ class Data(SaveClass, BaseMainClass, BaseLogicClass):
         """
         raise Exception("Not implemented")
 
+    def __howManyTestInvInOneEpoch__(self):
+        """
+            Zwraca liczbę wykonanych wywołań 'testLoop' w jednym epochu.
+            Wartość ta jest pobierana przy każdej iteracji epocha.
+
+            Zwracana wartość: integer >= 0
+        """
+        raise Exception("Not implemented")
+
+    def __howManyTrainInvInOneEpoch__(self):
+        """
+            Zwraca liczbę wykonanych wywołań 'trainLoop' w jednym epochu.
+            Wartość ta jest pobierana przy każdej iteracji epocha.
+
+            Zwracana wartość: integer >= 0
+        """
+        raise Exception("Not implemented")
+
     def __train__(self, helperEpoch: 'EpochDataContainer', helper, model: 'Model', dataMetadata: 'Data_Metadata', modelMetadata, metadata: 'Metadata', smoothing: 'Smoothing', smoothingMetadata: 'Smoothing_Metadata'):
         """
         Główna logika treningu modelu. Następuje pomiar czasu dla wykonania danej metody.
@@ -1127,6 +1154,7 @@ class Data(SaveClass, BaseMainClass, BaseLogicClass):
             self.trainHelper.inputs = inputs
             self.trainHelper.labels = labels
             self.trainHelper.batchNumber = batch
+            helperEpoch.trainTotalNumber += 1
             if(SAVE_AND_EXIT_FLAG):
                 self.__trainLoopExit__(helperEpoch=helperEpoch, helper=self.trainHelper, model=model, dataMetadata=dataMetadata, modelMetadata=modelMetadata, metadata=metadata, smoothing=smoothing, smoothingMetadata=smoothingMetadata)
                 return
@@ -1236,6 +1264,7 @@ class Data(SaveClass, BaseMainClass, BaseLogicClass):
                 self.testHelper.inputs = inputs
                 self.testHelper.labels = labels
                 self.testHelper.batchNumber = batch
+                helperEpoch.testTotalNumber += 1
                 if(SAVE_AND_EXIT_FLAG):
                     self.__testLoopExit__(helperEpoch=helperEpoch, helper=self.testHelper, model=model, dataMetadata=dataMetadata, modelMetadata=modelMetadata, metadata=metadata, smoothing=smoothing, smoothingMetadata=smoothingMetadata)
                     return
@@ -1286,10 +1315,20 @@ class Data(SaveClass, BaseMainClass, BaseLogicClass):
     def __epochLoopExit__(self, helperEpoch: 'EpochDataContainer', model: 'Model', dataMetadata: 'Data_Metadata', modelMetadata: 'Model_Metadata', metadata: 'Metadata', smoothing: 'Smoothing', smoothingMetadata: 'Smoothing_Metadata'):
         pass
 
+    def _updateTotalNumbLoops(self, dataMetadata: 'Data_Metadata'):
+        if(test_mode.isActive()):
+            self.epochHelper.maxTrainTotalNumber = self.__howManyTrainInvInOneEpoch__() * dataMetadata.epoch * StaticData.MAX_DEBUG_LOOPS
+            self.epochHelper.maxTestTotalNumber = self.__howManyTestInvInOneEpoch__() * dataMetadata.epoch * StaticData.MAX_DEBUG_LOOPS
+        else:
+            self.epochHelper.maxTrainTotalNumber = self.__howManyTrainInvInOneEpoch__() * dataMetadata.epoch * len(self.trainloader)
+            self.epochHelper.maxTestTotalNumber = self.__howManyTestInvInOneEpoch__() * dataMetadata.epoch * len(self.testloader)
+
     def epochLoop(self, model: 'Model', dataMetadata: 'Data_Metadata', modelMetadata: 'Model_Metadata', metadata: 'Metadata', smoothing: 'Smoothing', smoothingMetadata: 'Smoothing_Metadata'):
         metadata.prepareOutput()
         self.epochHelper = EpochDataContainer()
         self.epochHelper.statistics.logFolder = metadata.stream.root
+        self.epochHelper.trainTotalNumber = 0
+        self.epochHelper.testTotalNumber = 0
 
         self.__beforeEpochLoop__(helperEpoch=self.epochHelper, model=model, dataMetadata=dataMetadata, modelMetadata=modelMetadata, metadata=metadata, smoothing=smoothing, smoothingMetadata=smoothingMetadata)
 
@@ -1297,6 +1336,7 @@ class Data(SaveClass, BaseMainClass, BaseLogicClass):
             if(ep < self.epochNumb): # already iterated
                 continue
             self.epochHelper.epochNumber = ep
+            self._updateTotalNumbLoops(dataMetadata=dataMetadata)
             metadata.stream.print(f"\nEpoch {loopEpoch+1}\n-------------------------------")
             metadata.stream.flushAll()
             
@@ -1360,9 +1400,6 @@ class Data(SaveClass, BaseMainClass, BaseLogicClass):
 
     def canUpdate(self = None):
         return True
-
-    def lastEpoch(epochHelper, dataMetadata):
-        return epochHelper.epochNumber == (dataMetadata.epoch - 1)
 
 class Smoothing(SaveClass, BaseMainClass, BaseLogicClass):
     """
