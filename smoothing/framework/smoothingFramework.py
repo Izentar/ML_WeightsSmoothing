@@ -865,7 +865,6 @@ class TrainDataContainer():
         self.inputs = None
         self.labels = None
         self.smoothingSuccess = False # flaga mówiąca czy wygładzanie wzięło pod uwagę wagi modelu w danej iteracji
-        self.firstSmoothingSuccess = False # flaga zostaje zapalona, gdy po raz pierwszy wygładzanie zostało włączone
 
         self.batchNumber = None # current batch number
         self.loopEnded = False # check if loop ened
@@ -904,6 +903,8 @@ class EpochDataContainer():
         self.currentLoopTimeAlias = None
         self.loopsState = LoopsState()
         self.statistics = Statistics()
+
+        self.firstSmoothingSuccess = False # flaga zostaje zapalona, gdy po raz pierwszy wygładzanie zostało włączone
 
 class Statistics():
     """
@@ -1154,9 +1155,9 @@ class Data(SaveClass, BaseMainClass, BaseLogicClass):
             metadata.stream.print(str(weightsSum), 'weightsSumTrain')
 
             if(self.trainHelper.smoothingSuccess):
-                if(self.trainHelper.firstSmoothingSuccess == False):
+                if(helperEpoch.firstSmoothingSuccess == False):
                     metadata.stream.print("Successful first smoothing call while train at batch {}".format(batch), ['model:0', 'debug:0'])
-                    self.trainHelper.firstSmoothingSuccess = True
+                    helperEpoch.firstSmoothingSuccess = True
                 else:
                     metadata.stream.print("Successful smoothing call while train at batch {}".format(batch), 'debug:0')
 

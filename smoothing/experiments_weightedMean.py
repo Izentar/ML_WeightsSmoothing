@@ -20,7 +20,8 @@ if(__name__ == '__main__'):
         metadata = sf.Metadata(testFlag=True, trainFlag=True, debugInfo=True)
         dataMetadata = dc.DefaultData_Metadata(pin_memoryTest=True, pin_memoryTrain=True)
         
-        smoothingMetadata = dc.DefaultSmoothingOscilationWeightedMean_Metadata(weightIter=dc.DefaultWeightDecay(1.05), epsilon=1e-4, weightsEpsilon=1e-6*5)
+        smoothingMetadata = dc.DefaultSmoothingOscilationWeightedMean_Metadata(weightIter=dc.DefaultWeightDecay(1.05), 
+        epsilon=1e-4, weightsEpsilon=1e-6*5)
         modelMetadata = dc.DefaultModel_Metadata()
 
         stat=dc.run(modelType=types[0], dataType=types[1], smoothingType=types[2], metadataObj=metadata, 

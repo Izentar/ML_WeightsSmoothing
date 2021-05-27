@@ -1,16 +1,21 @@
 #!/bin/bash 
 
 declare -a commands=(
-    "python smoothing/experiments_arithmeticMean.py"
-    "python smoothing/experiments_borderline.py"
-    "python smoothing/experiments_disabledMean.py"
-    "python smoothing/experiments_movingMean.py"
-    "python smoothing/experiments_wightedMean.py"
+    "python smoothing/experiments_weightedMean.py"
 )
 
 declare -a names=(
     "testModel"
 )
+
+: '
+    "python smoothing/experiments_arithmeticMean.py"
+    "python smoothing/experiments_borderline.py"
+    "python smoothing/experiments_disabledMean.py"
+    "python smoothing/experiments_movingMean.py"
+    "python smoothing/experiments_weightedMean.py"
+'
+
 : '
     "python smoothing/alexnet_pretrain.py -l alexnet_pretrain_load -s alexnet_pretrain_save --mname alexnet_pretrain --test true --train true --pinTest false -d --debugOutput debug --modelOutput alexnet_pretrain_model --bashOutput true --formatedOutput alexnet_pretrain_formated"
     "python smoothing/alexnet.py -l alexnet_load -s alexnet_save --mname alexnet --test true --train true --pinTest false -d --debugOutput debug --modelOutput alexnet_model --bashOutput true --formatedOutput alexnet_formated"

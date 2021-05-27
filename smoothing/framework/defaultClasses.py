@@ -231,10 +231,10 @@ class _SmoothingOscilationBase_Metadata(sf.Smoothing_Metadata):
         lossContainer=50, lossContainerDelayedStartAt = 25,
 
         test_device = 'cpu',
-        test_weightSumContainerSize = 10, test_weightSumContainerSizeStartAt=5, test_softMarginAdditionalLoops = 20, 
-        test_numbOfBatchMaxStartDifference = 10, test_numbOfBatchMinStartDifference = 30, 
-        test_epsilon = 1e-2, test_hardEpsilon=1e-2, test_weightsEpsilon = 1e-4,
-        test_lossContainer=50, test_lossContainerDelayedStartAt = 25):
+        test_weightSumContainerSize = 10, test_weightSumContainerSizeStartAt=5, test_softMarginAdditionalLoops = 3, 
+        test_numbOfBatchMaxStartDifference = 10, test_numbOfBatchMinStartDifference = 15, 
+        test_epsilon = 1.0, test_hardEpsilon=1e-9, test_weightsEpsilon = 1.0,
+        test_lossContainer=5, test_lossContainerDelayedStartAt = 2):
         """
             device - urządzenie na którym ma działać wygładzanie
             weightSumContainerSize - wielkość kontenera dla przechowywania sumy wag.
@@ -336,7 +336,7 @@ class _SmoothingOscilationBase(sf.Smoothing):
 
         self.lossContainer = CircularList(smoothingMetadata.lossContainerSize)
         
-    def canComputeWeights(self, helperEpoch, dataMetadata, smoothingMetadata, metadata):
+    def canComputeWeights(self, helper, helperEpoch, dataMetadata, smoothingMetadata, metadata):
         """
         - Jeżeli wartość bezwzględna różnicy średnich N ostatnich strat f. celu, a średnią K średnich N ostatnich strat f. celu będzie mniejsza niż epsilon
         i program przeszedł przez minimalną liczbę pętli, to metoda zwróci True.
@@ -346,16 +346,16 @@ class _SmoothingOscilationBase(sf.Smoothing):
         avg_2 = self.lossContainer.getAverage(smoothingMetadata.lossContainerDelayedStartAt)
         metadata.stream.print("Loss average: {} : {}".format(avg_1, avg_2), 'debug:0')
         absAvgDiff = abs(avg_1 - avg_2)
-        if(absAvgDiff < smoothingMetadata.hardEpsilon and helperEpoch.epochNumber > smoothingMetadata.numbOfBatchMinStart):
+        if(absAvgDiff < smoothingMetadata.hardEpsilon and helper.batchNumber > smoothingMetadata.numbOfBatchMinStart):
             self.alwaysOn = True
             metadata.stream.print("Reached hard epsilon.", 'debug:0')
         return bool(
             (
-                absAvgDiff < smoothingMetadata.epsilon and helperEpoch.epochNumber > smoothingMetadata.numbOfBatchMinStart
+                absAvgDiff < smoothingMetadata.epsilon and helper.batchNumber >= smoothingMetadata.numbOfBatchMinStart
             )
             or (
-                helperEpoch.epochNumber > smoothingMetadata.numbOfBatchMaxStart
-                and sf.Data.lastEpoch(helperEpoch, dataMetadata)
+                helper.batchNumber > smoothingMetadata.numbOfBatchMaxStart 
+                and sf.Data.lastEpoch(helperEpoch, dataMetadata)# only at the last iteration of epoch
             )
         )
 
@@ -404,7 +404,7 @@ class _SmoothingOscilationBase(sf.Smoothing):
         metadata.stream.print("Loss avg diff : " + 
             str(abs(self.lossContainer.getAverage() - self.lossContainer.getAverage(smoothingMetadata.lossContainerDelayedStartAt))), 'debug:0')
 
-        if(self.alwaysOn or self.canComputeWeights(helperEpoch=helperEpoch, dataMetadata=dataMetadata, smoothingMetadata=smoothingMetadata, metadata=metadata)):
+        if(self.alwaysOn or self.canComputeWeights(helperEpoch=helperEpoch, helper=helper, dataMetadata=dataMetadata, smoothingMetadata=smoothingMetadata, metadata=metadata)):
             self.countWeights += 1
             self.calcMean(model=model, smoothingMetadata=smoothingMetadata)
             return True
@@ -522,10 +522,10 @@ class DefaultSmoothingOscilationGeneralizedMean_Metadata(_SmoothingOscilationBas
         lossContainer=50, lossContainerDelayedStartAt = 25,
 
         test_device = 'cpu',
-        test_weightSumContainerSize = 10, test_weightSumContainerSizeStartAt=5, test_softMarginAdditionalLoops = 20, 
-        test_numbOfBatchMaxStartDifference = 10, test_numbOfBatchMinStartDifference = 30, 
-        test_epsilon = 1e-2, test_hardEpsilon=1e-3, test_weightsEpsilon = 1e-4,
-        test_lossContainer=50, test_lossContainerDelayedStartAt = 25):
+        test_weightSumContainerSize = 10, test_weightSumContainerSizeStartAt=5, test_softMarginAdditionalLoops = 3, 
+        test_numbOfBatchMaxStartDifference = 10, test_numbOfBatchMinStartDifference = 15, 
+        test_epsilon = 1.0, test_hardEpsilon=1e-9, test_weightsEpsilon = 1.0,
+        test_lossContainer=5, test_lossContainerDelayedStartAt = 2):
 
         super().__init__(device=device,
         weightSumContainerSize=weightSumContainerSize, weightSumContainerSizeStartAt=weightSumContainerSizeStartAt, 
@@ -646,10 +646,10 @@ class DefaultSmoothingOscilationMovingMean_Metadata(_SmoothingOscilationBase_Met
         lossContainer=50, lossContainerDelayedStartAt = 25,
 
         test_device = 'cpu',
-        test_weightSumContainerSize = 10, test_weightSumContainerSizeStartAt=5, test_softMarginAdditionalLoops = 20, 
-        test_numbOfBatchMaxStartDifference = 10, test_numbOfBatchMinStartDifference = 30, 
-        test_epsilon = 1e-2, test_hardEpsilon=1e-3, test_weightsEpsilon = 1e-4,
-        test_lossContainer=50, test_lossContainerDelayedStartAt = 25):
+        test_weightSumContainerSize = 10, test_weightSumContainerSizeStartAt=5, test_softMarginAdditionalLoops = 3, 
+        test_numbOfBatchMaxStartDifference = 10, test_numbOfBatchMinStartDifference = 15, 
+        test_epsilon = 1.0, test_hardEpsilon=1e-9, test_weightsEpsilon = 1.0,
+        test_lossContainer=5, test_lossContainerDelayedStartAt = 2):
 
         super().__init__(device=device,
         weightSumContainerSize=weightSumContainerSize, weightSumContainerSizeStartAt=weightSumContainerSizeStartAt, 
@@ -762,10 +762,10 @@ class DefaultSmoothingOscilationWeightedMean_Metadata(_SmoothingOscilationBase_M
         lossContainer=50, lossContainerDelayedStartAt = 25,
 
         test_device = 'cpu',
-        test_weightSumContainerSize = 10, test_weightSumContainerSizeStartAt=5, test_softMarginAdditionalLoops = 20, 
-        test_numbOfBatchMaxStartDifference = 10, test_numbOfBatchMinStartDifference = 30, 
-        test_epsilon = 1e-2, test_hardEpsilon=1e-3, test_weightsEpsilon = 1e-4,
-        test_lossContainer=50, test_lossContainerDelayedStartAt = 25):
+        test_weightSumContainerSize = 10, test_weightSumContainerSizeStartAt=5, test_softMarginAdditionalLoops = 3, 
+        test_numbOfBatchMaxStartDifference = 10, test_numbOfBatchMinStartDifference = 15, 
+        test_epsilon = 1.0, test_hardEpsilon=1e-9, test_weightsEpsilon = 1.0,
+        test_lossContainer=5, test_lossContainerDelayedStartAt = 2):
 
         super().__init__(device=device,
         weightSumContainerSize=weightSumContainerSize, weightSumContainerSizeStartAt=weightSumContainerSizeStartAt, 
@@ -895,6 +895,8 @@ class DefaultSmoothingOscilationWeightedMean(_SmoothingOscilationBase):
         
         sumOfDiff = torch.Tensor(sumOfDiff)
         std = torch.std(sumOfDiff)
+        del sumOfDiff
+        torch.cuda.empty_cache()
         if(std.isnan()):
             return torch.tensor(0.0)
         return std
@@ -903,12 +905,10 @@ class DefaultSmoothingOscilationWeightedMean(_SmoothingOscilationBase):
         if(self.countWeights > 0):
             self.divisionCounter += 1
             smWg = self.__getSmoothedWeights__(smoothingMetadata=smoothingMetadata, metadata=metadata)
-
             stdDev = self._sumWeightsToArrayStd(smWg=smWg)
 
-            metadata.stream.print("Sum debug:" + str(absSum), 'debug:0')
-            metadata.stream.print("Weight avg diff: " + str(abs(avg_1 - avg_2)), 'debug:0')
-            metadata.stream.print("Weight avg diff bool: " + str(bool(abs(avg_1 - avg_2) < smoothingMetadata.weightsEpsilon)), 'debug:0')
+            metadata.stream.print("Standard deviation:" + str(stdDev), 'debug:0')
+            metadata.stream.print("Standard deviation bool: " + str(bool(stdDev < smoothingMetadata.weightsEpsilon)), 'debug:0')
             
             return self._smoothingGoodEnoughCheck(val=stdDev, smoothingMetadata=smoothingMetadata)
         return False
