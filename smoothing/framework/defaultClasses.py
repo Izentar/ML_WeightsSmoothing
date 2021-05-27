@@ -329,7 +329,6 @@ class _SmoothingOscilationBase(sf.Smoothing):
             raise Exception("Metadata class '{}' is not the type of '{}'".format(type(smoothingMetadata), _SmoothingOscilationBase_Metadata.__name__))
         
         self.countWeights = 0
-        self.counter = 0
         self.tensorPrevSum = CircularList(int(smoothingMetadata.weightSumContainerSize))
         self.divisionCounter = 0
         self.goodEnoughCounter = 0
@@ -337,29 +336,35 @@ class _SmoothingOscilationBase(sf.Smoothing):
 
         self.lossContainer = CircularList(smoothingMetadata.lossContainerSize)
         
-
-    def canComputeWeights(self, smoothingMetadata):
+    def canComputeWeights(self, helperEpoch, dataMetadata, smoothingMetadata, metadata):
         """
         - Jeżeli wartość bezwzględna różnicy średnich N ostatnich strat f. celu, a średnią K średnich N ostatnich strat f. celu będzie mniejsza niż epsilon
         i program przeszedł przez minimalną liczbę pętli, to metoda zwróci True.
         W przeciwnym wypadku zwróci False.
         """
-        absAvgDiff = abs(self.lossContainer.getAverage() - self.lossContainer.getAverage(smoothingMetadata.lossContainerDelayedStartAt))
-        if(absAvgDiff < smoothingMetadata.hardEpsilon and self.counter > smoothingMetadata.numbOfBatchMinStart):
+        avg_1 = self.lossContainer.getAverage()
+        avg_2 = self.lossContainer.getAverage(smoothingMetadata.lossContainerDelayedStartAt)
+        metadata.stream.print("Loss average: {} : {}".format(avg_1, avg_2), 'debug:0')
+        absAvgDiff = abs(avg_1 - avg_2)
+        if(absAvgDiff < smoothingMetadata.hardEpsilon and helperEpoch.epochNumber > smoothingMetadata.numbOfBatchMinStart):
             self.alwaysOn = True
+            metadata.stream.print("Reached hard epsilon.", 'debug:0')
         return bool(
             (
-                absAvgDiff < smoothingMetadata.epsilon and self.counter > smoothingMetadata.numbOfBatchMinStart
+                absAvgDiff < smoothingMetadata.epsilon and helperEpoch.epochNumber > smoothingMetadata.numbOfBatchMinStart
             )
-            or self.counter > smoothingMetadata.numbOfBatchMaxStart
+            or (
+                helperEpoch.epochNumber > smoothingMetadata.numbOfBatchMaxStart
+                and sf.Data.lastEpoch(helperEpoch, dataMetadata)
+            )
         )
 
     def _sumAllWeights(self, smoothingMetadata, metadata):
         smWg = self.__getSmoothedWeights__(smoothingMetadata=smoothingMetadata, metadata=metadata)
         return sf.sumAllWeights(smWg)
 
-    def _smoothingGoodEnoughCheck(self, avg_1, avg_2, smoothingMetadata):
-        ret = bool(abs(avg_1 - avg_2) < smoothingMetadata.weightsEpsilon)
+    def _smoothingGoodEnoughCheck(self, val, smoothingMetadata):
+        ret = bool(val < smoothingMetadata.weightsEpsilon)
         if(ret):
             if(smoothingMetadata.softMarginAdditionalLoops > self.goodEnoughCounter):
                 self.goodEnoughCounter += 1
@@ -390,17 +395,16 @@ class _SmoothingOscilationBase(sf.Smoothing):
             metadata.stream.print("Weight avg diff: " + str(abs(avg_1 - avg_2)), 'debug:0')
             metadata.stream.print("Weight avg diff bool: " + str(bool(abs(avg_1 - avg_2) < smoothingMetadata.weightsEpsilon)), 'debug:0')
             
-            return self._smoothingGoodEnoughCheck(avg_1=avg_1, avg_2=avg_2, smoothingMetadata=smoothingMetadata)
+            return self._smoothingGoodEnoughCheck(val=abs(avg_1 - avg_2), smoothingMetadata=smoothingMetadata)
         return False
 
     def __call__(self, helperEpoch, helper, model, dataMetadata, modelMetadata, metadata, smoothingMetadata):
         super().__call__(helperEpoch=helperEpoch, helper=helper, model=model, dataMetadata=dataMetadata, modelMetadata=modelMetadata, metadata=metadata, smoothingMetadata=smoothingMetadata)
-        self.counter += 1
         self.lossContainer.pushBack(helper.loss.item())
         metadata.stream.print("Loss avg diff : " + 
             str(abs(self.lossContainer.getAverage() - self.lossContainer.getAverage(smoothingMetadata.lossContainerDelayedStartAt))), 'debug:0')
 
-        if(self.alwaysOn or self.canComputeWeights(smoothingMetadata)):
+        if(self.alwaysOn or self.canComputeWeights(helperEpoch=helperEpoch, dataMetadata=dataMetadata, smoothingMetadata=smoothingMetadata, metadata=metadata)):
             self.countWeights += 1
             self.calcMean(model=model, smoothingMetadata=smoothingMetadata)
             return True
@@ -444,15 +448,14 @@ class DefaultSmoothingBorderline(sf.Smoothing):
         self.sumWeights = {}
         self.previousWeights = {}
         self.countWeights = 0
-        self.counter = 0
 
     def __isSmoothingGoodEnough__(self, helperEpoch, helper, model, dataMetadata, modelMetadata, metadata, smoothingMetadata):
         return False
 
     def __call__(self, helperEpoch, helper, model, dataMetadata, modelMetadata, metadata, smoothingMetadata):
         super().__call__(helperEpoch=helperEpoch, helper=helper, model=model, dataMetadata=dataMetadata, modelMetadata=modelMetadata, metadata=metadata, smoothingMetadata=smoothingMetadata)
-        self.counter += 1
-        if(self.counter > smoothingMetadata.numbOfBatchAfterSwitchOn):
+        if(helperEpoch.epochNumber > smoothingMetadata.numbOfBatchAfterSwitchOn 
+            and sf.Data.lastEpoch(helperEpoch, dataMetadata)):
             self.countWeights += 1
             if(hasattr(helper, 'substract')):
                 del helper.substract
@@ -503,7 +506,6 @@ class DefaultSmoothingBorderline(sf.Smoothing):
         if(self.only_Key_Ingredients):
             self.previousWeights = {}
             self.countWeights = 0
-            self.counter = 0
             self.sumWeights = {}
             self.enabled = False
 
@@ -623,7 +625,6 @@ class DefaultSmoothingOscilationGeneralizedMean(_SmoothingOscilationBase):
         self.__dict__.update(state)
         if(self.only_Key_Ingredients):
             self.countWeights = 0
-            self.counter = 0
             self.sumWeights = {}
             self.enabled = False
             self.divisionCounter = 0
@@ -735,7 +736,6 @@ class DefaultSmoothingOscilationMovingMean(_SmoothingOscilationBase):
         self.__dict__.update(state)
         if(self.only_Key_Ingredients):
             self.countWeights = 0
-            self.counter = 0
             self.enabled = False
             self.divisionCounter = 0
 
@@ -747,8 +747,14 @@ class DefaultSmoothingOscilationMovingMean(_SmoothingOscilationBase):
         return DefaultSmoothingOscilationMovingMean_Metadata()
 
 # oscilation weighted mean
+smoothingEndCheckTypeDict = [
+    'std',
+    'wgsum'
+]
+
+
 class DefaultSmoothingOscilationWeightedMean_Metadata(_SmoothingOscilationBase_Metadata):
-    def __init__(self, weightIter = DefaultWeightDecay(), weightsArraySize=20,
+    def __init__(self, weightIter = DefaultWeightDecay(), weightsArraySize=20, smoothingEndCheckType='std',
         device = 'cpu',
         weightSumContainerSize = 10, weightSumContainerSizeStartAt=5, softMarginAdditionalLoops = 20, 
         numbOfBatchMaxStart = 3100, numbOfBatchMinStart = 500, 
@@ -776,6 +782,12 @@ class DefaultSmoothingOscilationWeightedMean_Metadata(_SmoothingOscilationBase_M
         # jak bardzo następne wagi w kolejce mają stracić na wartości. Kolejne wagi dzieli się przez wielokrotność tej wartości.
         self.weightIter = weightIter
         self.weightsArraySize=weightsArraySize
+        self.smoothingEndCheckType=smoothingEndCheckType
+
+        # validate
+        if(self.smoothingEndCheckType not in smoothingEndCheckTypeDict):
+            raise Exception("Unknown type of smoothingEndCheckType: {}\nPossible values:\n{}".format(
+                self.smoothingEndCheckType, smoothingEndCheckTypeDict))
 
     def __strAppend__(self):
         tmp_str = super().__strAppend__()
@@ -800,7 +812,13 @@ class DefaultSmoothingOscilationWeightedMean(_SmoothingOscilationBase):
 
         # trzeba uważać na zajętość w pamięci. Zapamiętuje wszystkie wagi modelu, co może sumować się do dużych rozmiarów
         self.weightsArray = CircularList(smoothingMetadata.weightsArraySize) 
-
+        if(smoothingMetadata.smoothingEndCheckType == 'std'):
+            self.isSmoothingGoodEnoughMethod = DefaultSmoothingOscilationWeightedMean.__isSmoothingGoodEnough__std
+        elif(smoothingMetadata.smoothingEndCheckType == 'wgsum'):
+            self.isSmoothingGoodEnoughMethod = _SmoothingOscilationBase.__isSmoothingGoodEnough__
+        else:
+            raise Exception("Unknown type of smoothingEndCheckType: {}".format(smoothingMetadata.smoothingEndCheckType))
+        
     def calcMean(self, model, smoothingMetadata):
         with torch.no_grad():
             tmpDict = {}
@@ -852,7 +870,6 @@ class DefaultSmoothingOscilationWeightedMean(_SmoothingOscilationBase):
         self.__dict__.update(state)
         if(self.only_Key_Ingredients):
             self.countWeights = 0
-            self.counter = 0
             self.weightsArray.reset()
             self.enabled = False
             self.divisionCounter = 0
@@ -863,6 +880,38 @@ class DefaultSmoothingOscilationWeightedMean(_SmoothingOscilationBase):
 
     def createDefaultMetadataObj(self):
         return DefaultSmoothingOscilationWeightedMean_Metadata()
+
+    def __isSmoothingGoodEnough__(self, helperEpoch, helper, model, dataMetadata, modelMetadata, metadata, smoothingMetadata):
+        return self.isSmoothingGoodEnoughMethod(self, helperEpoch=helperEpoch, helper=helper, model=model, 
+            dataMetadata=dataMetadata, modelMetadata=modelMetadata, metadata=metadata, smoothingMetadata=smoothingMetadata)
+
+    def _sumWeightsToArrayStd(self, smWg):
+        sumOfDiff = []
+        for wg in self.weightsArray:
+            diffSumDict = 0.0
+            for key, tens in wg.items():
+                diffSumDict += torch.sum(torch.abs(tens.sub(smWg[key])))
+            sumOfDiff.append(diffSumDict)
+        
+        sumOfDiff = torch.Tensor(sumOfDiff)
+        std = torch.std(sumOfDiff)
+        if(std.isnan()):
+            return torch.tensor(0.0)
+        return std
+
+    def __isSmoothingGoodEnough__std(self, helperEpoch, helper, model, dataMetadata, modelMetadata, metadata, smoothingMetadata):
+        if(self.countWeights > 0):
+            self.divisionCounter += 1
+            smWg = self.__getSmoothedWeights__(smoothingMetadata=smoothingMetadata, metadata=metadata)
+
+            stdDev = self._sumWeightsToArrayStd(smWg=smWg)
+
+            metadata.stream.print("Sum debug:" + str(absSum), 'debug:0')
+            metadata.stream.print("Weight avg diff: " + str(abs(avg_1 - avg_2)), 'debug:0')
+            metadata.stream.print("Weight avg diff bool: " + str(bool(abs(avg_1 - avg_2) < smoothingMetadata.weightsEpsilon)), 'debug:0')
+            
+            return self._smoothingGoodEnoughCheck(val=stdDev, smoothingMetadata=smoothingMetadata)
+        return False
 
 # data classes
 class DefaultData_Metadata(sf.Data_Metadata):

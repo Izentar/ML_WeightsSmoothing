@@ -1360,6 +1360,9 @@ class Data(SaveClass, BaseMainClass, BaseLogicClass):
     def canUpdate(self = None):
         return True
 
+    def lastEpoch(epochHelper, dataMetadata):
+        return epochHelper.epochNumber == (dataMetadata.epoch - 1)
+
 class Smoothing(SaveClass, BaseMainClass, BaseLogicClass):
     """
     Metody, które wymagają przeciążenia i wywołania super()
