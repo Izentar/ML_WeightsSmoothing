@@ -1072,7 +1072,7 @@ class DefaultDataMNIST(DefaultData):
         self.testset = torchvision.datasets.MNIST(root=sf.StaticData.DATA_PATH, train=False, transform=self.testTransform, download=dataMetadata.download)
 
         self.trainSampler = sf.BaseSampler(len(self.trainset), dataMetadata.batchTrainSize)
-        self.testSampler = sf.BaseSampler(len(self.testset), dataMetadata.batchTrainSize)
+        self.testSampler = sf.BaseSampler(len(self.testset), dataMetadata.batchTestSize)
 
         self.trainloader = torch.utils.data.DataLoader(self.trainset, batch_size=dataMetadata.batchTrainSize, sampler=self.trainSampler,
                                           shuffle=False, num_workers=2, pin_memory=dataMetadata.pin_memoryTrain, worker_init_fn=dataMetadata.worker_seed if sf.enabledDeterminism() else None)
@@ -1093,7 +1093,7 @@ class DefaultDataEMNIST(DefaultData):
         self.testset = torchvision.datasets.EMNIST(root=sf.StaticData.DATA_PATH, train=False, transform=self.testTransform, split='digits', download=dataMetadata.download)
 
         self.trainSampler = sf.BaseSampler(len(self.trainset), dataMetadata.batchTrainSize)
-        self.testSampler = sf.BaseSampler(len(self.testset), dataMetadata.batchTrainSize)
+        self.testSampler = sf.BaseSampler(len(self.testset), dataMetadata.batchTestSize)
 
         self.trainloader = torch.utils.data.DataLoader(self.trainset, batch_size=dataMetadata.batchTrainSize, sampler=self.trainSampler,
                                           shuffle=False, num_workers=2, pin_memory=dataMetadata.pin_memoryTrain, worker_init_fn=dataMetadata.worker_seed if sf.enabledDeterminism() else None)
@@ -1114,7 +1114,7 @@ class DefaultDataCIFAR10(DefaultData):
         self.testset = torchvision.datasets.CIFAR10(root=sf.StaticData.DATA_PATH, train=False, transform=self.testTransform, download=dataMetadata.download)
 
         self.trainSampler = sf.BaseSampler(len(self.trainset), dataMetadata.batchTrainSize)
-        self.testSampler = sf.BaseSampler(len(self.testset), dataMetadata.batchTrainSize)
+        self.testSampler = sf.BaseSampler(len(self.testset), dataMetadata.batchTestSize)
 
         self.trainloader = torch.utils.data.DataLoader(self.trainset, batch_size=dataMetadata.batchTrainSize, sampler=self.trainSampler,
                                           shuffle=False, num_workers=2, pin_memory=dataMetadata.pin_memoryTrain, worker_init_fn=dataMetadata.worker_seed if sf.enabledDeterminism() else None)
@@ -1135,7 +1135,7 @@ class DefaultDataCIFAR100(DefaultData):
         self.testset = torchvision.datasets.CIFAR100(root=sf.StaticData.DATA_PATH, train=False, transform=self.testTransform, download=dataMetadata.download)
 
         self.trainSampler = sf.BaseSampler(len(self.trainset), dataMetadata.batchTrainSize)
-        self.testSampler = sf.BaseSampler(len(self.testset), dataMetadata.batchTrainSize)
+        self.testSampler = sf.BaseSampler(len(self.testset), dataMetadata.batchTestSize)
 
         self.trainloader = torch.utils.data.DataLoader(self.trainset, batch_size=dataMetadata.batchTrainSize, sampler=self.trainSampler,
                                           shuffle=False, num_workers=2, pin_memory=dataMetadata.pin_memoryTrain, worker_init_fn=dataMetadata.worker_seed if sf.enabledDeterminism() else None)
