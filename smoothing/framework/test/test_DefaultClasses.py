@@ -6,6 +6,7 @@ import torch
 import torch.nn as nn
 import torch.optim as optim
 import numpy as np
+import time
 
 sf.StaticData.LOG_FOLDER = './smoothing/framework/test/dump/'
 
@@ -221,57 +222,66 @@ class Test_DefaultSmoothing(unittest.TestCase):
         testCmpPandas(smoothing.__isSmoothingGoodEnough__(helperEpoch=helperEpoch, helper=helper, model=model, dataMetadata=None, modelMetadata=None, metadata=metadata, smoothingMetadata=smoothingMetadata), 'isSmoothingGoodEnough', booleanIsGood)
 
 class Test__SmoothingOscilationBase(Test_DefaultSmoothing):
+    def setUp(self):
+        self.metadata = sf.Metadata()
+        self.metadata.debugInfo = True
+        self.metadata.debugOutput = 'debug'
+        self.metadata.logFolderSuffix = str(time.time())
+        self.metadata.prepareOutput()
+        self.modelMetadata = TestModel_Metadata()
+        self.model = TestModel(self.modelMetadata)
+        self.helper = sf.TrainDataContainer()
+        self.dataMetadata = dc.DefaultData_Metadata()
+
+        self.helperEpoch = sf.EpochDataContainer()
+        self.helperEpoch.trainTotalNumber = 3
+        self.helperEpoch.maxTrainTotalNumber = 5
+
     def test__isSmoothingGoodEnough__(self):
-        metadata = sf.Metadata()
-        metadata.debugInfo = True
-        metadata.logFolderSuffix = 'test_1'
-        metadata.debugOutput = 'debug'
-        metadata.prepareOutput()
-        modelMetadata = TestModel_Metadata()
-        model = TestModel(modelMetadata)
-        helper = sf.TrainDataContainer()
-        dataMetadata = dc.DefaultData_Metadata()
-        smoothingMetadata = dc.DefaultSmoothingOscilationWeightedMean_Metadata(epsilon=1.0, hardEpsilon=1e-9, smoothingEndCheckType='wgsum',
-        weightsEpsilon=1.0, numbOfBatchMinStart=1, softMarginAdditionalLoops=1,
-        lossContainer=3, lossContainerDelayedStartAt=1, weightsArraySize=3)
-        helperEpoch = sf.EpochDataContainer()
-        helperEpoch.epochNumber = 3
+        self.smoothingMetadata = dc.Test_DefaultSmoothingOscilationWeightedMean_Metadata(test_epsilon=1.0, test_hardEpsilon=1e-9, test_smoothingEndCheckType='wgsum',
+        test_weightsEpsilon=1.0, test_softMarginAdditionalLoops=1,
+        test_lossContainer=3, test_lossContainerDelayedStartAt=1, test_weightsArraySize=3)
 
-        smoothing = dc.DefaultSmoothingOscilationWeightedMean(smoothingMetadata=smoothingMetadata)
-        smoothing.__setDictionary__(smoothingMetadata=smoothingMetadata, dictionary=model.getNNModelModule().named_parameters())
-        helper.loss = torch.Tensor([1.0])
+        smoothing = dc.DefaultSmoothingOscilationWeightedMean(smoothingMetadata=self.smoothingMetadata)
+        smoothing.__setDictionary__(smoothingMetadata=self.smoothingMetadata, dictionary=self.model.getNNModelModule().named_parameters())
+        self.helper.loss = torch.Tensor([1.0])
 
-        self.checkOscilation__isSmoothingGoodEnough__(avgLoss=1.0, avgKLoss=0, helperEpoch=helperEpoch, dataMetadata=dataMetadata, smoothing=smoothing, smoothingMetadata=smoothingMetadata,
-            helper=helper, model=model, metadata=metadata, booleanIsGood=False)
-        helper.loss = torch.Tensor([0.5])
-        self.checkOscilation__isSmoothingGoodEnough__(avgLoss=1.5/2, avgKLoss=1.0, helperEpoch=helperEpoch, dataMetadata=dataMetadata, smoothing=smoothing, smoothingMetadata=smoothingMetadata,
-            helper=helper, model=model, metadata=metadata, booleanIsGood=False)
-        self.checkOscilation__isSmoothingGoodEnough__(avgLoss=2/3, avgKLoss=1.5/2, helperEpoch=helperEpoch, dataMetadata=dataMetadata, smoothing=smoothing, smoothingMetadata=smoothingMetadata,
-            helper=helper, model=model, metadata=metadata, booleanIsGood=False)
+        self.checkOscilation__isSmoothingGoodEnough__(avgLoss=1.0, avgKLoss=0, helperEpoch=self.helperEpoch, dataMetadata=self.dataMetadata, 
+            smoothing=smoothing, smoothingMetadata=self.smoothingMetadata,
+            helper=self.helper, model=self.model, metadata=self.metadata, booleanIsGood=False)
+        self.helper.loss = torch.Tensor([0.5])
+        self.checkOscilation__isSmoothingGoodEnough__(avgLoss=1.5/2, avgKLoss=1.0, helperEpoch=self.helperEpoch, dataMetadata=self.dataMetadata, 
+        smoothing=smoothing, smoothingMetadata=self.smoothingMetadata,
+            helper=self.helper, model=self.model, metadata=self.metadata, booleanIsGood=False)
+        self.checkOscilation__isSmoothingGoodEnough__(avgLoss=2/3, avgKLoss=1.5/2, helperEpoch=self.helperEpoch, dataMetadata=self.dataMetadata, 
+        smoothing=smoothing, smoothingMetadata=self.smoothingMetadata,
+            helper=self.helper, model=self.model, metadata=self.metadata, booleanIsGood=False)
 
-        helper.loss = torch.Tensor([1.5])
-        self.checkOscilation__isSmoothingGoodEnough__(avgLoss=2.5/3, avgKLoss=1/2, helperEpoch=helperEpoch, dataMetadata=dataMetadata, smoothing=smoothing, smoothingMetadata=smoothingMetadata,
-            helper=helper, model=model, metadata=metadata, booleanIsGood=False)
-        self.checkOscilation__isSmoothingGoodEnough__(avgLoss=3.5/3, avgKLoss=2/2, helperEpoch=helperEpoch, dataMetadata=dataMetadata, smoothing=smoothing, smoothingMetadata=smoothingMetadata,
-            helper=helper, model=model, metadata=metadata, booleanIsGood=False)
-        self.checkOscilation__isSmoothingGoodEnough__(avgLoss=4.5/3, avgKLoss=3/2, helperEpoch=helperEpoch, dataMetadata=dataMetadata, smoothing=smoothing, smoothingMetadata=smoothingMetadata,
-            helper=helper, model=model, metadata=metadata, booleanIsGood=False)
+        self.helper.loss = torch.Tensor([1.5])
+        self.checkOscilation__isSmoothingGoodEnough__(avgLoss=2.5/3, avgKLoss=1/2, helperEpoch=self.helperEpoch, dataMetadata=self.dataMetadata, 
+        smoothing=smoothing, smoothingMetadata=self.smoothingMetadata,
+            helper=self.helper, model=self.model, metadata=self.metadata, booleanIsGood=False)
+        self.checkOscilation__isSmoothingGoodEnough__(avgLoss=3.5/3, avgKLoss=2/2, helperEpoch=self.helperEpoch, dataMetadata=self.dataMetadata, 
+        smoothing=smoothing, smoothingMetadata=self.smoothingMetadata,
+            helper=self.helper, model=self.model, metadata=self.metadata, booleanIsGood=False)
+        self.checkOscilation__isSmoothingGoodEnough__(avgLoss=4.5/3, avgKLoss=3/2, helperEpoch=self.helperEpoch, dataMetadata=self.dataMetadata, 
+        smoothing=smoothing, smoothingMetadata=self.smoothingMetadata,
+            helper=self.helper, model=self.model, metadata=self.metadata, booleanIsGood=False)
 
-        helper.loss = torch.Tensor([1.3])
-        self.checkOscilation__isSmoothingGoodEnough__(avgLoss=4.3/3, avgKLoss=3/2, helperEpoch=helperEpoch, dataMetadata=dataMetadata, smoothing=smoothing, smoothingMetadata=smoothingMetadata,
-            helper=helper, model=model, metadata=metadata, booleanIsGood=False)
-        self.checkOscilation__isSmoothingGoodEnough__(avgLoss=4.1/3, avgKLoss=2.8/2, helperEpoch=helperEpoch, dataMetadata=dataMetadata, smoothing=smoothing, smoothingMetadata=smoothingMetadata,
-            helper=helper, model=model, metadata=metadata, booleanIsGood=True)
+        self.helper.loss = torch.Tensor([1.3])
+        self.checkOscilation__isSmoothingGoodEnough__(avgLoss=4.3/3, avgKLoss=3/2, helperEpoch=self.helperEpoch, dataMetadata=self.dataMetadata, 
+        smoothing=smoothing, smoothingMetadata=self.smoothingMetadata,
+            helper=self.helper, model=self.model, metadata=self.metadata, booleanIsGood=False)
+        self.checkOscilation__isSmoothingGoodEnough__(avgLoss=4.1/3, avgKLoss=2.8/2, helperEpoch=self.helperEpoch, dataMetadata=self.dataMetadata, 
+        smoothing=smoothing, smoothingMetadata=self.smoothingMetadata,
+            helper=self.helper, model=self.model, metadata=self.metadata, booleanIsGood=True)
     
     def test__smoothingGoodEnoughCheck(self):
-        metadata = sf.Metadata()
-        modelMetadata = TestModel_Metadata()
-        model = TestModel(modelMetadata)
-        smoothingMetadata = dc.DefaultSmoothingOscilationWeightedMean_Metadata(softMarginAdditionalLoops=1, weightsEpsilon = 1.0,
-            smoothingEndCheckType='wgsum')
+        smoothingMetadata = dc.Test_DefaultSmoothingOscilationWeightedMean_Metadata(test_softMarginAdditionalLoops=1, test_weightsEpsilon = 1.0,
+            test_smoothingEndCheckType='wgsum')
 
         smoothing = dc.DefaultSmoothingOscilationWeightedMean(smoothingMetadata=smoothingMetadata)
-        smoothing.__setDictionary__(smoothingMetadata=smoothingMetadata, dictionary=model.getNNModelModule().named_parameters())
+        smoothing.__setDictionary__(smoothingMetadata=smoothingMetadata, dictionary=self.model.getNNModelModule().named_parameters())
         smoothing.countWeights = 1
         a = 2.0
         b = 1.5
@@ -282,75 +292,80 @@ class Test__SmoothingOscilationBase(Test_DefaultSmoothing):
         testCmpPandas(smoothing._smoothingGoodEnoughCheck(abs(a - b), smoothingMetadata=smoothingMetadata), 'bool', False)
 
     def test__sumAllWeights(self):
-        metadata = sf.Metadata()
-        modelMetadata = TestModel_Metadata()
-        model = TestModel(modelMetadata)
-        smoothingMetadata = dc.DefaultSmoothingOscilationWeightedMean_Metadata(smoothingEndCheckType='wgsum')
+        smoothingMetadata = dc.Test_DefaultSmoothingOscilationWeightedMean_Metadata(test_smoothingEndCheckType='wgsum')
 
         smoothing = dc.DefaultSmoothingOscilationWeightedMean(smoothingMetadata=smoothingMetadata)
-        smoothing.__setDictionary__(smoothingMetadata=smoothingMetadata, dictionary=model.getNNModelModule().named_parameters())
+        smoothing.__setDictionary__(smoothingMetadata=smoothingMetadata, dictionary=self.model.getNNModelModule().named_parameters())
         smoothing.countWeights = 1
 
-        smoothing.calcMean(model=model, smoothingMetadata=smoothingMetadata)
-        sumWg = smoothing._sumAllWeights(smoothingMetadata=smoothingMetadata, metadata=metadata)
+        smoothing.calcMean(model=self.model, smoothingMetadata=smoothingMetadata)
+        sumWg = smoothing._sumAllWeights(smoothingMetadata=smoothingMetadata, metadata=self.metadata)
         testCmpPandas(sumWg, 'weight_sum', 58.0)
 
 class Test_DefaultSmoothingOscilationWeightedMean(Test_DefaultSmoothing):
+    def setUp(self):
+        self.metadata = sf.Metadata()
+        self.metadata.debugInfo = True
+        self.metadata.logFolderSuffix = str(time.time())
+        self.metadata.debugOutput = 'debug'
+        self.metadata.prepareOutput()
+        self.modelMetadata = TestModel_Metadata()
+        self.model = TestModel(self.modelMetadata)
+        self.helper = sf.TrainDataContainer()
+        self.dataMetadata = dc.DefaultData_Metadata()
+        self.helperEpoch = sf.EpochDataContainer()
+        self.helperEpoch.trainTotalNumber = 3
+        self.helperEpoch.maxTrainTotalNumber = 1
+
     def test__getSmoothedWeights__(self):
-        metadata = sf.Metadata()
-        metadata.debugInfo = True
-        metadata.logFolderSuffix = 'test_3'
-        metadata.debugOutput = 'debug'
-        metadata.prepareOutput()
-        modelMetadata = TestModel_Metadata()
-        model = TestModel(modelMetadata)
-        helper = sf.TrainDataContainer()
-        dataMetadata = dc.DefaultData_Metadata()
-        smoothingMetadata = dc.DefaultSmoothingOscilationWeightedMean_Metadata(weightIter=dc.DefaultWeightDecay(2), smoothingEndCheckType='wgsum', 
-        epsilon=1.0, weightsEpsilon=1.0, numbOfBatchMinStart=1, hardEpsilon=1e-9, 
-        softMarginAdditionalLoops=1, lossContainer=3, lossContainerDelayedStartAt=1, weightsArraySize=2)
-        helperEpoch = sf.EpochDataContainer()
-        helperEpoch.epochNumber = 3
+        smoothingMetadata = dc.Test_DefaultSmoothingOscilationWeightedMean_Metadata(test_weightIter=dc.DefaultWeightDecay(2), test_smoothingEndCheckType='wgsum', 
+        test_epsilon=1.0, test_weightsEpsilon=1.0, test_hardEpsilon=1e-9, 
+        test_softMarginAdditionalLoops=1, test_lossContainer=3, test_lossContainerDelayedStartAt=1, test_weightsArraySize=2)
+
+        self.helperEpoch.maxTrainTotalNumber = 1000
 
         smoothing = dc.DefaultSmoothingOscilationWeightedMean(smoothingMetadata=smoothingMetadata)
-        smoothing.__setDictionary__(smoothingMetadata=smoothingMetadata, dictionary=model.getNNModelModule().named_parameters())
-        helper.loss = torch.Tensor([1.0])
+        smoothing.__setDictionary__(smoothingMetadata=smoothingMetadata, dictionary=self.model.getNNModelModule().named_parameters())
+        self.helper.loss = torch.Tensor([1.0])
 
-        smoothing(helperEpoch=helperEpoch, helper=helper, model=model, dataMetadata=dataMetadata, modelMetadata=None, metadata=metadata, smoothingMetadata=smoothingMetadata)
-        self.compareDictTensorToNumpy(smoothing.__getSmoothedWeights__(smoothingMetadata=smoothingMetadata, metadata=metadata), {})
-        smoothing(helperEpoch=helperEpoch, helper=helper, model=model, dataMetadata=dataMetadata, modelMetadata=None, metadata=metadata, smoothingMetadata=smoothingMetadata) # aby zapisać wagi
-        self.compareDictTensorToNumpy(smoothing.__getSmoothedWeights__(smoothingMetadata=smoothingMetadata, metadata=metadata), init_weights)
+        smoothing(helperEpoch=self.helperEpoch, helper=self.helper, model=self.model, dataMetadata=self.dataMetadata, modelMetadata=None, 
+        metadata=self.metadata, smoothingMetadata=smoothingMetadata)
+        self.compareDictTensorToNumpy(smoothing.__getSmoothedWeights__(smoothingMetadata=smoothingMetadata, metadata=self.metadata), {})
+        smoothing(helperEpoch=self.helperEpoch, helper=self.helper, model=self.model, dataMetadata=self.dataMetadata, 
+        modelMetadata=None, metadata=self.metadata, smoothingMetadata=smoothingMetadata) # aby zapisać wagi
+        self.compareDictTensorToNumpy(smoothing.__getSmoothedWeights__(smoothingMetadata=smoothingMetadata, metadata=self.metadata), init_weights)
 
-        model.setConstWeights(weight=17, bias=19)
+        self.model.setConstWeights(weight=17, bias=19)
         w = (17+5/2)/1.5
         b = (19+7/2)/1.5
-        self.checkSmoothedWeights(smoothing=smoothing, helperEpoch=helperEpoch, dataMetadata=dataMetadata, smoothingMetadata=smoothingMetadata, helper=helper, model=model, metadata=metadata, w=w, b=b)
+        self.checkSmoothedWeights(smoothing=smoothing, helperEpoch=self.helperEpoch, dataMetadata=self.dataMetadata, smoothingMetadata=smoothingMetadata, 
+        helper=self.helper, model=self.model, metadata=self.metadata, w=w, b=b)
 
-        model.setConstWeights(weight=23, bias=27)
+        self.model.setConstWeights(weight=23, bias=27)
         w = (23+17/2)/1.5
         b = (27+19/2)/1.5
-        self.checkSmoothedWeights(smoothing=smoothing, helperEpoch=helperEpoch, dataMetadata=dataMetadata, smoothingMetadata=smoothingMetadata, helper=helper, model=model, metadata=metadata, w=w, b=b)
+        self.checkSmoothedWeights(smoothing=smoothing, helperEpoch=self.helperEpoch, dataMetadata=self.dataMetadata, smoothingMetadata=smoothingMetadata, 
+        helper=self.helper, model=self.model, metadata=self.metadata, w=w, b=b)
 
-        model.setConstWeights(weight=31, bias=37)
+        self.model.setConstWeights(weight=31, bias=37)
         w = (31+23/2)/1.5
         b = (37+27/2)/1.5
-        self.checkSmoothedWeights(smoothing=smoothing, helperEpoch=helperEpoch, dataMetadata=dataMetadata, smoothingMetadata=smoothingMetadata, helper=helper, model=model, metadata=metadata, w=w, b=b)
+        self.checkSmoothedWeights(smoothing=smoothing, helperEpoch=self.helperEpoch, dataMetadata=self.dataMetadata, smoothingMetadata=smoothingMetadata, 
+        helper=self.helper, model=self.model, metadata=self.metadata, w=w, b=b)
 
     def test_calcMean(self):
-        modelMetadata = TestModel_Metadata()
-        model = TestModel(modelMetadata)
-        smoothingMetadata = dc.DefaultSmoothingOscilationWeightedMean_Metadata(weightIter=dc.DefaultWeightDecay(2), smoothingEndCheckType='wgsum')
+        smoothingMetadata = dc.Test_DefaultSmoothingOscilationWeightedMean_Metadata(test_weightIter=dc.DefaultWeightDecay(2), test_smoothingEndCheckType='wgsum')
 
         smoothing = dc.DefaultSmoothingOscilationWeightedMean(smoothingMetadata=smoothingMetadata)
-        smoothing.__setDictionary__(smoothingMetadata=smoothingMetadata, dictionary=model.getNNModelModule().named_parameters())
+        smoothing.__setDictionary__(smoothingMetadata=smoothingMetadata, dictionary=self.model.getNNModelModule().named_parameters())
 
-        weights = dict(model.named_parameters())
+        weights = dict(self.model.named_parameters())
         self.compareDictTensorToNumpy(iterator=weights, numpyDict=init_weights)
 
 
-        smoothing.calcMean(model=model, smoothingMetadata=smoothingMetadata)
+        smoothing.calcMean(model=self.model, smoothingMetadata=smoothingMetadata)
         smoothedWg = smoothing.weightsArray.array
-        weights = dict(model.named_parameters())
+        weights = dict(self.model.named_parameters())
         i = smoothedWg[0]
         self.compareDictTensorToNumpy(iterator=weights, numpyDict=init_weights)
         self.compareDictTensorToNumpy(iterator=i, numpyDict=init_weights)
@@ -364,9 +379,9 @@ class Test_DefaultSmoothingOscilationWeightedMean(Test_DefaultSmoothing):
             'linear2.bias': [13., 13., 13.]
         }
 
-        model.setConstWeights(weight=11, bias=13)  # change model weights
-        smoothing.calcMean(model=model, smoothingMetadata=smoothingMetadata) 
-        weights = dict(model.named_parameters())
+        self.model.setConstWeights(weight=11, bias=13)  # change model weights
+        smoothing.calcMean(model=self.model, smoothingMetadata=smoothingMetadata) 
+        weights = dict(self.model.named_parameters())
         i = smoothedWg[1]
         self.compareDictTensorToNumpy(iterator=i, numpyDict=second_weights)
         self.compareDictTensorToNumpy(iterator=weights, numpyDict=second_weights)
@@ -383,35 +398,27 @@ class Test_DefaultSmoothingOscilationWeightedMean(Test_DefaultSmoothing):
 
         smoothing.countWeights = 2
         sm_weights = smoothing.__getSmoothedWeights__(smoothingMetadata=smoothingMetadata, metadata=None)
-        weights = dict(model.named_parameters())
+        weights = dict(self.model.named_parameters())
         self.compareDictTensorToNumpy(iterator=sm_weights, numpyDict=third_weights)
         self.compareDictTensorToNumpy(iterator=weights, numpyDict=second_weights)
  
     def test__sumWeightsToArrayStd(self):
-        metadata = sf.Metadata()
-        metadata.debugInfo = True
-        metadata.logFolderSuffix = 'test_7'
-        metadata.prepareOutput()
-        modelMetadata = TestModel_Metadata()
-        model = TestModel(modelMetadata)
-        helper = sf.TrainDataContainer()
-        helperEpoch = sf.EpochDataContainer()
-        dataMetadata = dc.DefaultData_Metadata()
-        smoothingMetadata = dc.DefaultSmoothingOscilationWeightedMean_Metadata(weightIter=dc.DefaultWeightDecay(2),
-        smoothingEndCheckType='std', numbOfBatchMaxStart=1,
-        epsilon=1.0, weightsEpsilon=1.0, numbOfBatchMinStart=1, hardEpsilon=1e-9, 
-        softMarginAdditionalLoops=1, lossContainer=3, lossContainerDelayedStartAt=1, weightsArraySize=2)
+        smoothingMetadata = dc.Test_DefaultSmoothingOscilationWeightedMean_Metadata(test_weightIter=dc.DefaultWeightDecay(2),
+        test_smoothingEndCheckType='std',
+        test_epsilon=1.0, test_weightsEpsilon=1.0, test_hardEpsilon=1e-9, 
+        test_softMarginAdditionalLoops=1, test_lossContainer=3, test_lossContainerDelayedStartAt=1, test_weightsArraySize=2)
 
         smoothing = dc.DefaultSmoothingOscilationWeightedMean(smoothingMetadata=smoothingMetadata)
-        smoothing.__setDictionary__(smoothingMetadata=smoothingMetadata, dictionary=model.getNNModelModule().named_parameters())
+        smoothing.__setDictionary__(smoothingMetadata=smoothingMetadata, dictionary=self.model.getNNModelModule().named_parameters())
 
-        helperEpoch.epochNumber = 3
-        dataMetadata.epoch = 4
-        helper.loss = torch.Tensor([1.0])
-        smoothing(helperEpoch=helperEpoch, helper=helper, model=model, dataMetadata=dataMetadata, modelMetadata=None, metadata=metadata, smoothingMetadata=smoothingMetadata)
-        wg = smoothing.__getSmoothedWeights__(smoothingMetadata=smoothingMetadata, metadata=metadata)
+        self.helperEpoch.epochNumber = 3
+        self.dataMetadata.epoch = 4
+        self.helper.loss = torch.Tensor([1.0])
+        smoothing(helperEpoch=self.helperEpoch, helper=self.helper, model=self.model, dataMetadata=self.dataMetadata, modelMetadata=None, 
+        metadata=self.metadata, smoothingMetadata=smoothingMetadata)
+        wg = smoothing.__getSmoothedWeights__(smoothingMetadata=smoothingMetadata, metadata=self.metadata)
         std = smoothing._sumWeightsToArrayStd(wg)
-        testCmpPandas(std.item(), 'std', 0.0) # smoothed weights = saved weights -> 0
+        testCmpPandas(std.item(), 'std', dc.ConfigClass.STD_NAN)
 
 
         second_weights = {
@@ -420,14 +427,30 @@ class Test_DefaultSmoothingOscilationWeightedMean(Test_DefaultSmoothing):
             'linear2.weight': [[11.], [11.], [11.]], 
             'linear2.bias': [13., 13., 13.]
         }
-        model.setConstWeights(weight=11, bias=13)
-        smoothing(helperEpoch=helperEpoch, helper=helper, model=model, dataMetadata=dataMetadata, modelMetadata=None, metadata=metadata, smoothingMetadata=smoothingMetadata)
-        wg = smoothing.__getSmoothedWeights__(smoothingMetadata=smoothingMetadata, metadata=metadata)
+
+        self.model.setConstWeights(weight=11, bias=13)
+        smoothing(helperEpoch=self.helperEpoch, helper=self.helper, model=self.model, dataMetadata=self.dataMetadata, modelMetadata=None, 
+        metadata=self.metadata, smoothingMetadata=smoothingMetadata)
+        wg = smoothing.__getSmoothedWeights__(smoothingMetadata=smoothingMetadata, metadata=self.metadata)
         std = smoothing._sumWeightsToArrayStd(wg)
         testCmpPandas(std.item(), 'std', torch.std(torch.Tensor([(11 - 9.0)*6+(13 - 11.0)*4,  (9.0 - 5)*6+(11.0 - 7)*4])).item()) # smoothed weights = saved weights -> 0
 
 
 class Test_DefaultSmoothingOscilationMovingMean(Test_DefaultSmoothing):
+    def setUp(self):
+        self.metadata = sf.Metadata()
+        self.metadata.debugInfo = True
+        self.metadata.logFolderSuffix = str(time.time())
+        self.metadata.debugOutput = 'debug'
+        self.metadata.prepareOutput()
+        self.modelMetadata = TestModel_Metadata()
+        self.model = TestModel(self.modelMetadata)
+        self.helper = sf.TrainDataContainer()
+        self.dataMetadata = dc.DefaultData_Metadata()
+        self.helperEpoch = sf.EpochDataContainer()
+        self.helperEpoch.trainTotalNumber = 3
+        self.helperEpoch.maxTrainTotalNumber = 1000
+
     def test_calcMean(self):
         modelMetadata = TestModel_Metadata()
         model = TestModel(modelMetadata)
@@ -475,105 +498,100 @@ class Test_DefaultSmoothingOscilationMovingMean(Test_DefaultSmoothing):
         self.compareDictTensorToNumpy(iterator=smoothedWg, numpyDict=second_smth_weights)
 
     def test__getSmoothedWeights__(self):
-        metadata = sf.Metadata()
-        metadata.debugInfo = True
-        metadata.logFolderSuffix = 'test_4'
-        metadata.debugOutput = 'debug'
-        metadata.prepareOutput()
-        modelMetadata = TestModel_Metadata()
-        model = TestModel(modelMetadata)
-        helper = sf.TrainDataContainer()
-        dataMetadata = dc.DefaultData_Metadata()
-        smoothingMetadata = dc.DefaultSmoothingOscilationMovingMean_Metadata(movingAvgParam=0.5, epsilon=1.0,
-        weightsEpsilon=1.0, numbOfBatchMinStart=1, softMarginAdditionalLoops=1, hardEpsilon=1e-9,
-        lossContainer=3, lossContainerDelayedStartAt=1)
-        helperEpoch = sf.EpochDataContainer()
-        helperEpoch.epochNumber = 3
+        smoothingMetadata = dc.Test_DefaultSmoothingOscilationMovingMean_Metadata(test_movingAvgParam=0.5, test_epsilon=1.0,
+        test_weightsEpsilon=1.0, test_softMarginAdditionalLoops=1, test_hardEpsilon=1e-9,
+        test_lossContainer=3, test_lossContainerDelayedStartAt=1)
 
-        helper.loss = torch.Tensor([1.0])
+        self.helper.loss = torch.Tensor([1.0])
 
         smoothing = dc.DefaultSmoothingOscilationMovingMean(smoothingMetadata=smoothingMetadata)
-        smoothing.__setDictionary__(smoothingMetadata=smoothingMetadata, dictionary=model.getNNModelModule().named_parameters())
+        smoothing.__setDictionary__(smoothingMetadata=smoothingMetadata, dictionary=self.model.getNNModelModule().named_parameters())
 
-        smoothing(helperEpoch=helperEpoch, helper=helper, model=model, dataMetadata=dataMetadata, modelMetadata=None, metadata=metadata, smoothingMetadata=smoothingMetadata)
-        self.compareDictTensorToNumpy(smoothing.__getSmoothedWeights__(smoothingMetadata=smoothingMetadata, metadata=metadata), {})
-        smoothing(helperEpoch=helperEpoch, helper=helper, model=model, dataMetadata=dataMetadata, modelMetadata=None, metadata=metadata, smoothingMetadata=smoothingMetadata) # zapisanie wag
-        self.compareDictTensorToNumpy(smoothing.__getSmoothedWeights__(smoothingMetadata=smoothingMetadata, metadata=metadata), init_weights)
+        smoothing(helperEpoch=self.helperEpoch, helper=self.helper, model=self.model, dataMetadata=self.dataMetadata, modelMetadata=None, metadata=self.metadata, 
+        smoothingMetadata=smoothingMetadata)
+        self.compareDictTensorToNumpy(smoothing.__getSmoothedWeights__(smoothingMetadata=smoothingMetadata, metadata=self.metadata), {})
+        smoothing(helperEpoch=self.helperEpoch, helper=self.helper, model=self.model, dataMetadata=self.dataMetadata, modelMetadata=None, metadata=self.metadata, 
+        smoothingMetadata=smoothingMetadata) # zapisanie wag
+        self.compareDictTensorToNumpy(smoothing.__getSmoothedWeights__(smoothingMetadata=smoothingMetadata, metadata=self.metadata), init_weights)
 
-        model.setConstWeights(weight=17, bias=19)
+        self.model.setConstWeights(weight=17, bias=19)
         w = (17/2+5/2)
         b = (19/2+7/2)
-        self.checkSmoothedWeights(smoothing=smoothing, helperEpoch=helperEpoch, dataMetadata=dataMetadata, smoothingMetadata=smoothingMetadata, helper=helper, model=model, metadata=metadata, w=w, b=b)
+        self.checkSmoothedWeights(smoothing=smoothing, helperEpoch=self.helperEpoch, dataMetadata=self.dataMetadata, 
+        smoothingMetadata=smoothingMetadata, helper=self.helper, model=self.model, metadata=self.metadata, w=w, b=b)
 
-        model.setConstWeights(weight=23, bias=27)
+        self.model.setConstWeights(weight=23, bias=27)
         w = (23/2+w/2)
         b = (27/2+b/2)
-        self.checkSmoothedWeights(smoothing=smoothing, helperEpoch=helperEpoch, dataMetadata=dataMetadata, smoothingMetadata=smoothingMetadata, helper=helper, model=model, metadata=metadata, w=w, b=b)
+        self.checkSmoothedWeights(smoothing=smoothing, helperEpoch=self.helperEpoch, dataMetadata=self.dataMetadata, 
+        smoothingMetadata=smoothingMetadata, helper=self.helper, model=self.model, metadata=self.metadata, w=w, b=b)
 
-        model.setConstWeights(weight=31, bias=37)
+        self.model.setConstWeights(weight=31, bias=37)
         w = (31/2+w/2)
         b = (37/2+b/2)
-        self.checkSmoothedWeights(smoothing=smoothing, helperEpoch=helperEpoch, dataMetadata=dataMetadata, smoothingMetadata=smoothingMetadata, helper=helper, model=model, metadata=metadata, w=w, b=b)
+        self.checkSmoothedWeights(smoothing=smoothing, helperEpoch=self.helperEpoch, dataMetadata=self.dataMetadata, 
+        smoothingMetadata=smoothingMetadata, helper=self.helper, model=self.model, metadata=self.metadata, w=w, b=b)
 
 class Test_DefaultSmoothingBorderline(Test_DefaultSmoothing):
+    def setUp(self):
+        self.metadata = sf.Metadata()
+        self.metadata.debugInfo = True
+        self.metadata.logFolderSuffix = str(time.time())
+        self.metadata.debugOutput = 'debug'
+        self.metadata.prepareOutput()
+        self.modelMetadata = TestModel_Metadata()
+        self.model = TestModel(self.modelMetadata)
+        self.helper = sf.TrainDataContainer()
+        self.smoothingMetadata = dc.Test_DefaultSmoothingBorderline_Metadata(test_numbOfBatchAfterSwitchOn=2)
+        self.dataMetadata = dc.DefaultData_Metadata()
+        self.helperEpoch = sf.EpochDataContainer()
+        self.helperEpoch.trainTotalNumber = 3
+
+
     def utils_checkSmoothedWeights(self, model, helperEpoch, dataMetadata, smoothing, smoothingMetadata, helper, metadata, w, b, sumW, sumB, count):
         # utils
         model.setConstWeights(weight=w, bias=b)
         w = (w+sumW)/count
         b = (b+sumB)/count
         wg = self.setWeightDict(w=w, b=b)
-        smoothing(helperEpoch=helperEpoch, helper=helper, model=model, dataMetadata=dataMetadata, modelMetadata=None, metadata=metadata, smoothingMetadata=smoothingMetadata)
-        self.compareDictTensorToNumpy(iterator=smoothing.__getSmoothedWeights__(smoothingMetadata=smoothingMetadata, metadata=metadata), numpyDict=wg)
+        smoothing(helperEpoch=self.helperEpoch, helper=self.helper, model=self.model, dataMetadata=self.dataMetadata, modelMetadata=None, 
+        metadata=self.metadata, smoothingMetadata=self.smoothingMetadata)
+        self.compareDictTensorToNumpy(iterator=smoothing.__getSmoothedWeights__(smoothingMetadata=self.smoothingMetadata, metadata=self.metadata), numpyDict=wg)
 
     def test___isSmoothingGoodEnough__(self):
-        metadata = sf.Metadata()
-        metadata.debugInfo = True
-        metadata.logFolderSuffix = 'test_5'
-        metadata.debugOutput = 'debug'
-        metadata.prepareOutput()
-        modelMetadata = TestModel_Metadata()
-        model = TestModel(modelMetadata)
-        helper = sf.TrainDataContainer()
-        smoothingMetadata = dc.DefaultSmoothingBorderline_Metadata(numbOfBatchAfterSwitchOn=2)
-        dataMetadata = dc.DefaultData_Metadata()
+        self.helper.loss = torch.Tensor([1.0])
 
-        helper.loss = torch.Tensor([1.0])
+        smoothing = dc.DefaultSmoothingBorderline(smoothingMetadata=self.smoothingMetadata)
+        smoothing.__setDictionary__(smoothingMetadata=self.smoothingMetadata, dictionary=self.model.getNNModelModule().named_parameters())
 
-        smoothing = dc.DefaultSmoothingBorderline(smoothingMetadata=smoothingMetadata)
-        smoothing.__setDictionary__(smoothingMetadata=smoothingMetadata, dictionary=model.getNNModelModule().named_parameters())
-
-        tmp = smoothing.__isSmoothingGoodEnough__(helperEpoch=None, helper=helper, model=model, dataMetadata=dataMetadata, modelMetadata=None, metadata=metadata, smoothingMetadata=smoothingMetadata)
+        tmp = smoothing.__isSmoothingGoodEnough__(helperEpoch=None, helper=self.helper, model=self.model, dataMetadata=self.dataMetadata, 
+        modelMetadata=None, metadata=self.metadata, smoothingMetadata=self.smoothingMetadata)
         assert tmp == False
 
     def test__getSmoothedWeights__(self):
-        metadata = sf.Metadata()
-        metadata.debugInfo = True
-        metadata.logFolderSuffix = 'test_6'
-        metadata.debugOutput = 'debug'
-        metadata.prepareOutput()
-        modelMetadata = TestModel_Metadata()
-        model = TestModel(modelMetadata)
-        helper = sf.TrainDataContainer()
-        smoothingMetadata = dc.DefaultSmoothingBorderline_Metadata(numbOfBatchAfterSwitchOn=2)
-        dataMetadata = dc.DefaultData_Metadata()
+        self.helper.loss = torch.Tensor([1.0])
 
-        helper.loss = torch.Tensor([1.0])
+        self.helperEpoch.trainTotalNumber = 0
 
-        smoothing = dc.DefaultSmoothingBorderline(smoothingMetadata=smoothingMetadata)
-        smoothing.__setDictionary__(smoothingMetadata=smoothingMetadata, dictionary=model.getNNModelModule().named_parameters())
-        helperEpoch = sf.EpochDataContainer()
-        helperEpoch.epochNumber = 3
+        smoothing = dc.DefaultSmoothingBorderline(smoothingMetadata=self.smoothingMetadata)
+        smoothing.__setDictionary__(smoothingMetadata=self.smoothingMetadata, dictionary=self.model.getNNModelModule().named_parameters())
 
-        smoothing(helperEpoch=helperEpoch, helper=helper, model=model, dataMetadata=dataMetadata, modelMetadata=None, metadata=metadata, smoothingMetadata=smoothingMetadata)
-        self.compareDictTensorToNumpy(iterator=smoothing.__getSmoothedWeights__(smoothingMetadata=smoothingMetadata, metadata=metadata), numpyDict={})
-        smoothing(helperEpoch=helperEpoch, helper=helper, model=model, dataMetadata=dataMetadata, modelMetadata=None, metadata=metadata, smoothingMetadata=smoothingMetadata)
-        self.compareDictTensorToNumpy(iterator=smoothing.__getSmoothedWeights__(smoothingMetadata=smoothingMetadata, metadata=metadata), numpyDict={})
-        smoothing(helperEpoch=helperEpoch, helper=helper, model=model, dataMetadata=dataMetadata, modelMetadata=None, metadata=metadata, smoothingMetadata=smoothingMetadata) # zapisanie wag
-        self.compareDictTensorToNumpy(iterator=smoothing.__getSmoothedWeights__(smoothingMetadata=smoothingMetadata, metadata=metadata), numpyDict=init_weights)
+        smoothing(helperEpoch=self.helperEpoch, helper=self.helper, model=self.model, dataMetadata=self.dataMetadata, modelMetadata=None, 
+        metadata=self.metadata, smoothingMetadata=self.smoothingMetadata)
+        self.compareDictTensorToNumpy(iterator=smoothing.__getSmoothedWeights__(smoothingMetadata=self.smoothingMetadata, metadata=self.metadata), numpyDict={})
+        smoothing(helperEpoch=self.helperEpoch, helper=self.helper, model=self.model, dataMetadata=self.dataMetadata, modelMetadata=None, 
+        metadata=self.metadata, smoothingMetadata=self.smoothingMetadata)
+        self.compareDictTensorToNumpy(iterator=smoothing.__getSmoothedWeights__(smoothingMetadata=self.smoothingMetadata, metadata=self.metadata), numpyDict={})
+        smoothing(helperEpoch=self.helperEpoch, helper=self.helper, model=self.model, dataMetadata=self.dataMetadata, modelMetadata=None, 
+        metadata=self.metadata, smoothingMetadata=self.smoothingMetadata) # zapisanie wag
+        self.compareDictTensorToNumpy(iterator=smoothing.__getSmoothedWeights__(smoothingMetadata=self.smoothingMetadata, metadata=self.metadata), numpyDict=init_weights)
 
-        self.utils_checkSmoothedWeights(model=model, helperEpoch=helperEpoch, dataMetadata=dataMetadata, smoothing=smoothing, smoothingMetadata=smoothingMetadata, helper=helper, metadata=metadata, w=17, b=19, sumW=5, sumB=7, count=2)
-        self.utils_checkSmoothedWeights(model=model, helperEpoch=helperEpoch, dataMetadata=dataMetadata, smoothing=smoothing, smoothingMetadata=smoothingMetadata, helper=helper, metadata=metadata, w=23, b=29, sumW=5+17, sumB=7+19, count=3)
-        self.utils_checkSmoothedWeights(model=model, helperEpoch=helperEpoch, dataMetadata=dataMetadata, smoothing=smoothing, smoothingMetadata=smoothingMetadata, helper=helper, metadata=metadata, w=45, b=85, sumW=5+17+23, sumB=7+19+29, count=4) 
+        self.utils_checkSmoothedWeights(model=self.model, helperEpoch=self.helperEpoch, dataMetadata=self.dataMetadata, smoothing=smoothing, 
+        smoothingMetadata=self.smoothingMetadata, helper=self.helper, metadata=self.metadata, w=17, b=19, sumW=5, sumB=7, count=2)
+        self.utils_checkSmoothedWeights(model=self.model, helperEpoch=self.helperEpoch, dataMetadata=self.dataMetadata, smoothing=smoothing, 
+        smoothingMetadata=self.smoothingMetadata, helper=self.helper, metadata=self.metadata, w=23, b=29, sumW=5+17, sumB=7+19, count=3)
+        self.utils_checkSmoothedWeights(model=self.model, helperEpoch=self.helperEpoch, dataMetadata=self.dataMetadata, smoothing=smoothing, 
+        smoothingMetadata=self.smoothingMetadata, helper=self.helper, metadata=self.metadata, w=45, b=85, sumW=5+17+23, sumB=7+19+29, count=4) 
 
 def run():
     inst = Test_DefaultSmoothingOscilationWeightedMean()
