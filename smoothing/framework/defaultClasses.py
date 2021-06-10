@@ -930,15 +930,6 @@ class DefaultData_Metadata(sf.Data_Metadata):
 
         super().__init__(worker_seed = worker_seed, train = True, download = download, pin_memoryTrain = pin_memoryTrain, pin_memoryTest = pin_memoryTest,
             epoch = epoch, batchTrainSize = batchTrainSize, batchTestSize = batchTestSize, howOftenPrintTrain = howOftenPrintTrain)
-        self.worker_seed = worker_seed
-        
-        self.download = download
-        self.pin_memoryTrain = pin_memoryTrain
-        self.pin_memoryTest = pin_memoryTest
-
-        self.epoch = epoch
-        self.batchTrainSize = batchTrainSize
-        self.batchTestSize = batchTestSize
 
         self.fromGrayToRGB = fromGrayToRGB
 
@@ -1040,6 +1031,7 @@ class DefaultData(sf.Data):
         metadata.stream.print(f"\nTest summary: \n Accuracy: {(100*correctRatio):>0.1f}%, Avg loss: {lossRatio:>8f}", ['model:0'])
         metadata.stream.print(f" Average test execution time in a loop ({helper.timer.getUnits()}): {helper.timer.getAverage():>3f}", ['model:0'])
         metadata.stream.print(f" Time to complete the entire loop ({helper.timer.getUnits()}): {helper.loopTimer.getDiff():>3f}\n", ['model:0'])
+        metadata.stream.print(f" Number of loops done: {helperEpoch.trainTotalNumber}\n", ['model:0'])
         metadata.stream.print(f"{helper.timer.getAverage()};{helper.loopTimer.getDiff()};{(correctRatio):>0.0001f};{lossRatio:>8f}", ['stat'])
 
     def __howManyTestInvInOneEpoch__(self):

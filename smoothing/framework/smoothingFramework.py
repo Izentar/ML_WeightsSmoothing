@@ -78,7 +78,7 @@ class StaticData:
     LOG_FOLDER = './savedLogs/'
     IGNORE_IO_WARNINGS = False
     TEST_MODE = False
-    MAX_DEBUG_LOOPS = 51
+    MAX_DEBUG_LOOPS = 71
 
 class SaveClass:
     def __init__(self):
@@ -270,6 +270,11 @@ class Metadata(SaveClass, BaseMainClass):
     def exitError(help):
         Output.printBash(help, 'info') 
         sys.exit(2)
+
+    def resetOutput(self):
+        self.stream = None
+        self.logFolderSuffix = None
+        self.noPrepareOutput = False
 
     def prepareOutput(self):
         """
