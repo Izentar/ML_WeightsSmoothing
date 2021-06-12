@@ -186,7 +186,7 @@ class test_mode():
 
 class Metadata(SaveClass, BaseMainClass):
     def __init__(self, fileNameSave=None, fileNameLoad=None, testFlag=False, trainFlag=False, debugInfo=False, modelOutput=None,
-            debugOutput=None, stream=None, bashFlag=False, name=None, formatedOutput=None, logFolderSuffix=None):
+            debugOutput=None, stream=None, bashFlag=False, name=None, formatedOutput=None, logFolderSuffix=None, relativeRoot=None):
         super().__init__()
         self.fileNameSave = fileNameSave
         self.fileNameLoad = fileNameLoad
@@ -203,6 +203,7 @@ class Metadata(SaveClass, BaseMainClass):
         self.formatedOutput = formatedOutput
 
         self.logFolderSuffix = logFolderSuffix
+        self.relativeRoot = relativeRoot
 
         # zmienne wewnętrzne
         self.noPrepareOutput = False
@@ -219,6 +220,7 @@ class Metadata(SaveClass, BaseMainClass):
         tmp_str += ('Bash flag:\t{}\n'.format(self.bashFlag))
         tmp_str += ('Formated output name:\t{}\n'.format(self.formatedOutput))
         tmp_str += ('Folder sufix name:\t{}\n'.format(self.logFolderSuffix))
+        tmp_str += ('Folder relative root name:\t{}\n'.format(self.relativeRoot))
         tmp_str += ('Output is prepared flag:\t{}\n'.format(self.noPrepareOutput))
         return tmp_str
 
@@ -276,6 +278,7 @@ class Metadata(SaveClass, BaseMainClass):
     def resetOutput(self):
         self.stream = None
         self.logFolderSuffix = None
+        self.relativeRoot = None
         self.noPrepareOutput = False
 
     def prepareOutput(self):
@@ -299,7 +302,7 @@ class Metadata(SaveClass, BaseMainClass):
             return
         Output.printBash('Preparing default output.', 'info')
         if(self.stream is None):
-            self.stream = Output(self.logFolderSuffix)
+            self.stream = Output(self.logFolderSuffix, self.relativeRoot)
 
         if(self.debugInfo == True):
             self.stream.open('debug', 'debug:0', 'debug')
@@ -476,7 +479,7 @@ class Output(SaveClass):
                 self.handler.close()
                 self.counter = 0
 
-    def __init__(self, folderSuffix):
+    def __init__(self, folderSuffix, relativeRoot = None):
         super().__init__()
         self.filesDict = {}
         self.aliasToFH = {}
@@ -485,7 +488,10 @@ class Output(SaveClass):
 
         Path(StaticData.LOG_FOLDER).mkdir(parents=True, exist_ok=True)
 
+        print(relativeRoot)
+
         self.folderSuffix = folderSuffix
+        self.relativeRoot = relativeRoot
         self.root = None
         self.currentDefaultAlias = None
 
@@ -559,13 +565,17 @@ class Output(SaveClass):
     
     def setLogFolder(self):
         if(self.root is None):
-            self.root = Output.createLogFolder(self.folderSuffix)
+            self.root = Output.createLogFolder(folderSuffix=self.folderSuffix, relativeRoot=self.relativeRoot)
         return self.root
 
-    def createLogFolder(folderSuffix):
+    def createLogFolder(folderSuffix, relativeRoot = None):
         dt_string = datetime.now().strftime("%d.%m.%Y_%H-%M-%S_")
         prfx = folderSuffix if folderSuffix is not None else ""
-        path = os.path.join(StaticData.LOG_FOLDER, str(dt_string) + prfx)
+        path = None
+        if(relativeRoot is not None):
+            path = os.path.join(StaticData.LOG_FOLDER, relativeRoot, str(dt_string) + prfx)
+        else:
+            path = os.path.join(StaticData.LOG_FOLDER, str(dt_string) + prfx)
         Path(path).mkdir(parents=True, exist_ok=False)
         return path
 
@@ -1805,6 +1815,7 @@ def averageStatistics(statistics: list, filePaths: dict = {
     'lossTest' : ['statLossTest_normal.csv', 'statLossTest_smooothing.csv'], 
     'lossTrain' : ['statLossTrain.csv'], 
     'weightsSumTrain' : ['weightsSumTrain.csv']}, 
+    relativeRootFolder = None,
     fileFormat = '.svg', dpi = 900, widthTickFreq = 0.08, aspectRatio = 0.3, startAt = None, resolutionInches = 11.5, outputFolderNameSuffix = None):
 
     if(outputFolderNameSuffix is None):
@@ -1869,7 +1880,7 @@ def averageStatistics(statistics: list, filePaths: dict = {
     newStats.smthCorrectRatio.append(newStats.smthTestCorrectSum[0] / newStats.smthPredSizeSum[0])
 
 
-    logFolder = Output.createLogFolder(outputFolderNameSuffix)
+    logFolder = Output.createLogFolder(folderSuffix=outputFolderNameSuffix, relativeRoot=relativeRootFolder)
     size = len(fileList)
 
     for arrFile in avgArray:
@@ -1895,9 +1906,15 @@ def averageStatistics(statistics: list, filePaths: dict = {
         fh.write("Test summary: \n Average accuracy: {:>6f}%, Avg loss: {:>8f}\n".format(
             100*(newStats.smthCorrectRatio[0]), newStats.smthLossRatio[0]))
 
-    newStats.logFolder = logFolder
+    newLogFolder = None
+    if(relativeRootFolder is None):
+        newLogFolder = logFolder
+    else:
+        newLogFolder = os.path.join(relativeRootFolder, logFolder)
+
+    newStats.logFolder = newLogFolder
     newStats.plotBatches = filePaths
-    newStats.rootInputFolder = logFolder
+    newStats.rootInputFolder = newLogFolder
 
     return newStats
 
@@ -1907,7 +1924,8 @@ def printClassToLog(metadata, *obj):
     for o in obj:
         metadata.stream.print(str(o), where)
 
-def runObjs(metadataObj, dataMetadataObj, modelMetadataObj, smoothingMetadataObj, smoothingObj, dataObj, modelObj, folderLogNameSuffix = None):
+def runObjs(metadataObj, dataMetadataObj, modelMetadataObj, smoothingMetadataObj, smoothingObj, dataObj, modelObj, folderLogNameSuffix = None, 
+    folderRelativeRoot = None):
     dictObjs = {}
     metadataObj.prepareOutput()
     dictObjs[type(metadataObj)] = metadataObj
@@ -1921,6 +1939,8 @@ def runObjs(metadataObj, dataMetadataObj, modelMetadataObj, smoothingMetadataObj
     if(folderLogNameSuffix is not None):
         dictObjs[type(metadataObj)].logFolderSuffix = folderLogNameSuffix
 
+    dictObjs[type(metadataObj)].relativeRoot = folderRelativeRoot
+
     stats = dictObjs[type(dataObj)].epochLoop(
         model=dictObjs[type(modelObj)], dataMetadata=dictObjs[type(dataMetadataObj)], modelMetadata=dictObjs[type(modelMetadataObj)], 
         metadata=dictObjs[type(metadataObj)], smoothing=dictObjs[type(smoothingObj)], smoothingMetadata=dictObjs[type(smoothingMetadataObj)]
@@ -1932,7 +1952,7 @@ def runObjs(metadataObj, dataMetadataObj, modelMetadataObj, smoothingMetadataObj
     return stats
 
 def modelRun(Metadata_Class, Data_Metadata_Class, Model_Metadata_Class, Smoothing_Metadata_Class, Data_Class, Model_Class, Smoothing_Class, 
-    modelObj = None, load = True, save = True, folderLogNameSuffix = None):
+    modelObj = None, load = True, save = True, folderLogNameSuffix = None, folderRelativeRoot = None):
     dictObjs = {}
     dictObjs[Metadata_Class.__name__] = Metadata_Class()
     loadedSuccessful = False
@@ -1948,6 +1968,8 @@ def modelRun(Metadata_Class, Data_Metadata_Class, Model_Metadata_Class, Smoothin
 
     if(folderLogNameSuffix is not None):
         dictObjs[Metadata_Class.__name__].logFolderSuffix = folderLogNameSuffix
+
+    dictObjs[Metadata_Class.__name__].relativeRoot = folderRelativeRoot
 
     dictObjs[Metadata_Class.__name__].prepareOutput()
     if(metadataLoaded): # if model should be loaded

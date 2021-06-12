@@ -7,6 +7,7 @@ import torchvision.transforms as transforms
 import torch.nn as nn
 import torch.nn.functional as F
 import torchvision.models as models
+import os
 
 import copy
 
@@ -1163,6 +1164,7 @@ def run(modelType, dataType, smoothingType, metadataObj, modelMetadata, dataMeta
     numbOfRepetition = 1):
 
     listStat = []
+    folderRelativeRoot = None
 
     for experimentNumber in range(numbOfRepetition):
         if(modelPredefObj is None and modelType == 'predefModel'):
@@ -1184,8 +1186,14 @@ def run(modelType, dataType, smoothingType, metadataObj, modelMetadata, dataMeta
         metadataObj.resetOutput() 
 
         logFolderSuffix = modelType + '_' + dataType + '_' + smoothingType
+        if(numbOfRepetition != 1):
+            if(folderRelativeRoot is None):
+                folderRelativeRoot = os.path.basename(sf.Output.createLogFolder(logFolderSuffix + "_set"))
+
         metadataObj.name = logFolderSuffix
         metadataObj.logFolderSuffix = logFolderSuffix
+        metadataObj.relativeRoot = folderRelativeRoot
+
         metadataObj.prepareOutput()
         
         model = None
@@ -1202,7 +1210,8 @@ def run(modelType, dataType, smoothingType, metadataObj, modelMetadata, dataMeta
         metadataObj.printStartNewModel()
 
         statistics = sf.runObjs(metadataObj=metadataObj, dataMetadataObj=dataMetadata, modelMetadataObj=modelMetadata, 
-                smoothingMetadataObj=smoothingMetadata, smoothingObj=smoothing, dataObj=data, modelObj=model, folderLogNameSuffix=logFolderSuffix)
+                smoothingMetadataObj=smoothingMetadata, smoothingObj=smoothing, dataObj=data, modelObj=model, folderLogNameSuffix=logFolderSuffix, 
+                folderRelativeRoot=folderRelativeRoot)
 
         metadataObj.printEndModel()
 
