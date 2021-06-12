@@ -990,20 +990,13 @@ class DefaultData(sf.Data):
         self.__prepare__(dataMetadata)
 
     def __beforeTrainLoop__(self, helperEpoch: 'EpochDataContainer', helper, model: 'Model', dataMetadata: 'Data_Metadata', modelMetadata: 'Model_Metadata', metadata: 'Metadata', smoothing: 'Smoothing', smoothingMetadata: 'Smoothing_Metadata'):
-        helper.tmp_sumLoss = 0.0
+        pass
 
     def __beforeTrain__(self, helperEpoch: 'EpochDataContainer', helper, model: 'Model', dataMetadata: 'Data_Metadata', modelMetadata: 'Model_Metadata', metadata: 'Metadata', smoothing: 'Smoothing', smoothingMetadata: 'Smoothing_Metadata'):
-        helper.inputs, helper.labels = helper.inputs.to(modelMetadata.device), helper.labels.to(modelMetadata.device)
-        model.optimizer.zero_grad()
+        super().__beforeTrain__(helperEpoch=helperEpoch, helper=helper, model=model, dataMetadata=dataMetadata, modelMetadata=modelMetadata, metadata=metadata, smoothing=smoothing, smoothingMetadata=smoothingMetadata)
 
     def __afterTrain__(self, helperEpoch: 'EpochDataContainer', helper, model: 'Model', dataMetadata: 'Data_Metadata', modelMetadata: 'Model_Metadata', metadata: 'Metadata', smoothing: 'Smoothing', smoothingMetadata: 'Smoothing_Metadata'):
-        with torch.no_grad():
-            helper.tmp_sumLoss += helper.loss.item()
-
-            metadata.stream.print(helper.loss.item(), ['statLossTrain'])
-
-            if(bool(metadata.debugInfo) and dataMetadata.howOftenPrintTrain is not None and (helper.batchNumber % dataMetadata.howOftenPrintTrain == 0 or sf.test_mode.isActive())):
-                sf.DefaultMethods.printLoss(metadata, helper)
+        super().__afterTrain__(helperEpoch=helperEpoch, helper=helper, model=model, dataMetadata=dataMetadata, modelMetadata=modelMetadata, metadata=metadata, smoothing=smoothing, smoothingMetadata=smoothingMetadata)
 
     def __afterTrainLoop__(self, helperEpoch: 'EpochDataContainer', helper, model: 'Model', dataMetadata: 'Data_Metadata', modelMetadata: 'Model_Metadata', metadata: 'Metadata', smoothing: 'Smoothing', smoothingMetadata: 'Smoothing_Metadata'):
         super().__afterTrainLoop__(helperEpoch=helperEpoch, helper=helper, model=model, dataMetadata=dataMetadata, modelMetadata=modelMetadata, metadata=metadata, smoothing=smoothing, smoothingMetadata=smoothingMetadata)
@@ -1018,21 +1011,15 @@ class DefaultData(sf.Data):
         metadata.stream.print("\n\ntestLoop;\nAverage test time;Loop test time;Accuracy;Avg loss", ['stat'])
 
     def __beforeTest__(self, helperEpoch: 'EpochDataContainer', helper, model: 'Model', dataMetadata: 'Data_Metadata', modelMetadata: 'Model_Metadata', metadata: 'Metadata', smoothing: 'Smoothing', smoothingMetadata: 'Smoothing_Metadata'):
-        helper.inputs = helper.inputs.to(modelMetadata.device)
-        helper.labels = helper.labels.to(modelMetadata.device)
+        super().__beforeTest__(helperEpoch=helperEpoch, helper=helper, model=model, dataMetadata=dataMetadata, modelMetadata=modelMetadata, metadata=metadata, smoothing=smoothing, smoothingMetadata=smoothingMetadata)
 
     def __afterTest__(self, helperEpoch: 'EpochDataContainer', helper, model: 'Model', dataMetadata: 'Data_Metadata', modelMetadata: 'Model_Metadata', metadata: 'Metadata', smoothing: 'Smoothing', smoothingMetadata: 'Smoothing_Metadata'):
         super().__afterTest__(helperEpoch=helperEpoch, helper=helper, model=model, dataMetadata=dataMetadata, modelMetadata=modelMetadata, metadata=metadata, smoothing=smoothing, smoothingMetadata=smoothingMetadata)
         metadata.stream.print(helper.test_loss, self.testAlias)
 
     def __afterTestLoop__(self, helperEpoch: 'EpochDataContainer', helper, model: 'Model', dataMetadata: 'Data_Metadata', modelMetadata: 'Model_Metadata', metadata: 'Metadata', smoothing: 'Smoothing', smoothingMetadata: 'Smoothing_Metadata'):
-        lossRatio = helper.testLossSum / helper.predSizeSum
-        correctRatio = helper.testCorrectSum / helper.predSizeSum
-        metadata.stream.print(f"\nTest summary: \n Accuracy: {(100*correctRatio):>0.1f}%, Avg loss: {lossRatio:>8f}", ['model:0'])
-        metadata.stream.print(f" Average test execution time in a loop ({helper.timer.getUnits()}): {helper.timer.getAverage():>3f}", ['model:0'])
-        metadata.stream.print(f" Time to complete the entire loop ({helper.timer.getUnits()}): {helper.loopTimer.getDiff():>3f}\n", ['model:0'])
-        metadata.stream.print(f" Number of loops done: {helperEpoch.trainTotalNumber}\n", ['model:0'])
-        metadata.stream.print(f"{helper.timer.getAverage()};{helper.loopTimer.getDiff()};{(correctRatio):>0.0001f};{lossRatio:>8f}", ['stat'])
+        super().__afterTestLoop__(helperEpoch=helperEpoch, helper=helper, model=model, dataMetadata=dataMetadata, modelMetadata=modelMetadata, metadata=metadata, smoothing=smoothing, smoothingMetadata=smoothingMetadata)
+        metadata.stream.print(f"{helper.timer.getAverage()};{helper.loopTimer.getDiff()};{(helperEpoch.statistics.correctRatio[-1]):>0.0001f};{helperEpoch.statistics.lossRatio[-1]:>8f}", ['stat'])
 
     def __howManyTestInvInOneEpoch__(self):
         return 2
@@ -1055,11 +1042,12 @@ class DefaultData(sf.Data):
                 smoothing.saveWeights(weights=model.getNNModelModule().named_parameters(), key='main')
                 wg = smoothing.__getSmoothedWeights__(metadata=metadata, smoothingMetadata=smoothingMetadata)
                 if(wg):
-                    model.setWeights(wg)
+                    self.setModelSmoothedWeights(model, helperEpoch, wg)
                     helperEpoch.currentLoopTimeAlias = 'loopTestTime_smooothing'
                     self.testAlias = 'statLossTest_smooothing'
+                    helperEpoch.averaged = True
                     self.testLoop(model=model, helperEpoch=helperEpoch, dataMetadata=dataMetadata, modelMetadata=modelMetadata, metadata=metadata, smoothing=smoothing, smoothingMetadata=smoothingMetadata)
-                    model.setWeights(smoothing.getWeights(key='main'))
+                    self.setModelNormalWeights(model, helperEpoch, smoothing.getWeights(key='main'))
                 else:
                     sf.Output.printBash('Smoothing is not enabled. Test does not executed.', 'info')
 
@@ -1171,46 +1159,59 @@ SmoothingMap = {
     'weightedMean': DefaultSmoothingOscilationWeightedMean
 }
 
-def run(modelType, dataType, smoothingType, metadataObj, modelMetadata, dataMetadata, smoothingMetadata, modelPredefObj = None):
-    if(modelPredefObj is None and modelType == 'predefModel'):
-        sf.Output.printBash("Cannot run test, because model '{}' does not have provided object.".format(modelType), 'warn')
-        return
-    if(modelType not in ModelMap):
-        sf.Output.printBash("Cannot run test, because model '{}' not found.".format(modelType), 'warn')
-        return
-    if(dataType not in DataMap):
-        sf.Output.printBash("Cannot run test, because data '{}' not found.".format(dataType), 'warn')
-        return
-    if(smoothingType not in SmoothingMap):
-        sf.Output.printBash("Cannot run test, because smoothing '{}' not found.".format(smoothingType), 'warn')
-        return
-    if(modelPredefObj is not None and modelType != 'predefModel'):
-        sf.Output.printBash("Cannot run test, because modelObj is not None and choosed model type '{}'.".format(modelType), 'warn')
-        return
-    logFolderSuffix = modelType + '_' + dataType + '_' + smoothingType
-    metadataObj.name = logFolderSuffix
-    metadataObj.logFolderSuffix = logFolderSuffix
-    metadataObj.prepareOutput()
-    
-    model = None
-    data = DataMap[dataType](dataMetadata)
-    smoothing = SmoothingMap[smoothingType](smoothingMetadata)
-    statistics = None
+def run(modelType, dataType, smoothingType, metadataObj, modelMetadata, dataMetadata, smoothingMetadata, modelPredefObj = None, 
+    numbOfRepetition = 1):
 
-    if(modelPredefObj is None):
-        model = ModelMap[modelType](modelMetadata=modelMetadata)
-    else:
-        model = ModelMap[modelType](obj=modelPredefObj, modelMetadata=modelMetadata)
-    smoothing.__setDictionary__(smoothingMetadata=smoothingMetadata, dictionary=model.getNNModelModule().named_parameters())
+    listStat = []
 
-    metadataObj.printStartNewModel()
+    for experimentNumber in range(numbOfRepetition):
+        if(modelPredefObj is None and modelType == 'predefModel'):
+            sf.Output.printBash("Cannot run test, because model '{}' does not have provided object.".format(modelType), 'warn')
+            return
+        if(modelType not in ModelMap):
+            sf.Output.printBash("Cannot run test, because model '{}' not found.".format(modelType), 'warn')
+            return
+        if(dataType not in DataMap):
+            sf.Output.printBash("Cannot run test, because data '{}' not found.".format(dataType), 'warn')
+            return
+        if(smoothingType not in SmoothingMap):
+            sf.Output.printBash("Cannot run test, because smoothing '{}' not found.".format(smoothingType), 'warn')
+            return
+        if(modelPredefObj is not None and modelType != 'predefModel'):
+            sf.Output.printBash("Cannot run test, because modelObj is not None and choosed model type '{}'.".format(modelType), 'warn')
+            return
 
-    statistics = sf.runObjs(metadataObj=metadataObj, dataMetadataObj=dataMetadata, modelMetadataObj=modelMetadata, 
-            smoothingMetadataObj=smoothingMetadata, smoothingObj=smoothing, dataObj=data, modelObj=model, folderLogNameSuffix=logFolderSuffix)
+        metadataObj.resetOutput() 
 
-    metadataObj.printEndModel()
+        logFolderSuffix = modelType + '_' + dataType + '_' + smoothingType
+        metadataObj.name = logFolderSuffix
+        metadataObj.logFolderSuffix = logFolderSuffix
+        metadataObj.prepareOutput()
+        
+        model = None
+        data = DataMap[dataType](dataMetadata)
+        smoothing = SmoothingMap[smoothingType](smoothingMetadata)
+        statistics = None
 
-    return statistics
+        if(modelPredefObj is None):
+            model = ModelMap[modelType](modelMetadata=modelMetadata)
+        else:
+            model = ModelMap[modelType](obj=modelPredefObj, modelMetadata=modelMetadata)
+        smoothing.__setDictionary__(smoothingMetadata=smoothingMetadata, dictionary=model.getNNModelModule().named_parameters())
+
+        metadataObj.printStartNewModel()
+
+        statistics = sf.runObjs(metadataObj=metadataObj, dataMetadataObj=dataMetadata, modelMetadataObj=modelMetadata, 
+                smoothingMetadataObj=smoothingMetadata, smoothingObj=smoothing, dataObj=data, modelObj=model, folderLogNameSuffix=logFolderSuffix)
+
+        metadataObj.printEndModel()
+
+        listStat.append(statistics)
+
+    if(numbOfRepetition == 1):
+        return listStat[0]
+
+    return listStat
 
 
 

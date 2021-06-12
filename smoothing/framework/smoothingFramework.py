@@ -13,6 +13,8 @@ import random
 from pathlib import Path
 import pandas as pd
 import errno
+import csv
+import operator
 
 import matplotlib.pyplot as plt
 import numpy
@@ -535,7 +537,7 @@ class Output(SaveClass):
             return False
 
         if(pathName is not None):
-            root = self.createLogFolder()
+            root = self.setLogFolder()
             if(pathName in self.filesDict):
                 if(outputType in self.filesDict[pathName] and self.filesDict[pathName][outputType].exist()):
                     pass # do nothing, already opened
@@ -555,15 +557,17 @@ class Output(SaveClass):
                 Output.printBash("For this '{}' Output type pathName should not be None.".format(outputType), 'warn')
             return True
     
-    def createLogFolder(self):
+    def setLogFolder(self):
         if(self.root is None):
-            dt_string = datetime.now().strftime("%d.%m.%Y_%H-%M-%S_")
-            prfx = self.folderSuffix if self.folderSuffix is not None else ""
-            path = StaticData.LOG_FOLDER + "/" + str(dt_string) + prfx + "/"
-            Path(path).mkdir(parents=True, exist_ok=False)
-            self.root = path
-            return path
+            self.root = Output.createLogFolder(self.folderSuffix)
         return self.root
+
+    def createLogFolder(folderSuffix):
+        dt_string = datetime.now().strftime("%d.%m.%Y_%H-%M-%S_")
+        prfx = folderSuffix if folderSuffix is not None else ""
+        path = StaticData.LOG_FOLDER + "/" + str(dt_string) + prfx + "/"
+        Path(path).mkdir(parents=True, exist_ok=False)
+        return path
 
     def __getPrefix(mode):
         prefix = ''
@@ -915,6 +919,7 @@ class EpochDataContainer():
         self.statistics = Statistics()
 
         self.firstSmoothingSuccess = False # flaga zostaje zapalona, gdy po raz pierwszy wygładzanie zostało włączone
+        self.averaged = False # flaga powinna zostać zapalona, gdy model posiada wygładzone wagi i wyłączona w przeciwnym wypadku
 
 
 
@@ -924,16 +929,30 @@ class Statistics():
     """
     def __init__(self):
         super().__init__()
-        self.logFolder = None # folder w którym zapisują się logi
+        self.logFolder = None # folder wyjściowy dla zapisywanych logów
         self.plotBatches = {} # słownik {nazwa_nowego_pliku: [lista_nazw_plików_do_przeczytania]}
+        self.rootInputFolder = None # folder wejściowy dla plików. Może być None.
+
+        self.lossRatio = [] # zapisywane po wykonanym teście, średnia strata modelu
+        self.correctRatio = [] # zapisywane po wykonanym teście, stosunek udanych do wszystkich predykcji
+        self.testLossSum = [] # zapisywane po wykonanym teście, suma strat testowych
+        self.testCorrectSum = [] # zapisywane po wykonanym teście, suma poprawnych predykcji testowych
+        self.predSizeSum = [] # zapisywane po wykonanym teście, ilość wszystkich predykcji
+
+        self.smthLossRatio = [] # zapisywane po wykonanym teście, gdy model posiada wygładzone wagi, średnia strata modelu
+        self.smthCorrectRatio = [] # zapisywane po wykonanym teście, gdy model posiada wygładzone wagi, stosunek udanych do wszystkich predykcji
+        self.smthTestLossSum = [] # zapisywane po wykonanym teści, gdy model posiada wygładzone wagie, suma strat testowych
+        self.smthTestCorrectSum = [] # zapisywane po wykonanym teście, gdy model posiada wygładzone wagi, suma poprawnych predykcji testowych
+        self.smthPredSizeSum = [] # zapisywane po wykonanym teście, gdy model posiada wygładzone wagi, ilość wszystkich predykcji
 
     def printPlots(self, fileFormat = '.svg', dpi = 900, widthTickFreq = 0.08, aspectRatio = 0.3,
     startAt = None, resolutionInches = 11.5):
         for name, val in self.plotBatches.items():
             if(val is None):
                 Output.printBash("Some of the files to plot were not properly created. Instance ignored. Method Statistics.printPlots", 'warn')
-            plot(val, name=name, plotRoot=self.logFolder, fileFormat=fileFormat, dpi=dpi, widthTickFreq=widthTickFreq,
+            plot(val, name=name, plotInputRoot=self.rootInputFolder, plotOutputRoot=self.logFolder, fileFormat=fileFormat, dpi=dpi, widthTickFreq=widthTickFreq,
             aspectRatio=aspectRatio, startAt=startAt, resolutionInches=resolutionInches)
+
 
 class Data(SaveClass, BaseMainClass, BaseLogicClass):
     """
@@ -1121,15 +1140,21 @@ class Data(SaveClass, BaseMainClass, BaseLogicClass):
         pass
 
     def __beforeTrain__(self, helperEpoch: 'EpochDataContainer', helper, model: 'Model', dataMetadata: 'Data_Metadata', modelMetadata: 'Model_Metadata', metadata: 'Metadata', smoothing: 'Smoothing', smoothingMetadata: 'Smoothing_Metadata'):
-        pass
+        helper.inputs, helper.labels = helper.inputs.to(modelMetadata.device), helper.labels.to(modelMetadata.device)
+        model.optimizer.zero_grad()
 
     def __afterTrain__(self, helperEpoch: 'EpochDataContainer', helper, model: 'Model', dataMetadata: 'Data_Metadata', modelMetadata: 'Model_Metadata', metadata: 'Metadata', smoothing: 'Smoothing', smoothingMetadata: 'Smoothing_Metadata'):
-        pass
+        with torch.no_grad():
+            metadata.stream.print(helper.loss.item(), ['statLossTrain'])
+
+            if(bool(metadata.debugInfo) and dataMetadata.howOftenPrintTrain is not None and (helper.batchNumber % dataMetadata.howOftenPrintTrain == 0 or test_mode.isActive())):
+                DefaultMethods.printLoss(metadata, helper)
 
     def __afterTrainLoop__(self, helperEpoch: 'EpochDataContainer', helper, model: 'Model', dataMetadata: 'Data_Metadata', modelMetadata: 'Model_Metadata', metadata: 'Metadata', smoothing: 'Smoothing', smoothingMetadata: 'Smoothing_Metadata'):
         metadata.stream.print("Train summary:")
         metadata.stream.print(f" Average train time ({helper.timer.getUnits()}): {helper.timer.getAverage()}")
         metadata.stream.print(f" Loop train time ({helper.timer.getUnits()}): {helper.loopTimer.getDiff()}")
+        metadata.stream.print(f" Number of batches done: {helperEpoch.trainTotalNumber}")
 
     def __trainLoopExit__(self, helperEpoch: 'EpochDataContainer', helper, model: 'Model', dataMetadata: 'Data_Metadata', modelMetadata: 'Model_Metadata', metadata: 'Metadata', smoothing: 'Smoothing', smoothingMetadata: 'Smoothing_Metadata'):
         helperEpoch.loopsState.imprint(numb=helper.batchNumber, isEnd=helper.loopEnded)
@@ -1237,15 +1262,38 @@ class Data(SaveClass, BaseMainClass, BaseLogicClass):
         pass
 
     def __beforeTest__(self, helperEpoch: 'EpochDataContainer', helper, model: 'Model', dataMetadata: 'Data_Metadata', modelMetadata: 'Model_Metadata', metadata: 'Metadata', smoothing: 'Smoothing', smoothingMetadata: 'Smoothing_Metadata'):
-        pass
+        helper.inputs = helper.inputs.to(modelMetadata.device)
+        helper.labels = helper.labels.to(modelMetadata.device)
 
     def __afterTest__(self, helperEpoch: 'EpochDataContainer', helper, model: 'Model', dataMetadata: 'Data_Metadata', modelMetadata: 'Model_Metadata', metadata: 'Metadata', smoothing: 'Smoothing', smoothingMetadata: 'Smoothing_Metadata'):
         helper.testLossSum += helper.test_loss
         helper.test_correct = (helper.pred.argmax(1) == helper.labels).type(torch.float).sum().item()
         helper.testCorrectSum += helper.test_correct
 
-    def __afterTestLoop__(self, helperEpoch: 'EpochDataContainer', helper, model: 'Model', dataMetadata: 'Data_Metadata', modelMetadata: 'Model_Metadata', metadata: 'Metadata', smoothing: 'Smoothing', smoothingMetadata: 'Smoothing_Metadata'):
-        pass
+    def __afterTestLoop__(self, helperEpoch: 'EpochDataContainer', helper, model: 'Model', dataMetadata: 'Data_Metadata', modelMetadata: 'Model_Metadata', metadata: 'Metadata', smoothing: 'Smoothing', smoothingMetadata: 'Smoothing_Metadata'): 
+        if(helperEpoch.averaged):
+            helperEpoch.statistics.smthTestLossSum.append(helper.testLossSum)
+            helperEpoch.statistics.smthTestCorrectSum.append(helper.testCorrectSum)
+            helperEpoch.statistics.smthPredSizeSum.append(helper.predSizeSum)
+            
+            helperEpoch.statistics.smthLossRatio.append(helper.testLossSum / helper.predSizeSum)
+            helperEpoch.statistics.smthCorrectRatio.append(helper.testCorrectSum / helper.predSizeSum)
+            
+            metadata.stream.print(f"\nTest summary: \n Accuracy: {(100*helperEpoch.statistics.smthCorrectRatio[-1]):>6f}%, Avg loss: {helperEpoch.statistics.smthLossRatio[-1]:>8f}", ['model:0'])
+            metadata.stream.print(f" Average test execution time in a loop ({helper.timer.getUnits()}): {helper.timer.getAverage():>3f}", ['model:0'])
+            metadata.stream.print(f" Time to complete the entire loop ({helper.timer.getUnits()}): {helper.loopTimer.getDiff():>3f}\n", ['model:0'])
+
+        else:
+            helperEpoch.statistics.testLossSum.append(helper.testLossSum)
+            helperEpoch.statistics.testCorrectSum.append(helper.testCorrectSum)
+            helperEpoch.statistics.predSizeSum.append(helper.predSizeSum)
+            
+            helperEpoch.statistics.lossRatio.append(helper.testLossSum / helper.predSizeSum)
+            helperEpoch.statistics.correctRatio.append(helper.testCorrectSum / helper.predSizeSum)
+            
+            metadata.stream.print(f"\nTest summary: \n Accuracy: {(100*helperEpoch.statistics.correctRatio[-1]):>6f}%, Avg loss: {helperEpoch.statistics.lossRatio[-1]:>8f}", ['model:0'])
+            metadata.stream.print(f" Average test execution time in a loop ({helper.timer.getUnits()}): {helper.timer.getAverage():>3f}", ['model:0'])
+            metadata.stream.print(f" Time to complete the entire loop ({helper.timer.getUnits()}): {helper.loopTimer.getDiff():>3f}\n", ['model:0'])
 
     def __testLoopExit__(self, helperEpoch: 'EpochDataContainer', helper, model: 'Model', dataMetadata: 'Data_Metadata', modelMetadata: 'Model_Metadata', metadata: 'Metadata', smoothing: 'Smoothing', smoothingMetadata: 'Smoothing_Metadata'):
         helperEpoch.loopsState.imprint(numb=helper.batchNumber, isEnd=helper.loopEnded)
@@ -1406,6 +1454,15 @@ class Data(SaveClass, BaseMainClass, BaseLogicClass):
     def canUpdate(self = None):
         return True
 
+    def setModelNormalWeights(self, model, helperEpoch, weights):
+        model._Private_setWeights(weights)
+        helperEpoch.averaged = False
+
+    def setModelSmoothedWeights(self, model, helperEpoch, weights):
+        model._Private_setWeights(weights)
+        helperEpoch.averaged = True
+
+
 class Smoothing(SaveClass, BaseMainClass, BaseLogicClass):
     """
     Metody, które wymagają przeciążenia i wywołania super()
@@ -1530,7 +1587,7 @@ class Model(nn.Module, SaveClass, BaseMainClass, BaseLogicClass):
         self.__dict__.update(state)
         self.eval()
 
-    def setWeights(self, weights):
+    def _Private_setWeights(self, weights):
         self.load_state_dict(weights)
 
     def getWeights(self):
@@ -1602,7 +1659,7 @@ class PredefinedModel(SaveClass, BaseMainClass, BaseLogicClass):
         self.__dict__.update(obj)
         self.modelObj.eval()
 
-    def setWeights(self, weights):
+    def _Private_setWeights(self, weights):
         self.modelObj.load_state_dict(weights)
 
     def getWeights(self):
@@ -1741,6 +1798,108 @@ def commandLineArg(metadata, dataMetadata, modelMetadata, argv, enableLoad = Tru
     metadata.noPrepareOutput = False
 
     return metadata, False
+
+def averageStatistics(statistics: list, filePaths: dict = {
+    'loopTestTime' : ['loopTestTime_normal.csv', 'loopTestTime_smooothing.csv'], 
+    'loopTrainTime' : ['loopTrainTime.csv'], 
+    'lossTest' : ['statLossTest_normal.csv', 'statLossTest_smooothing.csv'], 
+    'lossTrain' : ['statLossTrain.csv'], 
+    'weightsSumTrain' : ['weightsSumTrain.csv']}, 
+    fileFormat = '.svg', dpi = 900, widthTickFreq = 0.08, aspectRatio = 0.3, startAt = None, resolutionInches = 11.5, outputFolderNameSuffix = None):
+
+    if(outputFolderNameSuffix is None):
+        outputFolderNameSuffix = "averaging_files"
+
+    avgArray = []
+    fileNames = list(iter(filePaths.values()))
+    config = []
+    fileList = []
+    newStats = Statistics()
+    tmp_testLossSum = []
+    tmp_testCorrectSum = []
+    tmp_predSizeSum = []
+
+    tmp_smthTestLossSum = []
+    tmp_smthTestCorrectSum = []
+    tmp_smthPredSizeSum = []
+
+    for f in filePaths.values():
+        fileList += f
+
+
+    for index in range(len(fileList)):
+        avgArray.append([])
+
+    for st in statistics:
+        for index, files in enumerate(fileList):
+            openPath = os.path.join(st.logFolder, files)
+            config.append(openPath)
+            with open(openPath) as fh:
+                rows = [float(l.rstrip("\n")) for l in fh]
+                #csvReader = csv.reader(fh)
+                #rows = list(csvReader)
+                if(len(rows) < len(avgArray[index])):
+                    rows = rows + [0.0 for item in range(len(avgArray[index]) - len(rows))]
+                if(len(rows) > len(avgArray[index])):
+                    avgArray[index] = avgArray[index] + [0.0 for item in range(len(rows) - len(avgArray[index]))]
+                avgArray[index] = list(map(operator.add, rows, avgArray[index]))
+
+        tmp_testLossSum += st.testLossSum
+        tmp_testCorrectSum += st.testCorrectSum
+        tmp_predSizeSum += st.predSizeSum
+
+        tmp_smthTestLossSum += st.smthTestLossSum
+        tmp_smthTestCorrectSum += st.smthTestCorrectSum
+        tmp_smthPredSizeSum += st.smthPredSizeSum
+
+    newStats.testLossSum.append(torch.mean(torch.as_tensor(tmp_testLossSum, dtype=torch.float64)))
+    newStats.testCorrectSum.append(torch.mean(torch.as_tensor(tmp_testCorrectSum, dtype=torch.float64)))
+    newStats.predSizeSum.append(torch.mean(torch.as_tensor(tmp_predSizeSum, dtype=torch.float64)))
+
+    newStats.lossRatio.append(newStats.testLossSum[0] / newStats.predSizeSum[0])
+    newStats.correctRatio.append(newStats.testCorrectSum[0] / newStats.predSizeSum[0])
+
+    ##########################
+
+    newStats.smthTestLossSum.append(torch.mean(torch.as_tensor(tmp_smthTestLossSum, dtype=torch.float64)))
+    newStats.smthTestCorrectSum.append(torch.mean(torch.as_tensor(tmp_smthTestCorrectSum, dtype=torch.float64)))
+    newStats.smthPredSizeSum.append(torch.mean(torch.as_tensor(tmp_smthPredSizeSum, dtype=torch.float64)))
+
+    newStats.smthLossRatio.append(newStats.smthTestLossSum[0] / newStats.smthPredSizeSum[0])
+    newStats.smthCorrectRatio.append(newStats.smthTestCorrectSum[0] / newStats.smthPredSizeSum[0])
+
+
+    logFolder = Output.createLogFolder(outputFolderNameSuffix)
+    size = len(fileList)
+
+    for arrFile in avgArray:
+        for obj in arrFile:
+            obj = obj / size
+
+    for index, files in enumerate(fileList):
+        with open(os.path.join(logFolder, files), "w") as fh:
+            for obj in avgArray[index]:
+                fh.write(str(obj) + "\n")
+        
+    with open(os.path.join(logFolder, 'config.txt'), "w") as fh:
+        fh.write("Used files:\n")
+        for obj in config:
+            fh.write(obj + "\n")
+
+    with open(os.path.join(logFolder, 'model_summary.txt'), "w") as fh:
+        fh.write("\nModel averaged\n")
+        fh.write("Test summary: \n Average accuracy: {:>6f}%, Avg loss: {:>8f}\n".format(
+            100*(newStats.correctRatio[0]), newStats.lossRatio[0]))
+
+        fh.write("\nSmoothed model averaged\n")
+        fh.write("Test summary: \n Average accuracy: {:>6f}%, Avg loss: {:>8f}\n".format(
+            100*(newStats.smthCorrectRatio[0]), newStats.smthLossRatio[0]))
+
+    newStats.logFolder = logFolder
+    newStats.plotBatches = filePaths
+    newStats.rootInputFolder = logFolder
+
+    return newStats
 
 def printClassToLog(metadata, *obj):
     where = ['debug:0', 'model:0']
@@ -1886,7 +2045,7 @@ def selectCPU(device, metadata):
 def checkForEmptyFile(filePath):
     return os.path.isfile(filePath) and os.path.getsize(filePath) > 0
 
-def plot(filePath: list, name = None, fetchedFilesRoot = None, plotRoot = None, fileFormat = '.svg', dpi = 900, widthTickFreq = 0.08, 
+def plot(filePath: list, name = None, plotInputRoot = None, plotOutputRoot = None, fileFormat = '.svg', dpi = 900, widthTickFreq = 0.08, 
     aspectRatio = 0.3, startAt = None, resolutionInches = 11.5):
     """
     Rozmiar wyjściowej grafiki jest podana wzorem [resolutionInches; resolutionInches / aspectRatio]
@@ -1905,9 +2064,9 @@ def plot(filePath: list, name = None, fetchedFilesRoot = None, plotRoot = None, 
     sampleMaxSize = 0
     ax = plt.gca()
     fig = plt.gcf()
-    if(fetchedFilesRoot is not None):
+    if(plotInputRoot is not None):
         for fn in filePath:
-            fp.append(fetchedFilesRoot + '/' + fn)
+            fp.append(plotInputRoot + '/' + fn)
     else:
         fp = filePath
 
@@ -1946,8 +2105,8 @@ def plot(filePath: list, name = None, fetchedFilesRoot = None, plotRoot = None, 
 
 
     if(name is not None):
-        if(plotRoot is not None):
-            plt.savefig(plotRoot + '/' + name + fileFormat, bbox_inches='tight', dpi=dpi)
+        if(plotOutputRoot is not None):
+            plt.savefig(plotOutputRoot + '/' + name + fileFormat, bbox_inches='tight', dpi=dpi)
         else:
             plt.savefig(name + fileFormat, bbox_inches='tight', dpi=dpi)
         plt.clf()
