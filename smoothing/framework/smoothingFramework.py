@@ -63,8 +63,8 @@ def warnings():
     return FORCE_PRINT_WARNINGS or PRINT_WARNINGS
 
 class StaticData:
-    PATH = expanduser("~") + '/.data/models/'
-    TMP_PATH = expanduser("~") + '/.data/models/tmp/'
+    PATH = os.path.join(expanduser("~"), '.data', 'models')
+    TMP_PATH = os.path.join(expanduser("~"), '.data', 'models', 'tmp')
     MODEL_SUFFIX = '.model'
     METADATA_SUFFIX = '.metadata'
     DATA_SUFFIX = '.data'
@@ -75,9 +75,9 @@ class StaticData:
     MODEL_METADATA_SUFFIX = '.mmd'
     SMOOTHING_METADATA_SUFFIX = '.smthmd'
     NAME_CLASS_METADATA = 'Metadata'
-    DATA_PATH = '~/.data'
+    DATA_PATH = os.path.join(expanduser("~"), '.data')
     PREDEFINED_MODEL_SUFFIX = '.pdmodel'
-    LOG_FOLDER = './savedLogs/'
+    LOG_FOLDER = os.path.join('.', 'savedLogs')
     IGNORE_IO_WARNINGS = False
     TEST_MODE = False
     MAX_DEBUG_LOOPS = 71
@@ -429,7 +429,7 @@ class Output(SaveClass):
                     if exc.errno != errno.EEXIST:
                         raise
 
-            self.handler = open(root + pathName, mode)
+            self.handler = open(os.path.join(root, pathName), mode)
             self.counter = 1
             self.pathName = pathName
             self.mode = mode
@@ -565,7 +565,7 @@ class Output(SaveClass):
     def createLogFolder(folderSuffix):
         dt_string = datetime.now().strftime("%d.%m.%Y_%H-%M-%S_")
         prfx = folderSuffix if folderSuffix is not None else ""
-        path = StaticData.LOG_FOLDER + "/" + str(dt_string) + prfx + "/"
+        path = os.path.join(StaticData.LOG_FOLDER, str(dt_string) + prfx)
         Path(path).mkdir(parents=True, exist_ok=False)
         return path
 
@@ -2066,7 +2066,7 @@ def plot(filePath: list, name = None, plotInputRoot = None, plotOutputRoot = Non
     fig = plt.gcf()
     if(plotInputRoot is not None):
         for fn in filePath:
-            fp.append(plotInputRoot + '/' + fn)
+            fp.append(os.path.join(plotInputRoot, fn))
     else:
         fp = filePath
 
@@ -2106,7 +2106,7 @@ def plot(filePath: list, name = None, plotInputRoot = None, plotOutputRoot = Non
 
     if(name is not None):
         if(plotOutputRoot is not None):
-            plt.savefig(plotOutputRoot + '/' + name + fileFormat, bbox_inches='tight', dpi=dpi)
+            plt.savefig(os.path.join(plotOutputRoot, name + fileFormat), bbox_inches='tight', dpi=dpi)
         else:
             plt.savefig(name + fileFormat, bbox_inches='tight', dpi=dpi)
         plt.clf()
