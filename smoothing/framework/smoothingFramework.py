@@ -1821,10 +1821,10 @@ def averageStatistics(statistics: list, filePaths: dict = {
     if(outputFolderNameSuffix is None):
         outputFolderNameSuffix = "averaging_files"
 
-    avgArray = []
+    flattedNewVals = []
     fileNames = list(iter(filePaths.values()))
     config = []
-    fileList = []
+    flattedFilePaths = []
     newStats = Statistics()
     tmp_testLossSum = []
     tmp_testCorrectSum = []
@@ -1835,25 +1835,27 @@ def averageStatistics(statistics: list, filePaths: dict = {
     tmp_smthPredSizeSum = []
 
     for f in filePaths.values():
-        fileList += f
+        flattedFilePaths += f
 
 
-    for index in range(len(fileList)):
-        avgArray.append([])
+    for index in range(len(flattedFilePaths)):
+        flattedNewVals.append([])
 
     for st in statistics:
-        for index, files in enumerate(fileList):
+        # przechodź kolejno po wszystkich folderach
+        for index, files in enumerate(flattedFilePaths):
+            # iteruj po wszystkich plikach z danego folderu
             openPath = os.path.join(st.logFolder, files)
             config.append(openPath)
             with open(openPath) as fh:
                 rows = [float(l.rstrip("\n")) for l in fh]
                 #csvReader = csv.reader(fh)
                 #rows = list(csvReader)
-                if(len(rows) < len(avgArray[index])):
-                    rows = rows + [0.0 for item in range(len(avgArray[index]) - len(rows))]
-                if(len(rows) > len(avgArray[index])):
-                    avgArray[index] = avgArray[index] + [0.0 for item in range(len(rows) - len(avgArray[index]))]
-                avgArray[index] = list(map(operator.add, rows, avgArray[index]))
+                if(len(rows) < len(flattedNewVals[index])):
+                    rows = rows + [0.0 for item in range(len(flattedNewVals[index]) - len(rows))]
+                if(len(rows) > len(flattedNewVals[index])):
+                    flattedNewVals[index] = flattedNewVals[index] + [0.0 for item in range(len(rows) - len(flattedNewVals[index]))]
+                flattedNewVals[index] = list(map(operator.add, rows, flattedNewVals[index]))
 
         tmp_testLossSum += st.testLossSum
         tmp_testCorrectSum += st.testCorrectSum
@@ -1881,22 +1883,28 @@ def averageStatistics(statistics: list, filePaths: dict = {
 
 
     logFolder = Output.createLogFolder(folderSuffix=outputFolderNameSuffix, relativeRoot=relativeRootFolder)
-    size = len(fileList)
+    
 
-    for arrFile in avgArray:
-        for obj in arrFile:
-            obj = obj / size
+    # podziel
+    readedFilesSameTypeSize = len(statistics)
+    for arrFile in flattedNewVals:
+        for idx, obj in enumerate(arrFile):
+            arrFile[idx] = arrFile[idx] / readedFilesSameTypeSize
 
-    for index, files in enumerate(fileList):
+    
+    # zapisz uśrednione wyniki do odpowiednich logów
+    for index, files in enumerate(flattedFilePaths):
         with open(os.path.join(logFolder, files), "w") as fh:
-            for obj in avgArray[index]:
+            for obj in flattedNewVals[index]:
                 fh.write(str(obj) + "\n")
         
+    # zapisz konfigurację
     with open(os.path.join(logFolder, 'config.txt'), "w") as fh:
         fh.write("Used files:\n")
         for obj in config:
             fh.write(obj + "\n")
 
+    # zapisz średnie dokładności modelu
     with open(os.path.join(logFolder, 'model_summary.txt'), "w") as fh:
         fh.write("\nModel averaged\n")
         fh.write("Test summary: \n Average accuracy: {:>6f}%, Avg loss: {:>8f}\n".format(
@@ -1906,15 +1914,9 @@ def averageStatistics(statistics: list, filePaths: dict = {
         fh.write("Test summary: \n Average accuracy: {:>6f}%, Avg loss: {:>8f}\n".format(
             100*(newStats.smthCorrectRatio[0]), newStats.smthLossRatio[0]))
 
-    newLogFolder = None
-    if(relativeRootFolder is None):
-        newLogFolder = logFolder
-    else:
-        newLogFolder = os.path.join(relativeRootFolder, logFolder)
-
-    newStats.logFolder = newLogFolder
+    newStats.logFolder = logFolder
     newStats.plotBatches = filePaths
-    newStats.rootInputFolder = newLogFolder
+    newStats.rootInputFolder = logFolder
 
     return newStats
 
