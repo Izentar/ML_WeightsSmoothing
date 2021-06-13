@@ -7,8 +7,8 @@ import torch.nn as nn
 import torch.optim as optim
 import numpy as np
 import time
-
-sf.StaticData.LOG_FOLDER = './smoothing/framework/test/dump/'
+from framework.test import utils as ut
+import torchvision.models as models
 
 init_weights = {
     'linear1.weight': [[5., 5., 5.]], 
@@ -17,59 +17,53 @@ init_weights = {
     'linear2.bias': [7., 7., 7.]
 }
 
-def testCmpPandas(obj_1, name_1, obj_2, name_2 = None):
-    if(name_2 is None):
-        pd.testing.assert_frame_equal(pd.DataFrame([{name_1: obj_1}]), pd.DataFrame([{name_1: obj_2}]))
-    else:
-        pd.testing.assert_frame_equal(pd.DataFrame([{name_1: obj_1}]), pd.DataFrame([{name_2: obj_2}]))
-
 class Test_CircularList(unittest.TestCase):
 
     def test_pushBack(self):
         inst = dc.CircularList(2)
         inst.pushBack(1)
-        testCmpPandas(inst.array[0], 'array_value', 1)
+        ut.testCmpPandas(inst.array[0], 'array_value', 1)
         inst.pushBack(2)
-        testCmpPandas(inst.array[0], 'array_value', 1)
-        testCmpPandas(inst.array[1], 'array_value', 2)
+        ut.testCmpPandas(inst.array[0], 'array_value', 1)
+        ut.testCmpPandas(inst.array[1], 'array_value', 2)
         inst.pushBack(3)
-        testCmpPandas(inst.array[0], 'array_value', 3)
-        testCmpPandas(inst.array[1], 'array_value', 2)
+        ut.testCmpPandas(inst.array[0], 'array_value', 3)
+        ut.testCmpPandas(inst.array[1], 'array_value', 2)
         inst.pushBack(4)
-        testCmpPandas(inst.array[0], 'array_value', 3)
-        testCmpPandas(inst.array[1], 'array_value', 4)
+        ut.testCmpPandas(inst.array[0], 'array_value', 3)
+        ut.testCmpPandas(inst.array[1], 'array_value', 4)
 
         inst.reset()
-        testCmpPandas(len(inst.array), 'array_length', 0)
+        ut.testCmpPandas(len(inst.array), 'array_length', 0)
         inst.pushBack(10)
-        testCmpPandas(inst.array[0], 'array_value', 10)
-        testCmpPandas(len(inst.array), 'array_length', 1)
+        ut.testCmpPandas(inst.array[0], 'array_value', 10)
+        ut.testCmpPandas(len(inst.array), 'array_length', 1)
 
     def test_getAverage(self):
         inst = dc.CircularList(3)
-        testCmpPandas(inst.getAverage(), 'average', 0)
+        ut.testCmpPandas(inst.getAverage(), 'average', 0)
         inst.pushBack(1)
-        testCmpPandas(inst.getAverage(), 'average', 1.0)
+        ut.testCmpPandas(inst.getAverage(), 'average', 1.0)
         inst.pushBack(2)
-        testCmpPandas(inst.getAverage(), 'average', 1.5)
+        ut.testCmpPandas(inst.getAverage(), 'average', 1.5)
         inst.pushBack(3)
-        testCmpPandas(inst.getAverage(), 'average', 2.0)
-        testCmpPandas(inst.getAverage(startAt=1), 'average', 1.5)
+        ut.testCmpPandas(inst.getAverage(), 'average', 2.0)
+        ut.testCmpPandas(inst.getAverage(startAt=1), 'average', 1.5)
         inst.pushBack(4)
-        testCmpPandas(inst.getAverage(), 'average', 3.0)
+        ut.testCmpPandas(inst.getAverage(), 'average', 3.0)
         inst.pushBack(5)
-        testCmpPandas(inst.getAverage(), 'average', 4.0)
+        ut.testCmpPandas(inst.getAverage(), 'average', 4.0)
 
-        testCmpPandas(inst.getAverage(startAt=1), 'average', 3.5)
-        testCmpPandas(inst.getAverage(startAt=2), 'average', 3.0)
+        ut.testCmpPandas(inst.getAverage(startAt=1), 'average', 3.5)
+        ut.testCmpPandas(inst.getAverage(startAt=2), 'average', 3.0)
 
         inst.reset()
-        testCmpPandas(len(inst.array), 'array_length', 0)
+        ut.testCmpPandas(len(inst.array), 'array_length', 0)
         inst.pushBack(10)
-        testCmpPandas(inst.getAverage(), 'average', 10.0)
-        testCmpPandas(len(inst.array), 'array_length', 1)
+        ut.testCmpPandas(inst.getAverage(), 'average', 10.0)
+        ut.testCmpPandas(len(inst.array), 'array_length', 1)
 
-        testCmpPandas(inst.getAverage(startAt=1), 'average', 0)
+        ut.testCmpPandas(inst.getAverage(startAt=1), 'average', 0)
 
     def test_iteration(self):
         inst = dc.CircularList(3)
@@ -78,41 +72,41 @@ class Test_CircularList(unittest.TestCase):
         inst.pushBack(3)
 
         i = iter(inst)
-        testCmpPandas(i.indexArray, 'array', [2, 1, 0])
+        ut.testCmpPandas(i.indexArray, 'array', [2, 1, 0])
 
-        testCmpPandas(next(i), 'iter_next', 3)
-        testCmpPandas(next(i), 'iter_next', 2)
-        testCmpPandas(next(i), 'iter_next', 1)
+        ut.testCmpPandas(next(i), 'iter_next', 3)
+        ut.testCmpPandas(next(i), 'iter_next', 2)
+        ut.testCmpPandas(next(i), 'iter_next', 1)
 
         self.assertRaises(StopIteration, lambda : next(i))
 
         inst.pushBack(4)
         i = iter(inst)
-        testCmpPandas(next(i), 'iter_next', 4)
-        testCmpPandas(next(i), 'iter_next', 3)
-        testCmpPandas(next(i), 'iter_next', 2)
+        ut.testCmpPandas(next(i), 'iter_next', 4)
+        ut.testCmpPandas(next(i), 'iter_next', 3)
+        ut.testCmpPandas(next(i), 'iter_next', 2)
         self.assertRaises(StopIteration, lambda : next(i))
 
         inst.pushBack(5)
         i = iter(inst)
-        testCmpPandas(next(i), 'iter_next', 5)
-        testCmpPandas(next(i), 'iter_next', 4)
-        testCmpPandas(next(i), 'iter_next', 3)
+        ut.testCmpPandas(next(i), 'iter_next', 5)
+        ut.testCmpPandas(next(i), 'iter_next', 4)
+        ut.testCmpPandas(next(i), 'iter_next', 3)
         self.assertRaises(StopIteration, lambda : next(i))
         
     def test_len(self):
         inst = dc.CircularList(3)
-        testCmpPandas(len(inst), 'array_length', 0)
+        ut.testCmpPandas(len(inst), 'array_length', 0)
         inst.pushBack(1)
-        testCmpPandas(len(inst), 'array_length', 1)
+        ut.testCmpPandas(len(inst), 'array_length', 1)
         inst.pushBack(2)
-        testCmpPandas(len(inst), 'array_length', 2)
+        ut.testCmpPandas(len(inst), 'array_length', 2)
         inst.pushBack(3)
-        testCmpPandas(len(inst), 'array_length', 3)
+        ut.testCmpPandas(len(inst), 'array_length', 3)
         inst.pushBack(4)
-        testCmpPandas(len(inst), 'array_length', 3)
+        ut.testCmpPandas(len(inst), 'array_length', 3)
         inst.pushBack(5)
-        testCmpPandas(len(inst), 'array_length', 3)
+        ut.testCmpPandas(len(inst), 'array_length', 3)
 
 class TestModel_Metadata(sf.Model_Metadata):
     def __init__(self):
@@ -181,7 +175,7 @@ class Test_DefaultSmoothing(unittest.TestCase):
             if(idx >= len(numpyArray)):
                 self.fail("Arrays size not equals.") 
             ar = ar.detach().numpy()
-            testCmpPandas(ar, 'array', numpyArray[idx])
+            ut.testCmpPandas(ar, 'array', numpyArray[idx])
             idx += 1
 
     def compareDictTensorToNumpy(self, iterator, numpyDict: dict):
@@ -199,7 +193,7 @@ class Test_DefaultSmoothing(unittest.TestCase):
             if(key not in numpyDict):
                 self.fail("Dictionary key not found.") 
             ar = ar.detach().numpy()
-            testCmpPandas(ar, 'array', numpyDict[key])
+            ut.testCmpPandas(ar, 'array', numpyDict[key])
             idx += 1
             
     def setWeightDict(self, w, b):
@@ -217,9 +211,9 @@ class Test_DefaultSmoothing(unittest.TestCase):
 
     def checkOscilation__isSmoothingGoodEnough__(self, avgLoss, helperEpoch, avgKLoss, dataMetadata, smoothing, smoothingMetadata, helper, model, metadata, booleanIsGood):
         smoothing(helperEpoch=helperEpoch, helper=helper, model=model, dataMetadata=dataMetadata, modelMetadata=None, metadata=metadata, smoothingMetadata=smoothingMetadata)
-        testCmpPandas(smoothing.lossContainer.getAverage(), 'average', avgLoss)
-        testCmpPandas(smoothing.lossContainer.getAverage(smoothingMetadata.lossContainerDelayedStartAt), 'average', avgKLoss)
-        testCmpPandas(smoothing.__isSmoothingGoodEnough__(helperEpoch=helperEpoch, helper=helper, model=model, dataMetadata=None, modelMetadata=None, metadata=metadata, smoothingMetadata=smoothingMetadata), 'isSmoothingGoodEnough', booleanIsGood)
+        ut.testCmpPandas(smoothing.lossContainer.getAverage(), 'average', avgLoss)
+        ut.testCmpPandas(smoothing.lossContainer.getAverage(smoothingMetadata.lossContainerDelayedStartAt), 'average', avgKLoss)
+        ut.testCmpPandas(smoothing.__isSmoothingGoodEnough__(helperEpoch=helperEpoch, helper=helper, model=model, dataMetadata=None, modelMetadata=None, metadata=metadata, smoothingMetadata=smoothingMetadata), 'isSmoothingGoodEnough', booleanIsGood)
 
 class Test__SmoothingOscilationBase(Test_DefaultSmoothing):
     def setUp(self):
@@ -286,10 +280,10 @@ class Test__SmoothingOscilationBase(Test_DefaultSmoothing):
         a = 2.0
         b = 1.5
 
-        testCmpPandas(smoothing._smoothingGoodEnoughCheck(abs(a - b), smoothingMetadata=smoothingMetadata), 'bool', False)
-        testCmpPandas(smoothing._smoothingGoodEnoughCheck(abs(a - b), smoothingMetadata=smoothingMetadata), 'bool', True)
+        ut.testCmpPandas(smoothing._smoothingGoodEnoughCheck(abs(a - b), smoothingMetadata=smoothingMetadata), 'bool', False)
+        ut.testCmpPandas(smoothing._smoothingGoodEnoughCheck(abs(a - b), smoothingMetadata=smoothingMetadata), 'bool', True)
         b = 3.1
-        testCmpPandas(smoothing._smoothingGoodEnoughCheck(abs(a - b), smoothingMetadata=smoothingMetadata), 'bool', False)
+        ut.testCmpPandas(smoothing._smoothingGoodEnoughCheck(abs(a - b), smoothingMetadata=smoothingMetadata), 'bool', False)
 
     def test__sumAllWeights(self):
         smoothingMetadata = dc.Test_DefaultSmoothingOscilationWeightedMean_Metadata(test_smoothingEndCheckType='wgsum')
@@ -300,7 +294,7 @@ class Test__SmoothingOscilationBase(Test_DefaultSmoothing):
 
         smoothing.calcMean(model=self.model, smoothingMetadata=smoothingMetadata)
         sumWg = smoothing._sumAllWeights(smoothingMetadata=smoothingMetadata, metadata=self.metadata)
-        testCmpPandas(sumWg, 'weight_sum', 58.0)
+        ut.testCmpPandas(sumWg, 'weight_sum', 58.0)
 
 class Test_DefaultSmoothingOscilationWeightedMean(Test_DefaultSmoothing):
     def setUp(self):
@@ -418,7 +412,7 @@ class Test_DefaultSmoothingOscilationWeightedMean(Test_DefaultSmoothing):
         metadata=self.metadata, smoothingMetadata=smoothingMetadata)
         wg = smoothing.__getSmoothedWeights__(smoothingMetadata=smoothingMetadata, metadata=self.metadata)
         std = smoothing._sumWeightsToArrayStd(wg)
-        testCmpPandas(std.item(), 'std', dc.ConfigClass.STD_NAN)
+        ut.testCmpPandas(std.item(), 'std', dc.ConfigClass.STD_NAN)
 
 
         second_weights = {
@@ -433,7 +427,7 @@ class Test_DefaultSmoothingOscilationWeightedMean(Test_DefaultSmoothing):
         metadata=self.metadata, smoothingMetadata=smoothingMetadata)
         wg = smoothing.__getSmoothedWeights__(smoothingMetadata=smoothingMetadata, metadata=self.metadata)
         std = smoothing._sumWeightsToArrayStd(wg)
-        testCmpPandas(std.item(), 'std', torch.std(torch.Tensor([(11 - 9.0)*6+(13 - 11.0)*4,  (9.0 - 5)*6+(11.0 - 7)*4])).item()) # smoothed weights = saved weights -> 0
+        ut.testCmpPandas(std.item(), 'std', torch.std(torch.Tensor([(11 - 9.0)*6+(13 - 11.0)*4,  (9.0 - 5)*6+(11.0 - 7)*4])).item()) # smoothed weights = saved weights -> 0
 
 
 class Test_DefaultSmoothingOscilationMovingMean(Test_DefaultSmoothing):

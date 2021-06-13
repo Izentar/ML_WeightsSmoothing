@@ -81,6 +81,7 @@ class StaticData:
     IGNORE_IO_WARNINGS = False
     TEST_MODE = False
     MAX_DEBUG_LOOPS = 71
+    MAX_EPOCH_LOOPS = 3
 
 class SaveClass:
     def __init__(self):
@@ -141,7 +142,7 @@ class BaseSampler:
     """ 
     def __init__(self, dataSize, batchSize, startIndex = 0, seed = 984):
         self.sequence = list(range(dataSize))[startIndex * batchSize:]
-        random.shuffle(self.sequence)
+        random.Random(seed).shuffle(self.sequence)
 
     def __iter__(self):
         return iter(self.sequence)
@@ -488,8 +489,6 @@ class Output(SaveClass):
 
         Path(StaticData.LOG_FOLDER).mkdir(parents=True, exist_ok=True)
 
-        print(relativeRoot)
-
         self.folderSuffix = folderSuffix
         self.relativeRoot = relativeRoot
         self.root = None
@@ -617,8 +616,8 @@ class Output(SaveClass):
                     if('formatedLog' in self.aliasToFH[al].OType):
                         prBash = False
                 elif(warnings() and not (ignoreWarnings or StaticData.IGNORE_IO_WARNINGS)):
-                    print("WARNING: Output alias for 'write / print' not found: '{}'".format(al), end=end)
-                    print(al, self.aliasToFH.keys())
+                    self.printBash("Output alias for 'write / print' not found: '{}'".format(al), 'warn')
+                    self.printBash(str(al) + " " + str(self.aliasToFH.keys()), 'warn')
                 
     def print(self, arg, alias: list = None, ignoreWarnings = False, mode: str = None):
         """
@@ -711,8 +710,10 @@ class DefaultMethods():
 class LoopsState():
     """
     Klasa służy do zapamiętania stanu pętli treningowych oraz testowych, niezależnie od kolejności ich wywołania.
-    Kolejność wywoływania pętli treningowych oraz testowych powinna być niezmienna, 
-    inaczej program pogubi się w tym, która pętla powinna zostać wznowiona.
+    Kolejność wywoływania pętli treningowych oraz testowych powinna być niezmienna między wczytywaniami, 
+    inaczej program nie zagwarantuje tego, która pętla powinna zostać wznowiona.
+    Pomysł bazuje na zapisywaniu oraz wczytywaniu klasy, bez których metody błędnie zadziałają.
+    Nie można użyć tej klasy do sprawdzania wykonania danej pętli w jednym wywołaniu programu. Wymaga to zapisu oraz wczytania klasy.
     """
     def __init__(self):
         self.numbArray = []
@@ -730,6 +731,8 @@ class LoopsState():
     def imprint(self, numb, isEnd):
         """
         Dodaje do listy numer iteracji pętli oraz to, czy ona się skończyła.
+        Przed wywołaniem tej metody powinna zostać wywołana metoda decide(), aby się dowiedzieć, 
+        czy aktualna pętla nie potrzebuje wznowienia
         """
         if(len(self.popNumbArray) == 1 and self.popNumbArray[0][1] == False):
             self.numbArray[0][0] = numb
@@ -917,7 +920,7 @@ class EpochDataContainer():
     epochHelper
     """
     def __init__(self):
-        self.epochNumber = None
+        self.epochNumber = 0
         self.trainTotalNumber = None
         self.testTotalNumber = None
         self.maxTrainTotalNumber = None
@@ -1014,8 +1017,6 @@ class Data(SaveClass, BaseMainClass, BaseLogicClass):
         self.testloader = None
         self.transform = None
 
-        self.epochNumb = 0
-
         self.trainSampler = None
         self.testSampler = None
 
@@ -1042,7 +1043,6 @@ class Data(SaveClass, BaseMainClass, BaseLogicClass):
 
     def __customizeState__(self, state):
         if(self.only_Key_Ingredients):
-            del state['epochNumb']
             del state['trainHelper']
             del state['testHelper']
             del state['epochHelper']
@@ -1064,7 +1064,6 @@ class Data(SaveClass, BaseMainClass, BaseLogicClass):
     def __setstate__(self, state):
         self.__dict__.update(state)
         if(self.only_Key_Ingredients):
-            self.epochNumb = 0
             self.trainHelper = None
             self.testHelper = None
             self.epochHelper = None
@@ -1386,17 +1385,22 @@ class Data(SaveClass, BaseMainClass, BaseLogicClass):
             self.epochHelper.maxTrainTotalNumber = self.__howManyTrainInvInOneEpoch__() * dataMetadata.epoch * len(self.trainloader)
             self.epochHelper.maxTestTotalNumber = self.__howManyTestInvInOneEpoch__() * dataMetadata.epoch * len(self.testloader)
 
+    def setEpochLoop(self, metadata: 'Metadata'):
+        epochHelper = EpochDataContainer()
+        epochHelper.statistics.logFolder = metadata.stream.root
+        epochHelper.trainTotalNumber = 0
+        epochHelper.testTotalNumber = 0
+        return epochHelper
+
     def epochLoop(self, model: 'Model', dataMetadata: 'Data_Metadata', modelMetadata: 'Model_Metadata', metadata: 'Metadata', smoothing: 'Smoothing', smoothingMetadata: 'Smoothing_Metadata'):
         metadata.prepareOutput()
-        self.epochHelper = EpochDataContainer()
-        self.epochHelper.statistics.logFolder = metadata.stream.root
-        self.epochHelper.trainTotalNumber = 0
-        self.epochHelper.testTotalNumber = 0
+        if(self.epochHelper is None):
+            self.epochHelper = self.setEpochLoop(metadata)
 
         self.__beforeEpochLoop__(helperEpoch=self.epochHelper, model=model, dataMetadata=dataMetadata, modelMetadata=modelMetadata, metadata=metadata, smoothing=smoothing, smoothingMetadata=smoothingMetadata)
 
         for ep, (loopEpoch) in enumerate(range(dataMetadata.epoch)):  # loop over the dataset multiple times
-            if(ep < self.epochNumb): # already iterated
+            if(ep < self.epochHelper.epochNumber): # already iterated
                 continue
             self.epochHelper.epochNumber = ep
             self._updateTotalNumbLoops(dataMetadata=dataMetadata)
@@ -1408,7 +1412,7 @@ class Data(SaveClass, BaseMainClass, BaseLogicClass):
                 self.__epochLoopExit__(helperEpoch=self.epochHelper, model=model, dataMetadata=dataMetadata, modelMetadata=modelMetadata, metadata=metadata, smoothing=smoothing, smoothingMetadata=smoothingMetadata)
                 return
 
-            if(StaticData.TEST_MODE and ep == 3):
+            if(StaticData.TEST_MODE and ep == StaticData.MAX_EPOCH_LOOPS):
                 break
 
         self.__afterEpochLoop__(helperEpoch=self.epochHelper, model=model, dataMetadata=dataMetadata, modelMetadata=modelMetadata, metadata=metadata, smoothing=smoothing, smoothingMetadata=smoothingMetadata)
@@ -1429,7 +1433,6 @@ class Data(SaveClass, BaseMainClass, BaseLogicClass):
         a = metadata.stream.getRelativeFilePath('weightsSumTrain')
         self.epochHelper.statistics.plotBatches['weightsSumTrain'] = [a]
 
-
         self.resetEpochState()
         metadata.stream.flushAll()
         stat = self.epochHelper.statistics
@@ -1438,7 +1441,6 @@ class Data(SaveClass, BaseMainClass, BaseLogicClass):
 
     def resetEpochState(self):
         self.epochHelper.loopsState.clear()
-        self.epochNumb = 0
 
     def __update__(self, dataMetadata: 'Data_Metadata'):
         """

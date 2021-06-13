@@ -1104,9 +1104,12 @@ class DefaultDataCIFAR10(DefaultData):
     def __prepare__(self, dataMetadata):
         self.__setInputTransform__(dataMetadata)
 
+        if(dataMetadata.fromGrayToRGB):
+            raise Exception("CIFAR10 does have RGB and does not need transition from gray to RGB. Flag fromGrayToRGB is set to True. Set fromGrayToRGB to False in data-Metadata.")
+
         #self.trainset = torchvision.datasets.ImageNet(root=sf.StaticData.DATA_PATH, train=True, transform=self.trainTransform)
         #self.testset = torchvision.datasets.ImageNet(root=sf.StaticData.DATA_PATH, train=False, transform=self.testTransform)
-        self.trainset = torchvision.datasets.CIFAR10(root, split)(root=sf.StaticData.DATA_PATH, train=True, transform=self.trainTransform, download=dataMetadata.download)
+        self.trainset = torchvision.datasets.CIFAR10(root=sf.StaticData.DATA_PATH, train=True, transform=self.trainTransform, download=dataMetadata.download)
         self.testset = torchvision.datasets.CIFAR10(root=sf.StaticData.DATA_PATH, train=False, transform=self.testTransform, download=dataMetadata.download)
 
         self.trainSampler = sf.BaseSampler(len(self.trainset), dataMetadata.batchTrainSize)
@@ -1125,9 +1128,12 @@ class DefaultDataCIFAR100(DefaultData):
     def __prepare__(self, dataMetadata):
         self.__setInputTransform__(dataMetadata)
 
+        if(dataMetadata.fromGrayToRGB):
+            raise Exception("CIFAR100 does have RGB and does not need transition from gray to RGB. Flag fromGrayToRGB is set to True. Set fromGrayToRGB to False in data-Metadata.")
+
         #self.trainset = torchvision.datasets.ImageNet(root=sf.StaticData.DATA_PATH, train=True, transform=self.trainTransform)
         #self.testset = torchvision.datasets.ImageNet(root=sf.StaticData.DATA_PATH, train=False, transform=self.testTransform)
-        self.trainset = torchvision.datasets.CIFAR100(root, split)(root=sf.StaticData.DATA_PATH, train=True, transform=self.trainTransform, download=dataMetadata.download)
+        self.trainset = torchvision.datasets.CIFAR100(root=sf.StaticData.DATA_PATH, train=True, transform=self.trainTransform, download=dataMetadata.download)
         self.testset = torchvision.datasets.CIFAR100(root=sf.StaticData.DATA_PATH, train=False, transform=self.testTransform, download=dataMetadata.download)
 
         self.trainSampler = sf.BaseSampler(len(self.trainset), dataMetadata.batchTrainSize)
