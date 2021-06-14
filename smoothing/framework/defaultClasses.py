@@ -425,6 +425,7 @@ class DefaultSmoothingBorderline_Metadata(sf.Smoothing_Metadata):
     def __strAppend__(self):
         tmp_str = super().__strAppend__()
         tmp_str += ('Device:\t{}\n'.format(self.device))
+        tmp_str += ('Number of batches after smoothing on:\t{}\n'.format(self.numbOfBatchAfterSwitchOn))
         return tmp_str
 
 class Test_DefaultSmoothingBorderline_Metadata(DefaultSmoothingBorderline_Metadata):
@@ -1167,7 +1168,12 @@ SmoothingMap = {
 }
 
 def run(modelType, dataType, smoothingType, metadataObj, modelMetadata, dataMetadata, smoothingMetadata, modelPredefObj = None, 
-    numbOfRepetition = 1):
+    numbOfRepetition = 1, rootFolder = None):
+    """
+        numbOfRepetition - mówi ile razy model powinien ponownie przejść przez pętlę epocha. Każde takie powtórzenie kończy się zapisem
+            go do odpowiedniego folderu grupującego. Przy każdym przejściu model nie jest resetowany.
+            Można to uznać za przerwę w epochu, która zapisuje dotychczasowe wyniki do pliku.
+    """
 
     listStat = []
     folderRelativeRoot = None
@@ -1194,7 +1200,9 @@ def run(modelType, dataType, smoothingType, metadataObj, modelMetadata, dataMeta
         logFolderSuffix = modelType + '_' + dataType + '_' + smoothingType
         if(numbOfRepetition != 1):
             if(folderRelativeRoot is None):
-                folderRelativeRoot = os.path.basename(sf.Output.createLogFolder(logFolderSuffix + "_set"))
+                _, folderRelativeRoot = sf.Output.createLogFolder(logFolderSuffix + "_set", relativeRoot=rootFolder)
+        elif(rootFolder is not None):
+            _, folderRelativeRoot = sf.Output.tryCreateFolder(rootFolder)
 
         metadataObj.name = logFolderSuffix
         metadataObj.logFolderSuffix = logFolderSuffix

@@ -564,19 +564,28 @@ class Output(SaveClass):
     
     def setLogFolder(self):
         if(self.root is None):
-            self.root = Output.createLogFolder(folderSuffix=self.folderSuffix, relativeRoot=self.relativeRoot)
+            self.root = Output.createLogFolder(folderSuffix=self.folderSuffix, relativeRoot=self.relativeRoot)[0]
         return self.root
 
     def createLogFolder(folderSuffix, relativeRoot = None):
         dt_string = datetime.now().strftime("%d.%m.%Y_%H-%M-%S_")
         prfx = folderSuffix if folderSuffix is not None else ""
         path = None
+        pathRel = None
         if(relativeRoot is not None):
             path = os.path.join(StaticData.LOG_FOLDER, relativeRoot, str(dt_string) + prfx)
+            pathRel = os.path.join(relativeRoot, str(dt_string) + prfx)
         else:
             path = os.path.join(StaticData.LOG_FOLDER, str(dt_string) + prfx)
+            pathRel = os.path.join(str(dt_string) + prfx)
         Path(path).mkdir(parents=True, exist_ok=False)
-        return path
+        return path, pathRel
+
+    def tryCreateFolder(relativeRoot):
+        path = os.path.join(StaticData.LOG_FOLDER, relativeRoot)
+        pathRel = os.path.join(relativeRoot)
+        Path(path).mkdir(parents=True, exist_ok=True)
+        return path, pathRel
 
     def __getPrefix(mode):
         prefix = ''
@@ -1884,7 +1893,7 @@ def averageStatistics(statistics: list, filePaths: dict = {
     newStats.smthCorrectRatio.append(newStats.smthTestCorrectSum[0] / newStats.smthPredSizeSum[0])
 
 
-    logFolder = Output.createLogFolder(folderSuffix=outputFolderNameSuffix, relativeRoot=relativeRootFolder)
+    logFolder = Output.createLogFolder(folderSuffix=outputFolderNameSuffix, relativeRoot=relativeRootFolder)[0]
     
 
     # podziel
