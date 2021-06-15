@@ -186,6 +186,10 @@ class test_mode():
         return bool(StaticData.TEST_MODE)
 
 class Metadata(SaveClass, BaseMainClass):
+    """
+        Klasa ta jest zmieniana w wywołaniach funckji.
+        Aby ją ponownie użyć należy wywołać resetOutput(), który zresetuje wszystkie dane dotyczące wyjścia modelu.
+    """
     def __init__(self, fileNameSave=None, fileNameLoad=None, testFlag=False, trainFlag=False, debugInfo=False, modelOutput=None,
             debugOutput=None, stream=None, bashFlag=False, name=None, formatedOutput=None, logFolderSuffix=None, relativeRoot=None):
         super().__init__()
@@ -587,6 +591,9 @@ class Output(SaveClass):
         Path(path).mkdir(parents=True, exist_ok=True)
         return path, pathRel
 
+    def getTimeStr():
+        return datetime.now().strftime("%d.%m.%Y_%H-%M-%S_")
+
     def __getPrefix(mode):
         prefix = ''
         if(mode is None):
@@ -961,6 +968,19 @@ class Statistics():
         self.testCorrectSum = [] # zapisywane po wykonanym teście, suma poprawnych predykcji testowych
         self.predSizeSum = [] # zapisywane po wykonanym teście, ilość wszystkich predykcji
 
+        self.trainTimeLoop = [] # czas wykonania całej pętli treningowej
+        self.avgTrainTimeLoop = [] # średni czas wykonania jednej pętli treningowej
+        self.trainTotalNumb = [] # całkowita liczba przebytych pętli treningowych
+        self.trainTimeUnits = [] # jednostki w jakich liczony był czas
+
+        self.testTimeLoop = [] # czas wykonania całej pętli testowej
+        self.avgTestTimeLoop = [] # średni czas wykonania jednej pętli testowej
+        self.testTimeUnits = [] # jednostki w jakich liczony był czas
+
+        self.smthTestTimeLoop = [] # czas wykonania całej pętli testowej z wygładzonymi wagami
+        self.smthAvgTestTimeLoop = [] # średni czas wykonania jednej pętli testowej z wygładzonymi wagami
+        self.smthTestTimeUnits = [] # jednostki w jakich liczony był czas
+
         self.smthLossRatio = [] # zapisywane po wykonanym teście, gdy model posiada wygładzone wagi, średnia strata modelu
         self.smthCorrectRatio = [] # zapisywane po wykonanym teście, gdy model posiada wygładzone wagi, stosunek udanych do wszystkich predykcji
         self.smthTestLossSum = [] # zapisywane po wykonanym teści, gdy model posiada wygładzone wagie, suma strat testowych
@@ -1173,6 +1193,10 @@ class Data(SaveClass, BaseMainClass, BaseLogicClass):
         metadata.stream.print(f" Average train time ({helper.timer.getUnits()}): {helper.timer.getAverage()}")
         metadata.stream.print(f" Loop train time ({helper.timer.getUnits()}): {helper.loopTimer.getDiff()}")
         metadata.stream.print(f" Number of batches done: {helperEpoch.trainTotalNumber}")
+        helperEpoch.statistics.trainTimeLoop.append(helper.loopTimer.getDiff())
+        helperEpoch.statistics.trainTimeUnits.append(helper.timer.getUnits())
+        helperEpoch.statistics.avgTrainTimeLoop.append(helper.timer.getAverage())
+        helperEpoch.statistics.trainTotalNumb.append(helperEpoch.trainTotalNumber)
 
     def __trainLoopExit__(self, helperEpoch: 'EpochDataContainer', helper, model: 'Model', dataMetadata: 'Data_Metadata', modelMetadata: 'Model_Metadata', metadata: 'Metadata', smoothing: 'Smoothing', smoothingMetadata: 'Smoothing_Metadata'):
         helperEpoch.loopsState.imprint(numb=helper.batchNumber, isEnd=helper.loopEnded)
@@ -1301,6 +1325,10 @@ class Data(SaveClass, BaseMainClass, BaseLogicClass):
             metadata.stream.print(f" Average test execution time in a loop ({helper.timer.getUnits()}): {helper.timer.getAverage():>3f}", ['model:0'])
             metadata.stream.print(f" Time to complete the entire loop ({helper.timer.getUnits()}): {helper.loopTimer.getDiff():>3f}\n", ['model:0'])
 
+            helperEpoch.statistics.smthTestTimeLoop.append(helper.loopTimer.getDiff())
+            helperEpoch.statistics.smthAvgTestTimeLoop.append(helper.timer.getAverage())
+            helperEpoch.statistics.smthTestTimeUnits.append(helper.timer.getUnits())
+
         else:
             helperEpoch.statistics.testLossSum.append(helper.testLossSum)
             helperEpoch.statistics.testCorrectSum.append(helper.testCorrectSum)
@@ -1312,6 +1340,10 @@ class Data(SaveClass, BaseMainClass, BaseLogicClass):
             metadata.stream.print(f"\nTest summary: \n Accuracy: {(100*helperEpoch.statistics.correctRatio[-1]):>6f}%, Avg loss: {helperEpoch.statistics.lossRatio[-1]:>8f}", ['model:0'])
             metadata.stream.print(f" Average test execution time in a loop ({helper.timer.getUnits()}): {helper.timer.getAverage():>3f}", ['model:0'])
             metadata.stream.print(f" Time to complete the entire loop ({helper.timer.getUnits()}): {helper.loopTimer.getDiff():>3f}\n", ['model:0'])
+
+            helperEpoch.statistics.testTimeLoop.append(helper.loopTimer.getDiff())
+            helperEpoch.statistics.avgTestTimeLoop.append(helper.timer.getAverage())
+            helperEpoch.statistics.testTimeUnits.append(helper.timer.getUnits())
 
     def __testLoopExit__(self, helperEpoch: 'EpochDataContainer', helper, model: 'Model', dataMetadata: 'Data_Metadata', modelMetadata: 'Model_Metadata', metadata: 'Metadata', smoothing: 'Smoothing', smoothingMetadata: 'Smoothing_Metadata'):
         helperEpoch.loopsState.imprint(numb=helper.batchNumber, isEnd=helper.loopEnded)
@@ -1820,6 +1852,9 @@ def commandLineArg(metadata, dataMetadata, modelMetadata, argv, enableLoad = Tru
 
     return metadata, False
 
+def _Private_createNewStat(statistics: list, filePaths: dict):
+    pass
+
 def averageStatistics(statistics: list, filePaths: dict = {
     'loopTestTime' : ['loopTestTime_normal.csv', 'loopTestTime_smooothing.csv'], 
     'loopTrainTime' : ['loopTrainTime.csv'], 
@@ -1844,10 +1879,22 @@ def averageStatistics(statistics: list, filePaths: dict = {
     tmp_smthTestLossSum = []
     tmp_smthTestCorrectSum = []
     tmp_smthPredSizeSum = []
+    readedFilesSameTypeSize = len(statistics)
+
+    tmp_trainTimeLoop    = []
+    tmp_trainTimeUnits       = None
+    tmp_avgTrainTimeLoop = []
+    tmp_trainTotalNumb   = []
+
+    tmp_testTimeLoop        = []
+    tmp_avgTestTimeLoop     = []
+    tmp_testTimeUnits       = None
+    tmp_smthTestTimeLoop    = []
+    tmp_smthAvgTestTimeLoop = []
+    tmp_smthTestTimeUnits   = None
 
     for f in filePaths.values():
         flattedFilePaths += f
-
 
     for index in range(len(flattedFilePaths)):
         flattedNewVals.append([])
@@ -1876,6 +1923,24 @@ def averageStatistics(statistics: list, filePaths: dict = {
         tmp_smthTestCorrectSum += st.smthTestCorrectSum
         tmp_smthPredSizeSum += st.smthPredSizeSum
 
+        if((tmp_trainTimeUnits is not None and tmp_trainTimeUnits != st.trainTimeUnits[0]) or 
+            (tmp_testTimeUnits is not None and tmp_testTimeUnits != st.testTimeUnits[0]) or
+            (tmp_smthTestTimeUnits is not None and tmp_smthTestTimeUnits != st.smthTestTimeUnits[0])):
+            Output.printBash("Statistics have different time units when averaging. The time units displayed may be incorrect", 'warn')
+
+        tmp_trainTimeLoop    += st.trainTimeLoop
+        tmp_trainTimeUnits   = st.trainTimeUnits[0]
+        tmp_avgTrainTimeLoop += st.avgTrainTimeLoop
+        tmp_trainTotalNumb   += st.trainTotalNumb
+
+        tmp_testTimeLoop        += st.testTimeLoop
+        tmp_avgTestTimeLoop     += st.avgTestTimeLoop
+        tmp_testTimeUnits       = st.testTimeUnits[0]
+        tmp_smthTestTimeLoop    += st.smthTestTimeLoop
+        tmp_smthAvgTestTimeLoop += st.smthAvgTestTimeLoop
+        tmp_smthTestTimeUnits   = st.smthTestTimeUnits[0]
+        
+
     newStats.testLossSum.append(torch.mean(torch.as_tensor(tmp_testLossSum, dtype=torch.float64)))
     newStats.testCorrectSum.append(torch.mean(torch.as_tensor(tmp_testCorrectSum, dtype=torch.float64)))
     newStats.predSizeSum.append(torch.mean(torch.as_tensor(tmp_predSizeSum, dtype=torch.float64)))
@@ -1892,12 +1957,24 @@ def averageStatistics(statistics: list, filePaths: dict = {
     newStats.smthLossRatio.append(newStats.smthTestLossSum[0] / newStats.smthPredSizeSum[0])
     newStats.smthCorrectRatio.append(newStats.smthTestCorrectSum[0] / newStats.smthPredSizeSum[0])
 
+    newStats.trainTimeLoop.append(sum(tmp_trainTimeLoop) / readedFilesSameTypeSize)
+    newStats.trainTimeUnits.append(tmp_trainTimeUnits)
+    newStats.avgTrainTimeLoop.append(sum(tmp_avgTrainTimeLoop) / readedFilesSameTypeSize)
+    newStats.trainTotalNumb.append(sum(tmp_trainTotalNumb))
+
+    newStats.testTimeLoop.append(sum(tmp_testTimeLoop) / readedFilesSameTypeSize)
+    newStats.avgTestTimeLoop.append(sum(tmp_avgTestTimeLoop) / readedFilesSameTypeSize)
+    newStats.testTimeUnits.append(tmp_testTimeUnits)
+
+    newStats.smthTestTimeLoop.append(sum(tmp_smthTestTimeLoop) / readedFilesSameTypeSize)
+    newStats.smthAvgTestTimeLoop.append(sum(tmp_smthAvgTestTimeLoop) / readedFilesSameTypeSize)
+    newStats.smthTestTimeUnits.append(tmp_smthTestTimeUnits)
+
 
     logFolder = Output.createLogFolder(folderSuffix=outputFolderNameSuffix, relativeRoot=relativeRootFolder)[0]
     
 
     # podziel
-    readedFilesSameTypeSize = len(statistics)
     for arrFile in flattedNewVals:
         for idx, obj in enumerate(arrFile):
             arrFile[idx] = arrFile[idx] / readedFilesSameTypeSize
@@ -1918,12 +1995,22 @@ def averageStatistics(statistics: list, filePaths: dict = {
     # zapisz średnie dokładności modelu
     with open(os.path.join(logFolder, 'model_summary.txt'), "w") as fh:
         fh.write("\nModel averaged\n")
-        fh.write("Test summary: \n Average accuracy: {:>6f}%, Avg loss: {:>8f}\n".format(
+
+        fh.write("Train summary:\n")
+        fh.write(f" Average train time ({newStats.trainTimeUnits[0]}): {newStats.avgTrainTimeLoop[0]}\n")
+        fh.write(f" Loop train time ({newStats.trainTimeUnits[0]}): {newStats.trainTimeLoop[0]}\n")
+        fh.write(f" Number of batches done (without averaging result): {newStats.trainTotalNumb[0]}\n")
+
+        fh.write("\nNormal model averaged\nTest summary:\n Average accuracy: {:>6f}%, Avg loss: {:>8f}\n".format(
             100*(newStats.correctRatio[0]), newStats.lossRatio[0]))
+        fh.write(f" Average test execution time in a loop ({newStats.testTimeUnits[0]}): {newStats.avgTestTimeLoop[0]:>3f}\n")
+        fh.write(f" Time to complete the entire loop ({newStats.testTimeUnits[0]}): {newStats.testTimeLoop[0]:>3f}\n")
 
         fh.write("\nSmoothed model averaged\n")
-        fh.write("Test summary: \n Average accuracy: {:>6f}%, Avg loss: {:>8f}\n".format(
+        fh.write("Test summary:\n Average accuracy: {:>6f}%, Avg loss: {:>8f}\n".format(
             100*(newStats.smthCorrectRatio[0]), newStats.smthLossRatio[0]))
+        fh.write(f" Average test execution time in a loop ({newStats.smthTestTimeUnits[0]}): {newStats.smthAvgTestTimeLoop[0]:>3f}\n")
+        fh.write(f" Time to complete the entire loop ({newStats.smthTestTimeUnits[0]}): {newStats.smthTestTimeLoop[0]:>3f}\n")
 
     newStats.logFolder = logFolder
     newStats.plotBatches = filePaths
