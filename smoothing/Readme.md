@@ -25,4 +25,7 @@ Jeden model potrafi ważyć ponad 0.5 GB, a dane treningowe oraz walidacyjne od 
 Uruchomienie testów:
 1. wejście do folderu smoothing <br>
 2. wywołanie <br>
-    &emsp;python -m unittest smoothing/invokeTests.py
+    &emsp;cd smoothing/
+    &emsp;python -m unittest invokeTests.py
+
+Aby usunąć logi powstałe na wskutek wykonania testu, należy wykonać: python smoothing/framework/test/removeDump.py

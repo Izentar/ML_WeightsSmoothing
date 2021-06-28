@@ -7,4 +7,4 @@ TODO
 __pycache__/
 *.csv
 savedLogs/
-dump/*
+dump/

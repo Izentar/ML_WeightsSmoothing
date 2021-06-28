@@ -1,7 +1,8 @@
 #!/bin/bash 
 
 declare -a commands=(
-    "python smoothing/experiments_weightedMean.py"
+    "python smoothing/experiments/experiments_movingMean_hiperparam.py"
+    "python smoothing/experiments/experiments_movingMean_hiperparam_2.py"
 )
 
 declare -a names=(
@@ -9,11 +10,11 @@ declare -a names=(
 )
 
 : '
-    "python smoothing/experiments_arithmeticMean.py"
-    "python smoothing/experiments_borderline.py"
-    "python smoothing/experiments_disabledMean.py"
-    "python smoothing/experiments_movingMean.py"
-    "python smoothing/experiments_weightedMean.py"
+    "python smoothing/experiments/experiments_arithmeticMean.py"
+    "python smoothing/experiments/experiments_borderline.py"
+    "python smoothing/experiments/experiments_disabledMean.py"
+    "python smoothing/experiments/experiments_movingMean.py"
+    "python smoothing/experiments/experiments_weightedMean.py"
 '
 
 : '

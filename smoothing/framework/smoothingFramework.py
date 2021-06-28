@@ -32,6 +32,7 @@ def saveWorkAndExit(signumb, frame):
     return
 
 def terminate(signumb, frame):
+    Output.printBash('Catched signal: ' + str(signumb) + ". Terminating program.", 'info')
     exit(2)
 
 def enabledDeterminism():
@@ -40,7 +41,7 @@ def enabledDeterminism():
 def enabledSaveAndExit():
     return bool(SAVE_AND_EXIT_FLAG)
 
-signal.signal(signal.SIGTSTP, saveWorkAndExit)
+signal.signal(signal.SIGQUIT, saveWorkAndExit) # Ctrl + \
 
 signal.signal(signal.SIGINT, terminate)
 
@@ -1507,12 +1508,12 @@ class Data(SaveClass, BaseMainClass, BaseLogicClass):
     def canUpdate(self = None):
         return True
 
-    def setModelNormalWeights(self, model, helperEpoch, weights):
-        model._Private_setWeights(weights)
+    def setModelNormalWeights(self, model, helperEpoch, weights, metadata):
+        model._Private_setWeights(weights=weights, metadata=metadata)
         helperEpoch.averaged = False
 
-    def setModelSmoothedWeights(self, model, helperEpoch, weights):
-        model._Private_setWeights(weights)
+    def setModelSmoothedWeights(self, model, helperEpoch, weights, metadata):
+        model._Private_setWeights(weights=weights, metadata=metadata)
         helperEpoch.averaged = True
 
 
@@ -1640,7 +1641,8 @@ class Model(nn.Module, SaveClass, BaseMainClass, BaseLogicClass):
         self.__dict__.update(state)
         self.eval()
 
-    def _Private_setWeights(self, weights):
+    def _Private_setWeights(self, weights, metadata):
+        metadata.stream.print(arg="Setting weights:\n" + str(weights.keys()), alias='debug:0', mode='debug')
         self.load_state_dict(weights)
 
     def getWeights(self):
@@ -1683,7 +1685,7 @@ class PredefinedModel(SaveClass, BaseMainClass, BaseLogicClass):
         self.loss_fn = ...
         self.optimizer = torch.optim...
     """
-    def __init__(self, obj: 'modelObject', modelMetadata):
+    def __init__(self, obj: 'modelObject', modelMetadata, name):
         """
         Metoda powinna posiadać zmienne\n
         self.loss_fn = ...\n
@@ -1694,6 +1696,7 @@ class PredefinedModel(SaveClass, BaseMainClass, BaseLogicClass):
             raise Exception("Object do not implement nn.Module class.")
         super().__init__()
         self.modelObj = obj
+        self.name = name
 
     def __initializeWeights__(self):
         self.modelObj._initialize_weights()
@@ -1712,7 +1715,8 @@ class PredefinedModel(SaveClass, BaseMainClass, BaseLogicClass):
         self.__dict__.update(obj)
         self.modelObj.eval()
 
-    def _Private_setWeights(self, weights):
+    def _Private_setWeights(self, weights, metadata):
+        metadata.stream.print(arg="Setting weights:\n" + str(weights.keys()), alias='debug:0', mode='debug')
         self.modelObj.load_state_dict(weights)
 
     def getWeights(self):
@@ -1720,6 +1724,9 @@ class PredefinedModel(SaveClass, BaseMainClass, BaseLogicClass):
 
     def __update__(self, modelMetadata):
         raise Exception("Not implemented")
+
+    def __strAppend__(self):
+        return "Model name:\t{}\n".format(self.name)
 
     def trySave(self, metadata, onlyKeyIngredients = False, temporaryLocation = False):
         return super().trySave(metadata=metadata, suffix=StaticData.PREDEFINED_MODEL_SUFFIX, onlyKeyIngredients=onlyKeyIngredients, temporaryLocation=temporaryLocation)
@@ -2098,7 +2105,7 @@ def modelRun(Metadata_Class, Data_Metadata_Class, Model_Metadata_Class, Smoothin
         else:
             dictObjs[Model_Class.__name__] = Model_Class(modelMetadata=dictObjs[Model_Metadata_Class.__name__])
 
-        dictObjs[Smoothing_Class.__name__].__setDictionary__(smoothingMetadata=dictObjs[Smoothing_Metadata_Class.__name__], dictionary=dictObjs[Model_Class.__name__].getNNModelModule().named_parameters())
+        dictObjs[Smoothing_Class.__name__].__setDictionary__(smoothingMetadata=dictObjs[Smoothing_Metadata_Class.__name__], dictionary=dictObjs[Model_Class.__name__].getNNModelModule().state_dict().items())
 
     stat = dictObjs[Data_Class.__name__].epochLoop(
         model=dictObjs[Model_Class.__name__], dataMetadata=dictObjs[Data_Metadata_Class.__name__], modelMetadata=dictObjs[Model_Metadata_Class.__name__], 
@@ -2271,7 +2278,7 @@ def modelDetermTest(Metadata_Class, Data_Metadata_Class, Model_Metadata_Class, D
         else:
             dictObjs[Model_Class.__name__] = Model_Class(dictObjs[Model_Metadata_Class.__name__])
 
-        dictObjs[Smoothing_Class.__name__].__setDictionary__(dictObjs[Model_Class.__name__].getNNModelModule().named_parameters())
+        dictObjs[Smoothing_Class.__name__].__setDictionary__(dictObjs[Model_Class.__name__].getNNModelModule().state_dict().items())
 
         stat.append(
              dictObjs[Data_Class.__name__].epochLoop(dictObjs[Model_Class.__name__], dictObjs[Data_Metadata_Class.__name__], dictObjs[Model_Metadata_Class.__name__], dictObjs[Metadata_Class.__name__], dictObjs[Smoothing_Class.__name__])
