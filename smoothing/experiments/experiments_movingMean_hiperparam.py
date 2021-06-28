@@ -30,8 +30,7 @@ if(__name__ == '__main__'):
         for r in range(loop):
             obj = models.alexnet()
             metadata.resetOutput()
-            
-            smoothingMetadata.movingAvgParam = 0.15
+
             modelMetadata = dc.DefaultModel_Metadata()
 
             stat=dc.run(numbOfRepetition=2, modelType=types[0], dataType=types[1], smoothingType=types[2], metadataObj=metadata, 
@@ -52,8 +51,6 @@ if(__name__ == '__main__'):
         for r in range(loop):
             obj = models.alexnet()
             metadata.resetOutput()
-            
-            smoothingMetadata.movingAvgParam = 0.15
             modelMetadata = dc.DefaultModel_Metadata()
 
             stat=dc.run(numbOfRepetition=2, modelType=types[0], dataType=types[1], smoothingType=types[2], metadataObj=metadata, 
@@ -74,8 +71,6 @@ if(__name__ == '__main__'):
         for r in range(loop):
             obj = models.alexnet()
             metadata.resetOutput()
-            
-            smoothingMetadata.movingAvgParam = 0.15
             modelMetadata = dc.DefaultModel_Metadata()
 
             stat=dc.run(numbOfRepetition=2, modelType=types[0], dataType=types[1], smoothingType=types[2], metadataObj=metadata, 
@@ -96,8 +91,6 @@ if(__name__ == '__main__'):
         for r in range(loop):
             obj = models.alexnet()
             metadata.resetOutput()
-            
-            smoothingMetadata.movingAvgParam = 0.15
             modelMetadata = dc.DefaultModel_Metadata()
 
             stat=dc.run(numbOfRepetition=2, modelType=types[0], dataType=types[1], smoothingType=types[2], metadataObj=metadata, 
@@ -119,8 +112,6 @@ if(__name__ == '__main__'):
         for r in range(loop):
             obj = models.alexnet()
             metadata.resetOutput()
-            
-            smoothingMetadata.movingAvgParam = 0.15
             modelMetadata = dc.DefaultModel_Metadata()
 
             stat=dc.run(numbOfRepetition=2, modelType=types[0], dataType=types[1], smoothingType=types[2], metadataObj=metadata, 
