@@ -14,8 +14,11 @@ from framework import defaultClasses as dc
 if(__name__ == '__main__'):
     #sf.StaticData.TEST_MODE = True
 
+    # pin_memory = False - na serwerze inaczej występuje Warning: Leaking Caffe2 thread-pool after fork. 
+    # więcej w wątku https://github.com/pytorch/pytorch/issues/57273
+
     metadata = sf.Metadata(testFlag=True, trainFlag=True, debugInfo=True)
-    dataMetadata = dc.DefaultData_Metadata(pin_memoryTest=True, pin_memoryTrain=True, epoch=2, fromGrayToRGB=True)
+    dataMetadata = dc.DefaultData_Metadata(pin_memoryTest=False, pin_memoryTrain=False, epoch=2, fromGrayToRGB=True)
     loop = 5
     modelName = "alexnet"
     prefix = "epsilons_"
