@@ -20,7 +20,7 @@ if(__name__ == '__main__'):
     metadata = sf.Metadata(testFlag=True, trainFlag=True, debugInfo=True)
     dataMetadata = dc.DefaultData_Metadata(pin_memoryTest=False, pin_memoryTrain=False, epoch=2, fromGrayToRGB=True)
     loop = 5
-    modelName = "alexnet"
+    modelName = "wide_resnet50_2"
     prefix = "mov_param_"
 
     types = ('predefModel', 'MNIST', 'movingMean')
@@ -31,7 +31,7 @@ if(__name__ == '__main__'):
             epsilon=1e-5, hardEpsilon=1e-7, weightsEpsilon=1e-6, batchPercentMaxStart=0.98)
 
         for r in range(loop):
-            obj = models.alexnet()
+            obj = models.wide_resnet50_2()
             metadata.resetOutput()
 
             modelMetadata = dc.DefaultModel_Metadata()
@@ -52,7 +52,7 @@ if(__name__ == '__main__'):
             epsilon=1e-5, hardEpsilon=1e-7, weightsEpsilon=1e-6, batchPercentMaxStart=0.98)
 
         for r in range(loop):
-            obj = models.alexnet()
+            obj = models.wide_resnet50_2()
             metadata.resetOutput()
             modelMetadata = dc.DefaultModel_Metadata()
 
@@ -72,7 +72,7 @@ if(__name__ == '__main__'):
             epsilon=1e-5, hardEpsilon=1e-7, weightsEpsilon=1e-6, batchPercentMaxStart=0.98)
 
         for r in range(loop):
-            obj = models.alexnet()
+            obj = models.wide_resnet50_2()
             metadata.resetOutput()
             modelMetadata = dc.DefaultModel_Metadata()
 
@@ -92,7 +92,7 @@ if(__name__ == '__main__'):
             epsilon=1e-5, hardEpsilon=1e-7, weightsEpsilon=1e-6, batchPercentMaxStart=0.98)
 
         for r in range(loop):
-            obj = models.alexnet()
+            obj = models.wide_resnet50_2()
             metadata.resetOutput()
             modelMetadata = dc.DefaultModel_Metadata()
 
@@ -113,7 +113,7 @@ if(__name__ == '__main__'):
             epsilon=1e-5, hardEpsilon=1e-7, weightsEpsilon=1e-6, batchPercentMaxStart=0.98)
 
         for r in range(loop):
-            obj = models.alexnet()
+            obj = models.wide_resnet50_2()
             metadata.resetOutput()
             modelMetadata = dc.DefaultModel_Metadata()
 
