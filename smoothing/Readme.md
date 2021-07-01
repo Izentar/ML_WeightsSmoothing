@@ -29,3 +29,13 @@ Uruchomienie testów:
     &emsp;python -m unittest invokeTests.py
 
 Aby usunąć logi powstałe na wskutek wykonania testu, należy wykonać: python smoothing/framework/test/removeDump.py
+<br>
+<br>
+Inne uwagi
+Dla pytorcha w wersji 1.9.0+cu102 występują następujące UserWarning / Warning:
++ torchvision/datasets/mnist.py:498: UserWarning: The given NumPy array is not writeable... (Triggered internally at  /pytorch/torch/csrc/utils/tensor_numpy.cpp:180.) - jest to wewnętrzny warning pytorcha.
++ torch/nn/functional.py:718: UserWarning: Named tensors (Triggered internally at  /pytorch/c10/core/TensorImpl.h:1156.) - jest to wewnętrzny warning pytorcha.
++ [W pthreadpool-cpp.cc:90] Warning: Leaking Caffe2 thread-pool after fork. (function pthreadpool) - pojawia się tylko w sytuacji, gdy pin_memory dla torch.utils.data.DataLoader jest ustawiony na True oraz gdy num_workers > 0. Aby go zlikwidować należy ustawić pin_memoryTest oraz pin_memoryTrain na False. Wątek o tym temacie: https://github.com/pytorch/pytorch/issues/57273
+
+<br>
+Dla pytorcha w wersji 1.8.1+cu102 nie pojawiają się żadne UserWarning.

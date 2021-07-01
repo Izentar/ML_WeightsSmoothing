@@ -16,6 +16,7 @@ import torchvision.models as models
 """
 
 class Test_RunExperiment(unittest.TestCase):
+    
     def test_experiment_movingMean_MNIST_predefModel_alexnet(self):
         with sf.test_mode():
             modelName = "alexnet"
@@ -27,13 +28,13 @@ class Test_RunExperiment(unittest.TestCase):
             types = ('predefModel', 'MNIST', 'movingMean')
             obj = models.alexnet()
             
-            smoothingMetadata = dc.Test_DefaultSmoothingOscilationMovingMean_Metadata(test_movingAvgParam=0.1, 
+            smoothingMetadata = dc.Test_DefaultSmoothingOscilationEWMA_Metadata(test_movingAvgParam=0.1, 
                 test_weightSumContainerSize=3, test_weightSumContainerSizeStartAt=1, test_lossContainer=20, test_lossContainerDelayedStartAt=10)
             modelMetadata = dc.DefaultModel_Metadata()
 
             stat=dc.run(numbOfRepetition=3, modelType=types[0], dataType=types[1], smoothingType=types[2], metadataObj=metadata, 
                 modelPredefObjName=modelName, modelMetadata=modelMetadata, dataMetadata=dataMetadata, smoothingMetadata=smoothingMetadata, modelPredefObj=obj)
-
+    
 
     def test_experiment_weightedMean_MNIST_predefModel_alexnet(self):
         with sf.test_mode():
@@ -53,7 +54,8 @@ class Test_RunExperiment(unittest.TestCase):
 
             stat=dc.run(numbOfRepetition=3, modelType=types[0], dataType=types[1], smoothingType=types[2], metadataObj=metadata, 
                 modelPredefObjName=modelName, modelMetadata=modelMetadata, dataMetadata=dataMetadata, smoothingMetadata=smoothingMetadata, modelPredefObj=obj)
-
+    
+    
     def test_experiment_borderline_MNIST_predefModel_alexnet(self):
         with sf.test_mode():
             modelName = "alexnet"
@@ -87,7 +89,7 @@ class Test_RunExperiment(unittest.TestCase):
 
             stat=dc.run(numbOfRepetition=3, modelType=types[0], dataType=types[1], smoothingType=types[2], metadataObj=metadata, 
                 modelPredefObjName=modelName, modelMetadata=modelMetadata, dataMetadata=dataMetadata, smoothingMetadata=smoothingMetadata, modelPredefObj=obj)
-
+    
 
     def test_experiment_generalizedMean_MNIST_predefModel_alexnet(self):
         with sf.test_mode():
@@ -106,6 +108,7 @@ class Test_RunExperiment(unittest.TestCase):
 
             stat=dc.run(numbOfRepetition=3, modelType=types[0], dataType=types[1], smoothingType=types[2], metadataObj=metadata, 
                 modelPredefObjName=modelName, modelMetadata=modelMetadata, dataMetadata=dataMetadata, smoothingMetadata=smoothingMetadata, modelPredefObj=obj)
+
 
     def test_experiment_generalizedMean_CIFAR10_predefModel_alexnet(self):
         with sf.test_mode():
@@ -160,7 +163,7 @@ class Test_RunExperiment(unittest.TestCase):
 
             stat=dc.run(numbOfRepetition=3, modelType=types[0], dataType=types[1], smoothingType=types[2], metadataObj=metadata, 
                 modelPredefObjName=modelName, modelMetadata=modelMetadata, dataMetadata=dataMetadata, smoothingMetadata=smoothingMetadata, modelPredefObj=obj)
-
+    
 
 if __name__ == '__main__':
     sf.useDeterministic()

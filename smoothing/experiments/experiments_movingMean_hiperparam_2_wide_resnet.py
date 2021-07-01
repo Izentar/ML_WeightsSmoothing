@@ -27,7 +27,7 @@ if(__name__ == '__main__'):
     try:
         stats = []
         rootFolder = prefix + sf.Output.getTimeStr() +  ''.join(x + "_" for x in types) + "set"
-        smoothingMetadata = dc.DefaultSmoothingOscilationMovingMean_Metadata(movingAvgParam=0.15, 
+        smoothingMetadata = dc.DefaultSmoothingOscilationEWMA_Metadata(movingAvgParam=0.15, 
             epsilon=1e-1, hardEpsilon=1e-3, weightsEpsilon=1e-2, batchPercentMaxStart=0.98)
 
         for r in range(loop):
@@ -46,7 +46,7 @@ if(__name__ == '__main__'):
     try:
         stats = []
         rootFolder = prefix + sf.Output.getTimeStr() +  ''.join(x + "_" for x in types) + "set"
-        smoothingMetadata = dc.DefaultSmoothingOscilationMovingMean_Metadata(movingAvgParam=0.15, 
+        smoothingMetadata = dc.DefaultSmoothingOscilationEWMA_Metadata(movingAvgParam=0.15, 
             epsilon=1e-2, hardEpsilon=1e-4, weightsEpsilon=1e-3, batchPercentMaxStart=0.98)
 
         for r in range(loop):
@@ -65,7 +65,7 @@ if(__name__ == '__main__'):
     try:
         stats = []
         rootFolder = prefix + sf.Output.getTimeStr() +  ''.join(x + "_" for x in types) + "set"
-        smoothingMetadata = dc.DefaultSmoothingOscilationMovingMean_Metadata(movingAvgParam=0.15, 
+        smoothingMetadata = dc.DefaultSmoothingOscilationEWMA_Metadata(movingAvgParam=0.15, 
             epsilon=1e-3, hardEpsilon=1e-5, weightsEpsilon=1e-4, batchPercentMaxStart=0.98)
 
         for r in range(loop):
@@ -86,7 +86,7 @@ if(__name__ == '__main__'):
     try:
         stats = []
         rootFolder = prefix + sf.Output.getTimeStr() +  ''.join(x + "_" for x in types) + "set"
-        smoothingMetadata = dc.DefaultSmoothingOscilationMovingMean_Metadata(movingAvgParam=0.15, 
+        smoothingMetadata = dc.DefaultSmoothingOscilationEWMA_Metadata(movingAvgParam=0.15, 
             epsilon=1e-4, hardEpsilon=1e-6, weightsEpsilon=1e-5, batchPercentMaxStart=0.98)
 
         for r in range(loop):
@@ -106,7 +106,7 @@ if(__name__ == '__main__'):
     try:
         stats = []
         rootFolder = prefix + sf.Output.getTimeStr() +  ''.join(x + "_" for x in types) + "set"
-        smoothingMetadata = dc.DefaultSmoothingOscilationMovingMean_Metadata(movingAvgParam=0.15, 
+        smoothingMetadata = dc.DefaultSmoothingOscilationEWMA_Metadata(movingAvgParam=0.15, 
             epsilon=1e-5, hardEpsilon=1e-7, weightsEpsilon=1e-6, batchPercentMaxStart=0.98)
 
         for r in range(loop):
@@ -126,7 +126,7 @@ if(__name__ == '__main__'):
     try:
         stats = []
         rootFolder = prefix + sf.Output.getTimeStr() +  ''.join(x + "_" for x in types) + "set"
-        smoothingMetadata = dc.DefaultSmoothingOscilationMovingMean_Metadata(movingAvgParam=0.15, 
+        smoothingMetadata = dc.DefaultSmoothingOscilationEWMA_Metadata(movingAvgParam=0.15, 
             epsilon=1e-6, hardEpsilon=1e-8, weightsEpsilon=1e-7, batchPercentMaxStart=0.98)
 
         for r in range(loop):

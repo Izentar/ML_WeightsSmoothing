@@ -1,0 +1,72 @@
+DefaultSmoothingOscilationWeightedMean
+
+Włączenie wygładzania - sprawdza, czy różnica bezwzględna między wszystkimi zapisanymi stratami modelu, a N - K ostatnimi stratami modelu jest wystarczająco dobra
+Problemy - Strata modelu zaczyna oscylować w określonym przedziale, jednak to nie oznacza, że model zakończył trening.
+
+Wywołanie w pętli treningowej - kopiowanie wszystkich wag modelu do cyklicznej listy (osobno dla każdej iteracji)
+
+Liczenie wyładzonych wag - wykonanie średniej ważonej na kolejnych wagach.
+
+Warunek końca wygładzania - 
+- wariant z std 
+	- pobranie wygładzonych wag
+	- obliczenie bezwzględnej różnicy pomiędzy kolejną zapisaną wagą, a wygładzoną wagą, a następnie zsumowanie całego tensora do jednej liczby. 
+    Wykonuje się to dla każdej wagi modelu w danej iteracji, a następnie zapisuje się do tymczasowej listy. 
+    Daje to pojęcie, jak bardzo dane zapisane wagi modelu są oddalone od wygładzonych wag.
+	- wykonanie operacji std względem zapisanej tymczasowej listy.
+	- zwrócenie wyniku. Jeżeli std zwróciło NaN, to metoda zwraca 1e+10.
+	- wykonanie standardowego porównania wartości z epsilonem wag.
+
+- wariant z sumowaniem wag
+	- pobranie wygładzonych wag i ich sumowanie wartości bezwzględnych do jednej zmiennej
+	- dodanie obliczonej zmiennej do cyklicznego kontenera
+	- obliczenie różnicy bezwzględnej pomiędzy dwoma średnimi - średnia ze wszsytkich zapisanych sum, a średnią z N - K ostatnich sum
+	- wykonanie standardowego porównania wartości z epsilonem wag.
+
+
+=======================================================
+DefaultSmoothingOscilationMovingMean
+
+Włączenie wygładzania - takie samo jak w DefaultSmoothingOscilationWeightedMean
+
+Wywołanie w pętli treningowej - wykonanie działania S = ax + (1-a)S dla każdej z wag. S jest kontenerem przechowującym pojedyncze wagi modelu, który przy każdym wywołaniu zmienia swoją zawartość. Kolejne wagi nie są zapamiętywane.
+
+Liczenie wyładzonych wag - zwrócenie wcześniej obliczonych wag modelu.
+
+Warunek końca wygładzania - wariant z sumowaniem wag jak w DefaultSmoothingOscilationWeightedMean
+
+
+=======================================================
+DefaultSmoothingOscilationGeneralizedMean
+
+Włączenie wygładzania - takie samo jak w DefaultSmoothingOscilationWeightedMean
+
+Wywołanie w pętli treningowej - dodawanie do zmiennej danych wag modelu po wcześniejszym ich podniesieniu do potęgi (domyślnie potęga 1). Wagi są sumowane względem ich klucza.
+
+Liczenie wyładzonych wag - dzielenie obliczonej wcześniej sumy przez liczbę zapisanych do sumy wag.
+Problemy - suma bierze pod uwagę stare wagi i ich nie usuwa.
+
+Warunek końca wygładzania - wariant z sumowaniem wag jak w DefaultSmoothingOscilationWeightedMean
+
+
+
+=======================================================
+DefaultSmoothingBorderline
+
+Włączenie wygładzania - po wykonaniu określonej z góry liczby pętli treningowych.
+
+Wywołanie w pętli treningowej - sumuje wagi aby później użyć ich do liczenia średniej arytmetycznej wszystkich wag.
+
+Liczenie wyładzonych wag - wykonanie dzielenia obliczonej sumy wag przez liczbę zapisanych do sumy wag.
+
+Warunek końca wygładzania - brak warunku. Wygładzanie jes włączone do końca działania fazy treningowej.
+
+
+======================================================
+_SmoothingOscilationBase
+Klasa bazowa dla większości klas wygładzania.
+
+
+======================================================
+DisabledSmoothing
+Klasa manekin. Wyłącza liczenie wygładzania.

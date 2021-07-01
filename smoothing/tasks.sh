@@ -1,8 +1,9 @@
 #!/bin/bash 
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*- 
 
 declare -a commands=(
-    "python smoothing/experiments/experiments_movingMean_hiperparam.py"
-    "python smoothing/experiments/experiments_movingMean_hiperparam_2.py"
+    "python3 smoothing/experiments/experiments_movingMean_hiperparam.py"
 )
 
 declare -a names=(

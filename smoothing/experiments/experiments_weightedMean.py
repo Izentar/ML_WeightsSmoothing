@@ -16,6 +16,7 @@ if(__name__ == '__main__'):
 
     metadata = sf.Metadata(testFlag=True, trainFlag=True, debugInfo=True)
     dataMetadata = dc.DefaultData_Metadata(pin_memoryTest=True, pin_memoryTrain=True, epoch=1, fromGrayToRGB=False)
+    loop = 5
 
     smoothingMetadata = None
     if(sf.test_mode.isActive()):
@@ -26,92 +27,122 @@ if(__name__ == '__main__'):
     epsilon=1e-4, hardEpsilon=1e-7, weightsEpsilon=1e-6)
 
     #####################
-    types = ('predefModel', 'CIFAR100', 'weightedMean')
+    types = ('predefModel', 'CIFAR10', 'weightedMean')
     try:
-        obj = models.alexnet()
-        metadata.resetOutput()
+        stats = []
+        rootFolder = sf.Output.getTimeStr() +  ''.join(x + "_" for x in types) + "set"
+        for r in range(loop):
+            obj = models.alexnet()
+            metadata.resetOutput()
 
-        smoothingMetadata.weightIter = dc.DefaultWeightDecay(1.05)
-        modelMetadata = dc.DefaultModel_Metadata()
+            smoothingMetadata.weightIter = dc.DefaultWeightDecay(1.05)
+            modelMetadata = dc.DefaultModel_Metadata()
 
-        stat=dc.run(numbOfRepetition=5,modelType=types[0], dataType=types[1], smoothingType=types[2], metadataObj=metadata, 
-            modelMetadata=modelMetadata, dataMetadata=dataMetadata, smoothingMetadata=smoothingMetadata, modelPredefObj=obj)
-        experiments.printStats(stat, metadata)
+            stat=dc.run(numbOfRepetition=1,modelType=types[0], dataType=types[1], smoothingType=types[2], metadataObj=metadata, 
+                modelMetadata=modelMetadata, dataMetadata=dataMetadata, smoothingMetadata=smoothingMetadata, modelPredefObj=obj,
+                rootFolder=rootFolder)
+            stats.append(stat)
+        experiments.printStats(stats, metadata)
     except Exception as ex:
         experiments.printException(ex, types)
 
 
     #####################
-    types = ('predefModel', 'CIFAR100', 'weightedMean')
+    types = ('predefModel', 'CIFAR10', 'weightedMean')
     try:
-        obj = models.alexnet()
-        metadata.resetOutput()
+        stats = []
+        rootFolder = sf.Output.getTimeStr() +  ''.join(x + "_" for x in types) + "set"
+        for r in range(loop):
+            obj = models.alexnet()
+            metadata.resetOutput()
 
-        smoothingMetadata.weightIter = dc.DefaultWeightDecay(1.1)
-        modelMetadata = dc.DefaultModel_Metadata()
+            smoothingMetadata.weightIter = dc.DefaultWeightDecay(1.1)
+            modelMetadata = dc.DefaultModel_Metadata()
 
-        stat=dc.run(numbOfRepetition=5, modelType=types[0], dataType=types[1], smoothingType=types[2], metadataObj=metadata, 
-            modelMetadata=modelMetadata, dataMetadata=dataMetadata, smoothingMetadata=smoothingMetadata, modelPredefObj=obj)
-        experiments.printStats(stat, metadata)
+            stat=dc.run(numbOfRepetition=1, modelType=types[0], dataType=types[1], smoothingType=types[2], metadataObj=metadata, 
+                modelMetadata=modelMetadata, dataMetadata=dataMetadata, smoothingMetadata=smoothingMetadata, modelPredefObj=obj,
+                rootFolder=rootFolder)
+            stats.append(stat)
+        experiments.printStats(stats, metadata)
     except Exception as ex:
         experiments.printException(ex, types)
 
     #####################
-    types = ('predefModel', 'CIFAR100', 'weightedMean')
+    types = ('predefModel', 'CIFAR10', 'weightedMean')
     try:
-        obj = models.alexnet()
-        metadata.resetOutput()
+        stats = []
+        rootFolder = sf.Output.getTimeStr() +  ''.join(x + "_" for x in types) + "set"
+        for r in range(loop):
+            obj = models.alexnet()
+            metadata.resetOutput()
 
-        smoothingMetadata.weightIter = dc.DefaultWeightDecay(1.15)
-        modelMetadata = dc.DefaultModel_Metadata()
+            smoothingMetadata.weightIter = dc.DefaultWeightDecay(1.15)
+            modelMetadata = dc.DefaultModel_Metadata()
 
-        stat=dc.run(numbOfRepetition=5, modelType=types[0], dataType=types[1], smoothingType=types[2], metadataObj=metadata, 
-            modelMetadata=modelMetadata, dataMetadata=dataMetadata, smoothingMetadata=smoothingMetadata, modelPredefObj=obj)
-        experiments.printStats(stat, metadata)
+            stat=dc.run(numbOfRepetition=1, modelType=types[0], dataType=types[1], smoothingType=types[2], metadataObj=metadata, 
+                modelMetadata=modelMetadata, dataMetadata=dataMetadata, smoothingMetadata=smoothingMetadata, modelPredefObj=obj,
+                rootFolder=rootFolder)
+            stats.append(stat)
+        experiments.printStats(stats, metadata)
     except Exception as ex:
         experiments.printException(ex, types)
 
     #####################
-    types = ('predefModel', 'CIFAR100', 'weightedMean')
+    types = ('predefModel', 'CIFAR10', 'weightedMean')
     try:
-        obj = models.alexnet()
-        metadata.resetOutput()
+        stats = []
+        rootFolder = sf.Output.getTimeStr() +  ''.join(x + "_" for x in types) + "set"
+        for r in range(loop):
+            obj = models.alexnet()
+            metadata.resetOutput()
 
-        smoothingMetadata.weightIter = dc.DefaultWeightDecay(1.2)
-        modelMetadata = dc.DefaultModel_Metadata()
+            smoothingMetadata.weightIter = dc.DefaultWeightDecay(1.2)
+            modelMetadata = dc.DefaultModel_Metadata()
 
-        stat=dc.run(numbOfRepetition=5, modelType=types[0], dataType=types[1], smoothingType=types[2], metadataObj=metadata, 
-            modelMetadata=modelMetadata, dataMetadata=dataMetadata, smoothingMetadata=smoothingMetadata, modelPredefObj=obj)
-        experiments.printStats(stat, metadata)
+            stat=dc.run(numbOfRepetition=1, modelType=types[0], dataType=types[1], smoothingType=types[2], metadataObj=metadata, 
+                modelMetadata=modelMetadata, dataMetadata=dataMetadata, smoothingMetadata=smoothingMetadata, modelPredefObj=obj,
+                rootFolder=rootFolder)
+            stats.append(stat)
+        experiments.printStats(stats, metadata)
     except Exception as ex:
         experiments.printException(ex, types)
 
     #####################
-    types = ('predefModel', 'CIFAR100', 'weightedMean')
+    types = ('predefModel', 'CIFAR10', 'weightedMean')
     try:
-        obj = models.alexnet()
-        metadata.resetOutput()
+        stats = []
+        rootFolder = sf.Output.getTimeStr() +  ''.join(x + "_" for x in types) + "set"
+        for r in range(loop):
+            obj = models.alexnet()
+            metadata.resetOutput()
 
-        smoothingMetadata.weightIter = dc.DefaultWeightDecay(1.25)
-        modelMetadata = dc.DefaultModel_Metadata()
+            smoothingMetadata.weightIter = dc.DefaultWeightDecay(1.25)
+            modelMetadata = dc.DefaultModel_Metadata()
 
-        stat=dc.run(numbOfRepetition=5, modelType=types[0], dataType=types[1], smoothingType=types[2], metadataObj=metadata, 
-            modelMetadata=modelMetadata, dataMetadata=dataMetadata, smoothingMetadata=smoothingMetadata, modelPredefObj=obj)
-        experiments.printStats(stat, metadata)
+            stat=dc.run(numbOfRepetition=1, modelType=types[0], dataType=types[1], smoothingType=types[2], metadataObj=metadata, 
+                modelMetadata=modelMetadata, dataMetadata=dataMetadata, smoothingMetadata=smoothingMetadata, modelPredefObj=obj,
+                rootFolder=rootFolder)
+            stats.append(stat)
+        experiments.printStats(stats, metadata)
     except Exception as ex:
         experiments.printException(ex, types)
 
     #####################
-    types = ('predefModel', 'CIFAR100', 'weightedMean')
+    types = ('predefModel', 'CIFAR10', 'weightedMean')
     try:
-        obj = models.alexnet()
-        metadata.resetOutput()
+        stats = []
+        rootFolder = sf.Output.getTimeStr() +  ''.join(x + "_" for x in types) + "set"
+        for r in range(loop):
+            obj = models.alexnet()
+            metadata.resetOutput()
 
-        smoothingMetadata.weightIter = dc.DefaultWeightDecay(1.3)
-        modelMetadata = dc.DefaultModel_Metadata()
+            smoothingMetadata.weightIter = dc.DefaultWeightDecay(1.3)
+            modelMetadata = dc.DefaultModel_Metadata()
 
-        stat=dc.run(numbOfRepetition=5, modelType=types[0], dataType=types[1], smoothingType=types[2], metadataObj=metadata, 
-            modelMetadata=modelMetadata, dataMetadata=dataMetadata, smoothingMetadata=smoothingMetadata, modelPredefObj=obj)
-        experiments.printStats(stat, metadata)
+            stat=dc.run(numbOfRepetition=1, modelType=types[0], dataType=types[1], smoothingType=types[2], metadataObj=metadata, 
+                modelMetadata=modelMetadata, dataMetadata=dataMetadata, smoothingMetadata=smoothingMetadata, modelPredefObj=obj,
+                rootFolder=rootFolder)
+            stats.append(stat)
+        experiments.printStats(stats, metadata)
     except Exception as ex:
         experiments.printException(ex, types)

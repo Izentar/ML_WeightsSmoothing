@@ -186,6 +186,83 @@ class test_mode():
     def isActive(self = None):
         return bool(StaticData.TEST_MODE)
 
+class RunningGeneralMeanWeights():
+    """
+        Liczenie rekursywnej średniej arytmetycznej.
+        
+        initDummyWeights - słownik z wagami, który zostanie skopiowany do tej klasy. 
+            Nowe wagi zostaną zainicjalizowane jako zera.
+        device - urządzenie na którym mają być trzymane flagi. Ustawiając zmienną na None, wagi będą znajdowały się na 
+            tym samym urządzeniu, co initWeights.
+        setToZeros - jeżeli flaga ustawiona na True, to skopiowane wagi zostaną wyzerowane.
+        dtype - typ danych jaki ma posiadać każda z wag. Domyślnie jest to torch.float32, jednak ustawiając zmienną na None,
+            typ wag nie zostanie zmieniony względem initWeights.
+        power - potęga dla której będzie obliczana średnia. Domyślnie ma wartość 1, co jest równoważne ze średnią arytmetyczną.
+    """
+    def __init__(self, initWeights: dict, device: str=None, setToZeros: bool=False, dtype: str=torch.float32, power: int=1):
+        self.weightsDictAvg = {}
+        self.N = None
+        self.power = power
+        self.device = device
+
+        if(not isinstance(initWeights, dict)):
+            initWeights = dict(initWeights)
+
+        if(setToZeros):
+            with torch.no_grad():
+                for key, values in initWeights.items():
+                    self.weightsDictAvg[key] = torch.zeros_like(values, requires_grad=False, device=device, dtype=dtype)
+            self.N = 0
+        else:
+            with torch.no_grad():
+                for key, values in initWeights.items():
+                    self.weightsDictAvg[key] = torch.clone(values).to(device, dtype=dtype).requires_grad_(False)
+            self.N = 1
+
+        if(power > 1):
+            self.pow = self.__methodPow_
+            self.div = self.__methodDivGet_
+        elif(power > 0):
+            self.pow = self.__methodPow_1
+            self.div = self.__methodDivGet_1
+        else:
+            raise Exception("Power cannot be negative: {}".format(power))
+
+    def __methodPow_(self, key, arg):
+        self.weightsDictAvg[key].mul_(self.N).add_(arg.pow(self.power)).div_(self.N + 1)
+
+    def __methodPow_1(self, key, arg):
+        self.weightsDictAvg[key].mul_(self.N).add_(arg).div_(self.N + 1)
+
+    def __methodDivGet_(self):
+        tmpDict = {}
+        for key, val in self.weightsDictAvg.items():
+            tmpDict[key] = val.pow(1/self.power)
+        return tmpDict
+
+    def __methodDivGet_1(self):
+        return self.weightsDictAvg
+
+    def addWeights(self, weights: dict):
+        with torch.no_grad():
+            if(not isinstance(weights, dict)):
+                weights = dict(weights)
+            for key, values in weights.items():
+                if(not key in self.weightsDictAvg):
+                    raise Exception("Unknown weight name")
+                #self.weightsDictAvg[key].mul_(self.N).add_(values).div_(self.N + 1)
+                self.pow(key, values.to(self.device))
+
+        self.N = self.N + 1
+
+    def getWeights(self, device: str=None):
+        """
+            Zwraca uśrednione wagi, których nie można modyfikować.
+        """
+        return self.div()
+
+
+
 class Metadata(SaveClass, BaseMainClass):
     """
         Klasa ta jest zmieniana w wywołaniach funckji.
@@ -2294,3 +2371,9 @@ def modelDetermTest(Metadata_Class, Data_Metadata_Class, Model_Metadata_Class, D
             print(stat[1].trainLossArray[idx])
             break
     print('Arrays are: ', equal)
+
+
+##############################################
+
+if(test_mode.isActive()):
+    Output.printBash("TEST MODE is enabled", 'info')

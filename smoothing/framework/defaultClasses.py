@@ -109,7 +109,6 @@ class DefaultWeightDecay():
         tmp_str = ('Weight decay:\t{}\n'.format(self.weightDecay))
         return tmp_str
 
-
 # model classes
 class DefaultModel_Metadata(sf.Model_Metadata):
     def __init__(self,
@@ -371,7 +370,7 @@ class _SmoothingOscilationBase(sf.Smoothing):
     def _smoothingGoodEnoughCheck(self, val, smoothingMetadata):
         ret = bool(val < smoothingMetadata.weightsEpsilon)
         if(ret):
-            if(smoothingMetadata.softMarginAdditionalLoops > self.goodEnoughCounter):
+            if(smoothingMetadata.softMarginAdditionalLoops >= self.goodEnoughCounter):
                 self.goodEnoughCounter += 1
                 return False
             return ret
@@ -400,7 +399,6 @@ class _SmoothingOscilationBase(sf.Smoothing):
             metadata.stream.print("Sum debug:" + str(absSum), 'debug:0')
             metadata.stream.print("Weight avg diff: " + str(abs(avg_1 - avg_2)), 'debug:0')
             metadata.stream.print("Weight avg diff bool: " + str(bool(abs(avg_1 - avg_2) < smoothingMetadata.weightsEpsilon)), 'debug:0')
-            
             return self._smoothingGoodEnoughCheck(val=abs(avg_1 - avg_2), smoothingMetadata=smoothingMetadata)
         return False
 
@@ -573,85 +571,35 @@ class DefaultSmoothingOscilationGeneralizedMean(_SmoothingOscilationBase):
     """
     def __init__(self, smoothingMetadata):
         super().__init__(smoothingMetadata=smoothingMetadata)
-
-        self.sumWeights = {}
-
-        # methods
-        self.methodPow = None
-        self.methodDiv = None
-
-        # set method
-        if(smoothingMetadata.generalizedMeanPower == 1):
-            self.methodPow = self.methodPow_1
-            self.methodDiv = self.methodDiv_1
-        else:
-            self.methodPow = self.methodPow_
-            self.methodDiv = self.methodDiv_
-
-    def methodPow_(self, key, arg, smoothingMetadata):
-        self.sumWeights[key].add_(arg.to(smoothingMetadata.device).pow(smoothingMetadata.generalizedMeanPower))
-
-    def methodPow_1(self, key, arg, smoothingMetadata):
-        self.sumWeights[key].add_(arg.to(smoothingMetadata.device))
-
-    def methodDiv_(self, arg, smoothingMetadata):
-        return (arg / self.countWeights).pow(1/smoothingMetadata.generalizedMeanPower)
-
-    def methodDiv_1(self, arg, smoothingMetadata):
-        return (arg / self.countWeights)
+        self.mean = None
 
     def calcMean(self, model, smoothingMetadata):
-        with torch.no_grad():
-            for key, arg in model.getNNModelModule().state_dict().items():
-                self.methodPow(key=key, arg=arg, smoothingMetadata=smoothingMetadata)
+        self.mean.addWeights(model.getNNModelModule().state_dict())
 
     def __getSmoothedWeights__(self, smoothingMetadata, metadata):
         average = super().__getSmoothedWeights__(smoothingMetadata=smoothingMetadata, metadata=metadata)
         if(average is not None):
             return average
-        average = {}
-        if(self.countWeights == 0):
-            return average
-        for key, arg in self.sumWeights.items():
-            average[key] = self.methodDiv(arg=arg, smoothingMetadata=smoothingMetadata)
-        return average
+        return self.mean.getWeights()
 
     def __setDictionary__(self, smoothingMetadata, dictionary):
         '''
         Used to map future weights into internal sums.
         '''
         super().__setDictionary__(dictionary=dictionary, smoothingMetadata=smoothingMetadata)
-        with torch.no_grad():
-            for key, values in dictionary:
-                self.sumWeights[key] = torch.zeros_like(values, requires_grad=False, device=smoothingMetadata.device)
+        self.mean = sf.RunningGeneralMeanWeights(initWeights=dictionary, power=smoothingMetadata.generalizedMeanPower, device=smoothingMetadata.device, setToZeros=True)
 
     def __getstate__(self):
         state = self.__dict__.copy()
-        if(self.only_Key_Ingredients):
-            del state['countWeights']
-            del state['counter']
-            del state['sumWeights']
-            del state['enabled']
-            del state['divisionCounter']
-        return state
 
     def __setstate__(self, state):
         self.__dict__.update(state)
-        if(self.only_Key_Ingredients):
-            self.countWeights = 0
-            self.sumWeights = {}
-            self.enabled = False
-            self.divisionCounter = 0
-
-            self.lossContainer.reset()
-            self.tensorPrevSum_1.reset()
-            self.tensorPrevSum_2.reset()
 
     def createDefaultMetadataObj(self):
         return DefaultSmoothingOscilationGeneralizedMean_Metadata()
 
 # oscilation moving mean
-class DefaultSmoothingOscilationMovingMean_Metadata(_SmoothingOscilationBase_Metadata):
+class DefaultSmoothingOscilationEWMA_Metadata(_SmoothingOscilationBase_Metadata):
     def __init__(self, movingAvgParam = 0.27,
         device = 'cpu',
         weightSumContainerSize = 10, weightSumContainerSizeStartAt=5, softMarginAdditionalLoops = 20, 
@@ -673,7 +621,7 @@ class DefaultSmoothingOscilationMovingMean_Metadata(_SmoothingOscilationBase_Met
         tmp_str += ('Moving average parameter a:(ax + (a-1)S):\t{}\n'.format(self.movingAvgParam))
         return tmp_str
 
-class Test_DefaultSmoothingOscilationMovingMean_Metadata(DefaultSmoothingOscilationMovingMean_Metadata):
+class Test_DefaultSmoothingOscilationEWMA_Metadata(DefaultSmoothingOscilationEWMA_Metadata):
     def __init__(self, test_movingAvgParam = 0.27,
         test_device = 'cpu',
         test_weightSumContainerSize = 10, test_weightSumContainerSizeStartAt=5, test_softMarginAdditionalLoops = 3, 
@@ -687,15 +635,9 @@ class Test_DefaultSmoothingOscilationMovingMean_Metadata(DefaultSmoothingOscilat
         batchPercentMinStart=test_batchPercentMinStart, epsilon=test_epsilon, hardEpsilon=test_hardEpsilon, weightsEpsilon=test_weightsEpsilon,
         lossContainer=test_lossContainer, lossContainerDelayedStartAt=test_lossContainerDelayedStartAt)
 
-class DefaultSmoothingOscilationMovingMean(_SmoothingOscilationBase):
+class DefaultSmoothingOscilationEWMA(_SmoothingOscilationBase):
     """
-    Włącza wygładzanie gdy zostaną spełnione określone warunki:
-    - po przekroczeniu pewnej minimalnej ilości iteracji pętli oraz 
-        gdy różnica pomiędzy średnią N ostatnich strat treningowych modelu, 
-        a średnią średnich N ostatnich strat treningowych modelu jest mniejsza niż epsilon.
-    - po przekroczeniu pewnej maksymalnej ilości iteracji pętli.
-
-    Liczy średnią ważoną dla wag. Wagi są nadawane względem starości zapamiętanej wagi. Im starsza tym ma mniejszą wagę.
+        Liczy średnią EWMA względem wag.
     """
     def __init__(self, smoothingMetadata):
         super().__init__(smoothingMetadata=smoothingMetadata)
@@ -760,7 +702,7 @@ class DefaultSmoothingOscilationMovingMean(_SmoothingOscilationBase):
             self.tensorPrevSum_2.reset()
 
     def createDefaultMetadataObj(self):
-        return DefaultSmoothingOscilationMovingMean_Metadata()
+        return DefaultSmoothingOscilationEWMA_Metadata()
 
 # oscilation weighted mean
 smoothingEndCheckTypeDict = [
@@ -825,12 +767,13 @@ class DefaultSmoothingOscilationWeightedMean(_SmoothingOscilationBase):
     - po przekroczeniu pewnej maksymalnej ilości iteracji pętli.
 
     Liczy średnią ważoną dla wag. Wagi są nadawane względem starości zapamiętanej wagi. Im starsza tym ma mniejszą wagę.
+    Podana implementacja zużywa proporcjonalnie tyle pamięci, ile wynosi dla niej parametr weightsArraySize.
     """
     def __init__(self, smoothingMetadata):
         super().__init__(smoothingMetadata=smoothingMetadata)
 
-        # trzeba uważać na zajętość w pamięci. Zapamiętuje wszystkie wagi modelu, co może sumować się do dużych rozmiarów
         self.weightsArray = CircularList(smoothingMetadata.weightsArraySize) 
+
         if(smoothingMetadata.smoothingEndCheckType == 'std'):
             self.isSmoothingGoodEnoughMethod = DefaultSmoothingOscilationWeightedMean.__isSmoothingGoodEnough__std
         elif(smoothingMetadata.smoothingEndCheckType == 'wgsum'):
@@ -973,9 +916,11 @@ class DefaultData(sf.Data):
         return obj
 
     def __setInputTransform__(self, dataMetadata):
-        ''' self.transform = transforms.Compose(
+        ''' self.trainTransform = transforms.Compose(
             [transforms.ToTensor(),
             transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))]
+
+            self.testTransform = ...
         )
         '''
 
@@ -1175,7 +1120,7 @@ SmoothingMap = {
     'disabled': DisabledSmoothing,
     'borderline': DefaultSmoothingBorderline,
     'generalizedMean': DefaultSmoothingOscilationGeneralizedMean,
-    'movingMean': DefaultSmoothingOscilationMovingMean,
+    'movingMean': DefaultSmoothingOscilationEWMA,
     'weightedMean': DefaultSmoothingOscilationWeightedMean
 }
 

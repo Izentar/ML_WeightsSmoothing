@@ -159,6 +159,77 @@ class Test_Data(unittest.TestCase):
         ut.testCmpPandas(data.epochHelper.maxTrainTotalNumber, "max_loops_train", 7 * 1 * len(data.trainloader))
         ut.testCmpPandas(data.epochHelper.maxTestTotalNumber, "max_loops_test", 7 * 2 * len(data.testloader))
 
+class Test_RunningArthmeticMeanWeights(ut.Utils):
+    def test_calcMeanDullInit(self):
+        weights = self.setWeightTensorDict(2, 5)
+        arth = sf.RunningGeneralMeanWeights(initWeights=weights)
+
+        weights = self.setWeightTensorDict(2, 5)
+        arth.addWeights(weights)
+
+        avgWeights = arth.getWeights()
+        self.compareDictTensorToTorch(avgWeights, weights)
+
+        weights = self.setWeightTensorDict(5, 8)
+        arth.addWeights(weights)
+
+        avgWeights = arth.getWeights()
+        weights = self.setWeightTensorDict(3, 6)
+        self.compareDictTensorToTorch(avgWeights, weights)
+
+    def test_calcMeanInitZeros(self):
+        weights = self.setWeightTensorDict(2, 5)
+        arth = sf.RunningGeneralMeanWeights(initWeights=weights, setToZeros=True)
+
+        weights = self.setWeightTensorDict(2, 5)
+        arth.addWeights(weights)
+
+        avgWeights = arth.getWeights()
+        self.compareDictTensorToTorch(avgWeights, weights)
+
+        weights = self.setWeightTensorDict(6, 7)
+        arth.addWeights(weights)
+
+        avgWeights = arth.getWeights()
+        weights = self.setWeightTensorDict(4, 6)
+        self.compareDictTensorToTorch(avgWeights, weights)
+
+    def test_calcMeanPow2(self):
+        weights = self.setWeightTensorDict(2, 5)
+        arth = sf.RunningGeneralMeanWeights(initWeights=weights, setToZeros=True, power=2)
+
+        weights = self.setWeightTensorDict(2, 5)
+        arth.addWeights(weights)
+
+        avgWeights = arth.getWeights()
+        self.compareDictTensorToTorch(avgWeights, weights)
+
+        weights = self.setWeightTensorDict(6, 7)
+        arth.addWeights(weights)
+
+        avgWeights = arth.getWeights()
+        weights = self.setWeightTensorDict(4.47213, 6.08276)
+        self.compareDictTensorToTorch(avgWeights, weights)
+
+    def test_calcMeanAsWeightened(self):
+        wg = 1
+        weights = self.setWeightTensorDict(2, 5)
+        arth = sf.RunningGeneralMeanWeights(initWeights=weights, setToZeros=True)
+
+        weights = self.setWeightTensorDict(2, 5, mul=wg)
+        wg = wg / 2
+        arth.addWeights(weights)
+
+        avgWeights = arth.getWeights()
+        self.compareDictTensorToTorch(avgWeights, weights)
+
+        weights = self.setWeightTensorDict(6, 7, mul=wg)
+        wg = wg / 2
+        arth.addWeights(weights)
+
+        avgWeights = arth.getWeights()
+        weights = self.setWeightTensorDict(2.5, 4.25)
+        self.compareDictTensorToTorch(avgWeights, weights)
 
 if __name__ == '__main__':
     sf.useDeterministic()
