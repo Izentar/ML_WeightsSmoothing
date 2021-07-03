@@ -23,6 +23,6 @@ def printStats(stat, metadata, startAt = -10):
     avgStats = sf.averageStatistics(stat, relativeRootFolder=metadata.relativeRoot)
     avgStats.printPlots(startAt=startAt)
 
-def printAvgStats(stat, metadata, startAt = -10):
+def printAvgStats(stat, metadata, startAt = -10, runningAvgSize=1):
     avgStats = sf.averageStatistics(stat, relativeRootFolder=metadata.relativeRoot)
-    avgStats.printPlots(startAt=startAt)
+    avgStats.printPlots(startAt=startAt, runningAvgSize=runningAvgSize)

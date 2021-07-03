@@ -12,7 +12,7 @@ import torchvision.models as models
 from framework import defaultClasses as dc
 
 if(__name__ == '__main__'):
-    #sf.StaticData.TEST_MODE = True
+    sf.StaticData.TEST_MODE = True
 
     # pin_memory = False - na serwerze inaczej występuje Warning: Leaking Caffe2 thread-pool after fork. 
     # więcej w wątku https://github.com/pytorch/pytorch/issues/57273
@@ -22,6 +22,7 @@ if(__name__ == '__main__'):
     loop = 5
     modelName = "alexnet"
     prefix = "mov_param_"
+    runningAvgSize = 10
 
     types = ('predefModel', 'MNIST', 'movingMean')
     try:
@@ -38,9 +39,11 @@ if(__name__ == '__main__'):
 
             stat=dc.run(numbOfRepetition=2, modelType=types[0], dataType=types[1], smoothingType=types[2], metadataObj=metadata, 
                 modelMetadata=modelMetadata, dataMetadata=dataMetadata, smoothingMetadata=smoothingMetadata, modelPredefObj=obj,
-                modelPredefObjName=modelName, rootFolder=rootFolder)
+                modelPredefObjName=modelName, rootFolder=rootFolder, runningAvgSize=runningAvgSize)
+            for idx, s in enumerate(stat):
+                s.saveSelf(name="stat" + str(idx))
             stats.append(stat.pop()) # weź pod uwagę tylko ostatni wynik (najlepiej wyćwiczony)
-        experiments.printAvgStats(stats, metadata)
+        experiments.printAvgStats(stats, metadata, runningAvgSize=runningAvgSize)
     except Exception as ex:
         experiments.printException(ex, types)
 
@@ -58,9 +61,9 @@ if(__name__ == '__main__'):
 
             stat=dc.run(numbOfRepetition=2, modelType=types[0], dataType=types[1], smoothingType=types[2], metadataObj=metadata, 
                 modelMetadata=modelMetadata, dataMetadata=dataMetadata, smoothingMetadata=smoothingMetadata, modelPredefObj=obj,
-                modelPredefObjName=modelName, rootFolder=rootFolder)
+                modelPredefObjName=modelName, rootFolder=rootFolder, runningAvgSize=runningAvgSize)
             stats.append(stat.pop()) # weź pod uwagę tylko ostatni wynik (najlepiej wyćwiczony)
-        experiments.printAvgStats(stats, metadata)
+        experiments.printAvgStats(stats, metadata, runningAvgSize=runningAvgSize)
     except Exception as ex:
         experiments.printException(ex, types)
 
@@ -78,9 +81,9 @@ if(__name__ == '__main__'):
 
             stat=dc.run(numbOfRepetition=2, modelType=types[0], dataType=types[1], smoothingType=types[2], metadataObj=metadata, 
                 modelMetadata=modelMetadata, dataMetadata=dataMetadata, smoothingMetadata=smoothingMetadata, modelPredefObj=obj,
-                modelPredefObjName=modelName, rootFolder=rootFolder)
+                modelPredefObjName=modelName, rootFolder=rootFolder, runningAvgSize=runningAvgSize)
             stats.append(stat.pop()) # weź pod uwagę tylko ostatni wynik (najlepiej wyćwiczony)
-        experiments.printAvgStats(stats, metadata)
+        experiments.printAvgStats(stats, metadata, runningAvgSize=runningAvgSize)
     except Exception as ex:
         experiments.printException(ex, types)
 
@@ -98,9 +101,9 @@ if(__name__ == '__main__'):
 
             stat=dc.run(numbOfRepetition=2, modelType=types[0], dataType=types[1], smoothingType=types[2], metadataObj=metadata, 
                 modelMetadata=modelMetadata, dataMetadata=dataMetadata, smoothingMetadata=smoothingMetadata, modelPredefObj=obj,
-                modelPredefObjName=modelName, rootFolder=rootFolder)
+                modelPredefObjName=modelName, rootFolder=rootFolder, runningAvgSize=runningAvgSize)
             stats.append(stat.pop()) # weź pod uwagę tylko ostatni wynik (najlepiej wyćwiczony)
-        experiments.printAvgStats(stats, metadata)
+        experiments.printAvgStats(stats, metadata, runningAvgSize=runningAvgSize)
     except Exception as ex:
         experiments.printException(ex, types)
 
@@ -119,9 +122,9 @@ if(__name__ == '__main__'):
 
             stat=dc.run(numbOfRepetition=2, modelType=types[0], dataType=types[1], smoothingType=types[2], metadataObj=metadata, 
                 modelMetadata=modelMetadata, dataMetadata=dataMetadata, smoothingMetadata=smoothingMetadata, modelPredefObj=obj,
-                modelPredefObjName=modelName, rootFolder=rootFolder)
+                modelPredefObjName=modelName, rootFolder=rootFolder, runningAvgSize=runningAvgSize)
             stats.append(stat.pop()) # weź pod uwagę tylko ostatni wynik (najlepiej wyćwiczony)
-        experiments.printAvgStats(stats, metadata)
+        experiments.printAvgStats(stats, metadata, runningAvgSize=runningAvgSize)
     except Exception as ex:
         experiments.printException(ex, types)
 

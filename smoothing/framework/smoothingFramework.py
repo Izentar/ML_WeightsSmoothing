@@ -15,6 +15,7 @@ import pandas as pd
 import errno
 import csv
 import operator
+import copy
 
 import matplotlib.pyplot as plt
 import numpy
@@ -260,6 +261,84 @@ class RunningGeneralMeanWeights():
             Zwraca uśrednione wagi, których nie można modyfikować.
         """
         return self.div()
+
+class CircularList():
+    class CircularListIter():
+        def __init__(self, circularList):
+            self.circularList = circularList
+            self.__iter__()
+
+        def __iter__(self):
+            lo = list(range(self.circularList.arrayIndex))
+            hi = list(range(self.circularList.arrayIndex, len(self.circularList.array)))
+            lo.reverse()
+            hi.reverse()
+            self.indexArray = lo + hi
+            return self
+
+        def __next__(self):
+            if(self.indexArray):
+                idx = self.indexArray.pop(0)
+                return self.circularList.array[idx]
+            else:
+                raise StopIteration
+
+
+    def __init__(self, maxCapacity):
+        self.array = []
+        self.arrayIndex = 0
+        self.arrayMax = maxCapacity
+
+    def pushBack(self, number):
+        if(self.arrayIndex < len(self.array)):
+            del self.array[self.arrayIndex] # trzeba usunąć, inaczej insert zachowa w liście obiekt
+        self.array.insert(self.arrayIndex, number)
+        self.arrayIndex = (1 + self.arrayIndex) % self.arrayMax
+
+    def getAverage(self, startAt=0):
+        """
+            Zwraca średnią.
+            Argument startAt mówi o tym, od którego momentu w kolejce należy liczyć średnią.
+
+            Można jej użyć tylko do typów, które wspierają dodawanie, które
+            powinny implementować metody __copy__(self) oraz __deepcopy__(self)
+        """
+        l = len(self.array)
+        if(startAt == 0):
+            return sum(self.array) / l if l else 0
+        if(l <= startAt):
+            return 0
+        l -= startAt
+        tmpSum = None
+
+        for i, (obj) in enumerate(iter(self)):
+            if(i < startAt):
+                continue
+            tmpSum = copy.deepcopy(obj) # because of unknown type
+            break
+
+        for i, (obj) in enumerate(iter(self)):
+            if(i < startAt + 1):
+                continue
+            tmpSum += obj
+
+        return tmpSum / l
+
+    def __setstate__(self):
+        self.__dict__.update(state)
+        self.arrayIndex = self.arrayIndex % self.arrayMax
+
+    def reset(self):
+        del self.array
+        self.array = []
+        self.arrayIndex = 0
+
+    def __iter__(self):
+        return CircularList.CircularListIter(self)
+
+    def __len__(self):
+        return len(self.array)
+
 
 
 
@@ -1038,6 +1117,7 @@ class Statistics():
         super().__init__()
         self.logFolder = None # folder wyjściowy dla zapisywanych logów
         self.plotBatches = {} # słownik {nazwa_nowego_pliku: [lista_nazw_plików_do_przeczytania]}
+        self.avgPlotBatches = {} # słownik uśrednionych plików csv {nazwa_nowego_pliku: [lista_nazw_plików_do_przeczytania]}
         self.rootInputFolder = None # folder wejściowy dla plików. Może być None.
 
         self.lossRatio = [] # zapisywane po wykonanym teście, średnia strata modelu
@@ -1066,13 +1146,50 @@ class Statistics():
         self.smthPredSizeSum = [] # zapisywane po wykonanym teście, gdy model posiada wygładzone wagi, ilość wszystkich predykcji
 
     def printPlots(self, fileFormat = '.svg', dpi = 900, widthTickFreq = 0.08, aspectRatio = 0.3,
-    startAt = None, resolutionInches = 11.5):
+    startAt = None, resolutionInches = 11.5, runningAvgSize=1):
         for name, val in self.plotBatches.items():
             if(val is None):
                 Output.printBash("Some of the files to plot were not properly created. Instance ignored. Method Statistics.printPlots", 'warn')
-            plot(val, name=name, plotInputRoot=self.rootInputFolder, plotOutputRoot=self.logFolder, fileFormat=fileFormat, dpi=dpi, widthTickFreq=widthTickFreq,
-            aspectRatio=aspectRatio, startAt=startAt, resolutionInches=resolutionInches)
+            
+            if(runningAvgSize > 1):
+                avgName = name + ".avg"
+                self.avgPlotBatches[avgName] = []
+                for fileName in val:
+                    avgFileName = fileName[:fileName.rfind(".")] + ".avg" + fileName[fileName.rfind("."):]
+                    with open(avgFileName, 'w') as fileAvgH, open(fileName, 'r') as fileH:
+                        counter = 0
+                        circularList = CircularList(runningAvgSize)
+                        for line in fileH.readlines():
+                            circularList.pushBack(float(line))
+                            fileAvgH.write(str(circularList.getAverage()) + '\n')
+                    self.avgPlotBatches[avgName].append(avgFileName)
+                
+                plot(self.avgPlotBatches[avgName], name=avgName, plotInputRoot=self.rootInputFolder, plotOutputRoot=self.logFolder, fileFormat=fileFormat, dpi=dpi, widthTickFreq=widthTickFreq,
+                    aspectRatio=aspectRatio, startAt=startAt, resolutionInches=resolutionInches)
+            
+            elif(runningAvgSize > 0):
+                plot(val, name=name, plotInputRoot=self.rootInputFolder, plotOutputRoot=self.logFolder, fileFormat=fileFormat, dpi=dpi, widthTickFreq=widthTickFreq,
+                    aspectRatio=aspectRatio, startAt=startAt, resolutionInches=resolutionInches)
+            else:
+                raise Exception("Wrong parametr. Running average size must be greater than 0. Get: {}".format(runningAvgSize))
 
+    def __getstate__(self):
+        return self.__dict__.copy()
+
+    def __setstate__(self, state):
+        self.__dict__.update(state)
+
+    def saveSelf(self, name, path=None):
+        if(path is None):
+            torch.save(self, os.path.join(self.logFolder, name))
+        else:
+            torch.save(self, os.path.join(path, name))
+
+    def load(pathName):
+        return torch.load(pathName)
+
+    def __str__(self):
+        return '\n'.join("%s: %s" % item for item in vars(self).items())
 
 class Data(SaveClass, BaseMainClass, BaseLogicClass):
     """

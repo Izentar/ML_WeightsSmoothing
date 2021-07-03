@@ -17,96 +17,27 @@ init_weights = {
     'linear2.bias': [7., 7., 7.]
 }
 
-class Test_CircularList(unittest.TestCase):
+class Test_Data(unittest.TestCase):
+    def test_updateTotalNumbLoops_testMode(self):
+        with sf.test_mode():
+            dataMetadata = dc.DefaultData_Metadata(epoch=7)
+            data = dc.DefaultDataMNIST(dataMetadata)
+            data.epochHelper = sf.EpochDataContainer()
 
-    def test_pushBack(self):
-        inst = dc.CircularList(2)
-        inst.pushBack(1)
-        ut.testCmpPandas(inst.array[0], 'array_value', 1)
-        inst.pushBack(2)
-        ut.testCmpPandas(inst.array[0], 'array_value', 1)
-        ut.testCmpPandas(inst.array[1], 'array_value', 2)
-        inst.pushBack(3)
-        ut.testCmpPandas(inst.array[0], 'array_value', 3)
-        ut.testCmpPandas(inst.array[1], 'array_value', 2)
-        inst.pushBack(4)
-        ut.testCmpPandas(inst.array[0], 'array_value', 3)
-        ut.testCmpPandas(inst.array[1], 'array_value', 4)
+            data._updateTotalNumbLoops(dataMetadata)
 
-        inst.reset()
-        ut.testCmpPandas(len(inst.array), 'array_length', 0)
-        inst.pushBack(10)
-        ut.testCmpPandas(inst.array[0], 'array_value', 10)
-        ut.testCmpPandas(len(inst.array), 'array_length', 1)
-
-    def test_getAverage(self):
-        inst = dc.CircularList(3)
-        ut.testCmpPandas(inst.getAverage(), 'average', 0)
-        inst.pushBack(1)
-        ut.testCmpPandas(inst.getAverage(), 'average', 1.0)
-        inst.pushBack(2)
-        ut.testCmpPandas(inst.getAverage(), 'average', 1.5)
-        inst.pushBack(3)
-        ut.testCmpPandas(inst.getAverage(), 'average', 2.0)
-        ut.testCmpPandas(inst.getAverage(startAt=1), 'average', 1.5)
-        inst.pushBack(4)
-        ut.testCmpPandas(inst.getAverage(), 'average', 3.0)
-        inst.pushBack(5)
-        ut.testCmpPandas(inst.getAverage(), 'average', 4.0)
-
-        ut.testCmpPandas(inst.getAverage(startAt=1), 'average', 3.5)
-        ut.testCmpPandas(inst.getAverage(startAt=2), 'average', 3.0)
-
-        inst.reset()
-        ut.testCmpPandas(len(inst.array), 'array_length', 0)
-        inst.pushBack(10)
-        ut.testCmpPandas(inst.getAverage(), 'average', 10.0)
-        ut.testCmpPandas(len(inst.array), 'array_length', 1)
-
-        ut.testCmpPandas(inst.getAverage(startAt=1), 'average', 0)
-
-    def test_iteration(self):
-        inst = dc.CircularList(3)
-        inst.pushBack(1)
-        inst.pushBack(2)
-        inst.pushBack(3)
-
-        i = iter(inst)
-        ut.testCmpPandas(i.indexArray, 'array', [2, 1, 0])
-
-        ut.testCmpPandas(next(i), 'iter_next', 3)
-        ut.testCmpPandas(next(i), 'iter_next', 2)
-        ut.testCmpPandas(next(i), 'iter_next', 1)
-
-        self.assertRaises(StopIteration, lambda : next(i))
-
-        inst.pushBack(4)
-        i = iter(inst)
-        ut.testCmpPandas(next(i), 'iter_next', 4)
-        ut.testCmpPandas(next(i), 'iter_next', 3)
-        ut.testCmpPandas(next(i), 'iter_next', 2)
-        self.assertRaises(StopIteration, lambda : next(i))
-
-        inst.pushBack(5)
-        i = iter(inst)
-        ut.testCmpPandas(next(i), 'iter_next', 5)
-        ut.testCmpPandas(next(i), 'iter_next', 4)
-        ut.testCmpPandas(next(i), 'iter_next', 3)
-        self.assertRaises(StopIteration, lambda : next(i))
+            ut.testCmpPandas(data.epochHelper.maxTrainTotalNumber, "max_loops_train", 7 * sf.StaticData.MAX_DEBUG_LOOPS * 1)
+            ut.testCmpPandas(data.epochHelper.maxTestTotalNumber, "max_loops_test", 7 * sf.StaticData.MAX_DEBUG_LOOPS * 2)
         
-    def test_len(self):
-        inst = dc.CircularList(3)
-        ut.testCmpPandas(len(inst), 'array_length', 0)
-        inst.pushBack(1)
-        ut.testCmpPandas(len(inst), 'array_length', 1)
-        inst.pushBack(2)
-        ut.testCmpPandas(len(inst), 'array_length', 2)
-        inst.pushBack(3)
-        ut.testCmpPandas(len(inst), 'array_length', 3)
-        inst.pushBack(4)
-        ut.testCmpPandas(len(inst), 'array_length', 3)
-        inst.pushBack(5)
-        ut.testCmpPandas(len(inst), 'array_length', 3)
+    def test_updateTotalNumbLoops(self):
+        dataMetadata = dc.DefaultData_Metadata(epoch=7)
+        data = dc.DefaultDataMNIST(dataMetadata)
+        data.epochHelper = sf.EpochDataContainer()
+
+        data._updateTotalNumbLoops(dataMetadata)
+
+        ut.testCmpPandas(data.epochHelper.maxTrainTotalNumber, "max_loops_train", 7 * 1 * len(data.trainloader))
+        ut.testCmpPandas(data.epochHelper.maxTestTotalNumber, "max_loops_test", 7 * 2 * len(data.testloader))
 
 class TestModel_Metadata(sf.Model_Metadata):
     def __init__(self):

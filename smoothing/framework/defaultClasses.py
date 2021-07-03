@@ -9,88 +9,9 @@ import torch.nn.functional as F
 import torchvision.models as models
 import os
 
-import copy
-
 class ConfigClass():
-    STD_NAN = 1e+10
+    STD_NAN = 1e+10 # standard value if NaN
 
-
-class CircularList():
-    class CircularListIter():
-        def __init__(self, circularList):
-            self.circularList = circularList
-            self.__iter__()
-
-        def __iter__(self):
-            lo = list(range(self.circularList.arrayIndex))
-            hi = list(range(self.circularList.arrayIndex, len(self.circularList.array)))
-            lo.reverse()
-            hi.reverse()
-            self.indexArray = lo + hi
-            return self
-
-        def __next__(self):
-            if(self.indexArray):
-                idx = self.indexArray.pop(0)
-                return self.circularList.array[idx]
-            else:
-                raise StopIteration
-
-
-    def __init__(self, maxCapacity):
-        self.array = []
-        self.arrayIndex = 0
-        self.arrayMax = maxCapacity
-
-    def pushBack(self, number):
-        if(self.arrayIndex < len(self.array)):
-            del self.array[self.arrayIndex] # trzeba usunąć, inaczej insert zachowa w liście obiekt
-        self.array.insert(self.arrayIndex, number)
-        self.arrayIndex = (1 + self.arrayIndex) % self.arrayMax
-
-    def getAverage(self, startAt=0):
-        """
-            Zwraca średnią.
-            Argument startAt mówi o tym, od którego momentu w kolejce należy liczyć średnią.
-
-            Można jej użyć tylko do typów, które wspierają dodawanie, które
-            powinny implementować metody __copy__(self) oraz __deepcopy__(self)
-        """
-        l = len(self.array)
-        if(startAt == 0):
-            return sum(self.array) / l if l else 0
-        if(l <= startAt):
-            return 0
-        l -= startAt
-        tmpSum = None
-
-        for i, (obj) in enumerate(iter(self)):
-            if(i < startAt):
-                continue
-            tmpSum = copy.deepcopy(obj) # because of unknown type
-            break
-
-        for i, (obj) in enumerate(iter(self)):
-            if(i < startAt + 1):
-                continue
-            tmpSum += obj
-
-        return tmpSum / l
-
-    def __setstate__(self):
-        self.__dict__.update(state)
-        self.arrayIndex = self.arrayIndex % self.arrayMax
-
-    def reset(self):
-        del self.array
-        self.array = []
-        self.arrayIndex = 0
-
-    def __iter__(self):
-        return CircularList.CircularListIter(self)
-
-    def __len__(self):
-        return len(self.array)
 
 class DefaultWeightDecay():
     def __init__(self, weightDecay = 1.1):
@@ -327,13 +248,13 @@ class _SmoothingOscilationBase(sf.Smoothing):
             raise Exception("Metadata class '{}' is not the type of '{}'".format(type(smoothingMetadata), _SmoothingOscilationBase_Metadata.__name__))
         
         self.countWeights = 0
-        self.tensorPrevSum = CircularList(int(smoothingMetadata.weightSumContainerSize))
+        self.tensorPrevSum = sf.CircularList(int(smoothingMetadata.weightSumContainerSize))
         self.divisionCounter = 0
         self.goodEnoughCounter = 0
         self.alwaysOn = False 
         self.weightsComputed = False
 
-        self.lossContainer = CircularList(smoothingMetadata.lossContainerSize)
+        self.lossContainer = sf.CircularList(smoothingMetadata.lossContainerSize)
         
     def canComputeWeights(self, helper, helperEpoch, dataMetadata, smoothingMetadata, metadata):
         """
@@ -772,7 +693,7 @@ class DefaultSmoothingOscilationWeightedMean(_SmoothingOscilationBase):
     def __init__(self, smoothingMetadata):
         super().__init__(smoothingMetadata=smoothingMetadata)
 
-        self.weightsArray = CircularList(smoothingMetadata.weightsArraySize) 
+        self.weightsArray = sf.CircularList(smoothingMetadata.weightsArraySize) 
 
         if(smoothingMetadata.smoothingEndCheckType == 'std'):
             self.isSmoothingGoodEnoughMethod = DefaultSmoothingOscilationWeightedMean.__isSmoothingGoodEnough__std
@@ -1125,7 +1046,7 @@ SmoothingMap = {
 }
 
 def run(modelType, dataType, smoothingType, metadataObj, modelMetadata, dataMetadata, smoothingMetadata, modelPredefObj = None, modelPredefObjName = None,
-    numbOfRepetition = 1, rootFolder = None, printPlots = True, startPrintAt = -10):
+    numbOfRepetition = 1, rootFolder = None, printPlots = True, startPrintAt = -10, runningAvgSize=1):
     """
         numbOfRepetition - mówi ile razy model powinien ponownie przejść przez pętlę epocha. Każde takie powtórzenie kończy się zapisem
             go do odpowiedniego folderu grupującego. Przy każdym przejściu model nie jest resetowany.
@@ -1189,7 +1110,7 @@ def run(modelType, dataType, smoothingType, metadataObj, modelMetadata, dataMeta
 
         metadataObj.printEndModel()
 
-        statistics.printPlots(startAt=startPrintAt)
+        statistics.printPlots(startAt=startPrintAt, runningAvgSize=runningAvgSize)
 
         listStat.append(statistics)
 
