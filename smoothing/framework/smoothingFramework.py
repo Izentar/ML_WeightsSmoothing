@@ -85,7 +85,7 @@ class StaticData:
     PRINT_WARNINGS = True
     FORCE_PRINT_WARNINGS = False
     MAX_DEBUG_LOOPS = 71
-    MAX_EPOCH_LOOPS = 2
+    MAX_EPOCH_DEBUG_LOOPS = 1
 
 class SaveClass:
     def __init__(self):
@@ -521,17 +521,20 @@ class Timer(SaveClass):
         self.modelTimeSum = 0.0
         self.modelTimeCount = 0
 
-    def start(self):
-        torch.cuda.synchronize()
+    def start(self, cudaSynchronize=True):
+        if(cudaSynchronize):
+            torch.cuda.synchronize()
         self.timeStart = time.perf_counter()
 
-    def end(self):
-        torch.cuda.synchronize()
+    def end(self, cudaSynchronize=True):
+        if(cudaSynchronize):
+            torch.cuda.synchronize()
         self.timeEnd = time.perf_counter()
 
     def getDiff(self):
         if(self.timeStart is not None and self.timeEnd is not None):
             return self.timeEnd - self.timeStart
+        Output.printBash("Could not get time difference.", 'warn')
         return None
 
     def addToStatistics(self):
@@ -539,6 +542,8 @@ class Timer(SaveClass):
         if(tmp is not None):
             self.modelTimeSum += self.getDiff()
             self.modelTimeCount += 1
+        else:
+            Output.printBash("Timer could not be added to statistics.", 'warn')
 
     def getTimeSum(self):
         return self.modelTimeSum
@@ -1134,6 +1139,9 @@ class Statistics():
         self.avgPlotBatches = {} # słownik uśrednionych plików csv {nazwa_nowego_pliku: [lista_nazw_plików_do_przeczytania]}
         self.rootInputFolder = None # folder wejściowy dla plików. Może być None.
 
+        self.trainLoopTimerSum = []
+        self.testLoopTimerSum = []
+
         self.lossRatio = [] # zapisywane po wykonanym teście, średnia strata modelu
         self.correctRatio = [] # zapisywane po wykonanym teście, stosunek udanych do wszystkich predykcji
         self.testLossSum = [] # zapisywane po wykonanym teście, suma strat testowych
@@ -1170,7 +1178,11 @@ class Statistics():
                 self.avgPlotBatches[avgName] = []
                 for fileName in val:
                     avgFileName = fileName[:fileName.rfind(".")] + ".avg" + fileName[fileName.rfind("."):]
-                    with open(avgFileName, 'w') as fileAvgH, open(fileName, 'r') as fileH:
+                    avgFileFolderName = os.path.join(self.logFolder, avgFileName)
+                    folder_fileName = fileName
+                    if(self.rootInputFolder is not None):
+                        folder_fileName = os.path.join(self.rootInputFolder, fileName)
+                    with open(avgFileFolderName, 'w') as fileAvgH, open(folder_fileName, 'r') as fileH:
                         counter = 0
                         circularList = CircularList(runningAvgSize)
                         for line in fileH.readlines():
@@ -1178,11 +1190,11 @@ class Statistics():
                             fileAvgH.write(str(circularList.getAverage()) + '\n')
                     self.avgPlotBatches[avgName].append(avgFileName)
                 
-                plot(self.avgPlotBatches[avgName], name=avgName, plotInputRoot=self.rootInputFolder, plotOutputRoot=self.logFolder, fileFormat=fileFormat, dpi=dpi, widthTickFreq=widthTickFreq,
+                plot(filePath=self.avgPlotBatches[avgName], name=avgName, plotInputRoot=self.rootInputFolder, plotOutputRoot=self.logFolder, fileFormat=fileFormat, dpi=dpi, widthTickFreq=widthTickFreq,
                     aspectRatio=aspectRatio, startAt=startAt, resolutionInches=resolutionInches)
             
             elif(runningAvgSize > 0):
-                plot(val, name=name, plotInputRoot=self.rootInputFolder, plotOutputRoot=self.logFolder, fileFormat=fileFormat, dpi=dpi, widthTickFreq=widthTickFreq,
+                plot(filePath=val, name=name, plotInputRoot=self.rootInputFolder, plotOutputRoot=self.logFolder, fileFormat=fileFormat, dpi=dpi, widthTickFreq=widthTickFreq,
                     aspectRatio=aspectRatio, startAt=startAt, resolutionInches=resolutionInches)
             else:
                 raise Exception("Wrong parametr. Running average size must be greater than 0. Get: {}".format(runningAvgSize))
@@ -1401,9 +1413,9 @@ class Data(SaveClass, BaseMainClass, BaseLogicClass):
     def __afterTrainLoop__(self, helperEpoch: 'EpochDataContainer', helper, model: 'Model', dataMetadata: 'Data_Metadata', modelMetadata: 'Model_Metadata', metadata: 'Metadata', smoothing: 'Smoothing', smoothingMetadata: 'Smoothing_Metadata'):
         metadata.stream.print("Train summary:")
         metadata.stream.print(f" Average train time ({helper.timer.getUnits()}): {helper.timer.getAverage()}")
-        metadata.stream.print(f" Loop train time ({helper.timer.getUnits()}): {helper.loopTimer.getDiff()}")
+        metadata.stream.print(f" Loop train time ({helper.timer.getUnits()}): {helper.loopTimer.getTimeSum()}")
         metadata.stream.print(f" Number of batches done: {helperEpoch.trainTotalNumber}")
-        helperEpoch.statistics.trainTimeLoop.append(helper.loopTimer.getDiff())
+        helperEpoch.statistics.trainTimeLoop.append(helper.loopTimer.getTimeSum())
         helperEpoch.statistics.trainTimeUnits.append(helper.timer.getUnits())
         helperEpoch.statistics.avgTrainTimeLoop.append(helper.timer.getAverage())
         helperEpoch.statistics.trainTotalNumb.append(helperEpoch.trainTotalNumber)
@@ -1421,9 +1433,11 @@ class Data(SaveClass, BaseMainClass, BaseLogicClass):
 
         if(self.trainHelper is None): # jeżeli nie było wznowione; nowe wywołanie
             self.trainHelper = self.setTrainLoop(model=model, modelMetadata=modelMetadata, metadata=metadata)
-
+        
+        self.trainHelper.loopTimer.clearTime()
         torch.cuda.empty_cache()
         self.__beforeTrainLoop__(helperEpoch=helperEpoch, helper=self.trainHelper, model=model, dataMetadata=dataMetadata, modelMetadata=modelMetadata, metadata=metadata, smoothing=smoothing, smoothingMetadata=smoothingMetadata)
+
 
         self.trainHelper.loopTimer.start()
         for batch, (inputs, labels) in enumerate(self.trainloader):
@@ -1483,13 +1497,15 @@ class Data(SaveClass, BaseMainClass, BaseLogicClass):
             
 
         self.trainHelper.loopTimer.end()
+        self.trainHelper.loopTimer.addToStatistics()
         self.trainHelper.loopEnded = True
 
         self.__afterTrainLoop__(helperEpoch=helperEpoch, helper=self.trainHelper, model=model, dataMetadata=dataMetadata, modelMetadata=modelMetadata, metadata=metadata, smoothing=smoothing, smoothingMetadata=smoothingMetadata)
         self.__trainLoopExit__(helperEpoch=helperEpoch, helper=self.trainHelper, model=model, dataMetadata=dataMetadata, modelMetadata=modelMetadata, metadata=metadata, smoothing=smoothing, smoothingMetadata=smoothingMetadata)
 
+        helperEpoch.statistics.trainLoopTimerSum.append(self.trainHelper.loopTimer.getTimeSum())
         metadata.stream.print('Train time;', alias='stat')
-        metadata.stream.print(str(self.trainHelper.loopTimer.getTimeSum()) + ';', alias='stat')
+        metadata.stream.print(str(helperEpoch.statistics.trainLoopTimerSum[-1]) + ';', alias='stat')
 
         self.trainHelper = None
         
@@ -1534,9 +1550,9 @@ class Data(SaveClass, BaseMainClass, BaseLogicClass):
             
             metadata.stream.print(f"\nTest summary: \n Accuracy: {(100*helperEpoch.statistics.smthCorrectRatio[-1]):>6f}%, Avg loss: {helperEpoch.statistics.smthLossRatio[-1]:>8f}", ['model:0'])
             metadata.stream.print(f" Average test execution time in a loop ({helper.timer.getUnits()}): {helper.timer.getAverage():>3f}", ['model:0'])
-            metadata.stream.print(f" Time to complete the entire loop ({helper.timer.getUnits()}): {helper.loopTimer.getDiff():>3f}\n", ['model:0'])
+            metadata.stream.print(f" Time to complete the entire loop ({helper.timer.getUnits()}): {helper.loopTimer.getTimeSum():>3f}\n", ['model:0'])
 
-            helperEpoch.statistics.smthTestTimeLoop.append(helper.loopTimer.getDiff())
+            helperEpoch.statistics.smthTestTimeLoop.append(helper.loopTimer.getTimeSum())
             helperEpoch.statistics.smthAvgTestTimeLoop.append(helper.timer.getAverage())
             helperEpoch.statistics.smthTestTimeUnits.append(helper.timer.getUnits())
 
@@ -1550,9 +1566,9 @@ class Data(SaveClass, BaseMainClass, BaseLogicClass):
             
             metadata.stream.print(f"\nTest summary: \n Accuracy: {(100*helperEpoch.statistics.correctRatio[-1]):>6f}%, Avg loss: {helperEpoch.statistics.lossRatio[-1]:>8f}", ['model:0'])
             metadata.stream.print(f" Average test execution time in a loop ({helper.timer.getUnits()}): {helper.timer.getAverage():>3f}", ['model:0'])
-            metadata.stream.print(f" Time to complete the entire loop ({helper.timer.getUnits()}): {helper.loopTimer.getDiff():>3f}\n", ['model:0'])
+            metadata.stream.print(f" Time to complete the entire loop ({helper.timer.getUnits()}): {helper.loopTimer.getTimeSum():>3f}\n", ['model:0'])
 
-            helperEpoch.statistics.testTimeLoop.append(helper.loopTimer.getDiff())
+            helperEpoch.statistics.testTimeLoop.append(helper.loopTimer.getTimeSum())
             helperEpoch.statistics.avgTestTimeLoop.append(helper.timer.getAverage())
             helperEpoch.statistics.testTimeUnits.append(helper.timer.getUnits())
 
@@ -1567,6 +1583,7 @@ class Data(SaveClass, BaseMainClass, BaseLogicClass):
         if(self.testHelper is None): # jeżeli nie było wznowione; nowe wywołanie
             self.testHelper = self.setTestLoop(model=model, modelMetadata=modelMetadata, metadata=metadata)
 
+        self.testHelper.loopTimer.clearTime()
         torch.cuda.empty_cache()
         self.__beforeTestLoop__(helperEpoch=helperEpoch, helper=self.testHelper, model=model, dataMetadata=dataMetadata, modelMetadata=modelMetadata, metadata=metadata, smoothing=smoothing, smoothingMetadata=smoothingMetadata)
 
@@ -1603,10 +1620,12 @@ class Data(SaveClass, BaseMainClass, BaseLogicClass):
                 self.__afterTest__(helperEpoch=helperEpoch, helper=self.testHelper, model=model, dataMetadata=dataMetadata, modelMetadata=modelMetadata, metadata=metadata, smoothing=smoothing, smoothingMetadata=smoothingMetadata)
 
             self.testHelper.loopTimer.end()
+            self.testHelper.loopTimer.addToStatistics()
             self.testHelper.loopEnded = True
 
         self.__afterTestLoop__(helperEpoch=helperEpoch, helper=self.testHelper, model=model, dataMetadata=dataMetadata, modelMetadata=modelMetadata, metadata=metadata, smoothing=smoothing, smoothingMetadata=smoothingMetadata)
         self.__testLoopExit__(helperEpoch=helperEpoch, helper=self.testHelper, model=model, dataMetadata=dataMetadata, modelMetadata=modelMetadata, metadata=metadata, smoothing=smoothing, smoothingMetadata=smoothingMetadata)
+        helperEpoch.statistics.testLoopTimerSum.append(self.testHelper.loopTimer.getTimeSum())
         self.testHelper = None
 
     def __beforeEpochLoop__(self, helperEpoch: 'EpochDataContainer', model: 'Model', dataMetadata: 'Data_Metadata', modelMetadata: 'Model_Metadata', metadata: 'Metadata', smoothing: 'Smoothing', smoothingMetadata: 'Smoothing_Metadata'):
@@ -1666,7 +1685,7 @@ class Data(SaveClass, BaseMainClass, BaseLogicClass):
                 self.__epochLoopExit__(helperEpoch=self.epochHelper, model=model, dataMetadata=dataMetadata, modelMetadata=modelMetadata, metadata=metadata, smoothing=smoothing, smoothingMetadata=smoothingMetadata)
                 return
 
-            if(StaticData.TEST_MODE and ep == StaticData.MAX_EPOCH_LOOPS):
+            if(StaticData.TEST_MODE and ep == StaticData.MAX_EPOCH_DEBUG_LOOPS):
                 break
 
         self.__afterEpochLoop__(helperEpoch=self.epochHelper, model=model, dataMetadata=dataMetadata, modelMetadata=modelMetadata, metadata=metadata, smoothing=smoothing, smoothingMetadata=smoothingMetadata)
@@ -2220,7 +2239,7 @@ def averageStatistics(statistics: list, filePaths: dict = {
     newStats.smthTestTimeUnits.append(tmp_smthTestTimeUnits)
 
 
-    logFolder = Output.createLogFolder(folderSuffix=outputFolderNameSuffix, relativeRoot=relativeRootFolder)[0]
+    newOutLogFolder = Output.createLogFolder(folderSuffix=outputFolderNameSuffix, relativeRoot=relativeRootFolder)[0]
     
 
     # podziel
@@ -2231,18 +2250,18 @@ def averageStatistics(statistics: list, filePaths: dict = {
     
     # zapisz uśrednione wyniki do odpowiednich logów
     for index, files in enumerate(flattedFilePaths):
-        with open(os.path.join(logFolder, files), "w") as fh:
+        with open(os.path.join(newOutLogFolder, files), "w") as fh:
             for obj in flattedNewVals[index]:
                 fh.write(str(obj) + "\n")
         
     # zapisz konfigurację
-    with open(os.path.join(logFolder, 'config.txt'), "w") as fh:
+    with open(os.path.join(newOutLogFolder, 'config.txt'), "w") as fh:
         fh.write("Used files:\n")
         for obj in config:
             fh.write(obj + "\n")
 
     # zapisz średnie dokładności modelu
-    with open(os.path.join(logFolder, 'model_summary.txt'), "w") as fh:
+    with open(os.path.join(newOutLogFolder, 'model_summary.txt'), "w") as fh:
         fh.write("\nModel averaged\n")
 
         fh.write("Train summary:\n")
@@ -2261,9 +2280,9 @@ def averageStatistics(statistics: list, filePaths: dict = {
         fh.write(f" Average test execution time in a loop ({newStats.smthTestTimeUnits[0]}): {newStats.smthAvgTestTimeLoop[0]:>3f}\n")
         fh.write(f" Time to complete the entire loop ({newStats.smthTestTimeUnits[0]}): {newStats.smthTestTimeLoop[0]:>3f}\n")
 
-    newStats.logFolder = logFolder
+    newStats.logFolder = newOutLogFolder
     newStats.plotBatches = filePaths
-    newStats.rootInputFolder = logFolder
+    newStats.rootInputFolder = newOutLogFolder
 
     return newStats
 
@@ -2421,6 +2440,20 @@ def plot(filePath: list, name = None, plotInputRoot = None, plotOutputRoot = Non
     """
     Rozmiar wyjściowej grafiki jest podana wzorem [resolutionInches; resolutionInches / aspectRatio]
     """
+    if(test_mode().isActive()):
+        print("\nPlot parameters")
+        print("filePath", filePath)
+        print("name", name)
+        print("filePath", plotInputRoot)
+        print("plotOutputRoot", plotOutputRoot)
+        print("fileFormat", fileFormat)
+        print("dpi", dpi)
+        print("widthTickFreq", widthTickFreq)
+        print("aspectRatio", aspectRatio)
+        print("startAt", startAt)
+        print("resolutionInches", resolutionInches)
+        print("\n")
+
     if(isinstance(filePath, str)):
         filePath = [filePath]
 

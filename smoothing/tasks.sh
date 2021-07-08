@@ -3,7 +3,7 @@
 # -*- coding: utf-8 -*- 
 
 declare -a commands=(
-    "python3 smoothing/experiments/experiments_movingMean_hiperparam.py"
+    "python3 smoothing/experiments/exp_wide_resnet.py"
 )
 
 declare -a names=(
@@ -90,7 +90,7 @@ catchSIG() {
 trap catchSIG SIGTSTP
 trap kllChild SIGINT
 
-if  [ -n "$1" ] && [[ "$1" -eq "rmLogs" ]]; then
+: 'if  [ -n "$1" ] && [[ "$1" -eq "rmLogs" ]]; then
     if [[ "$enableRm" -eq 1 ]]; then
         rm *.log
         rm *.csv # może później usunąć, na razie do testów
@@ -98,6 +98,7 @@ if  [ -n "$1" ] && [[ "$1" -eq "rmLogs" ]]; then
     fi
     exit
 fi
+'
 
 # main
 #counter=0
@@ -116,7 +117,7 @@ fi
 
 startLoop=$counter
 
-for command in "${commands[@]:$startLoop}"
+for command in "${commands[@]:$startLoop} $@"
 do
     printf "executing: $command\nFrom index: $counter starting at: $startLoop\n"
     $command &>> $bashLogFile &

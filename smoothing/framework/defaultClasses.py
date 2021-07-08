@@ -813,10 +813,10 @@ class DefaultPytorchAveragedSmoothing_Metadata(sf.Smoothing_Metadata):
 
     def __strAppend__(self):
         tmp_str = super().__strAppend__()
-        tmp_str += ('\nStart inner {} class\n+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++\n'.format(type(self.weightIter).__name__))
+        tmp_str += ('\nStart inner {} class\n+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++\n'.format(type(self.smoothingStartPercent).__name__))
         tmp_str += ('Device:\t{}\n'.format(str(self.device)))
         tmp_str += ('Smoothing start percent:\t{}\n'.format(str(self.smoothingStartPercent)))
-        tmp_str += ('+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++\nEnd inner {} class\n'.format(type(self.weightIter).__name__))
+        tmp_str += ('+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++\nEnd inner {} class\n'.format(type(self.smoothingStartPercent).__name__))
         return tmp_str
 
 class Test_DefaultPytorchAveragedSmoothing_Metadata(DefaultPytorchAveragedSmoothing_Metadata):
@@ -825,13 +825,15 @@ class Test_DefaultPytorchAveragedSmoothing_Metadata(DefaultPytorchAveragedSmooth
 
 class DefaultPytorchAveragedSmoothing(sf.Smoothing):
     def __init__(self, smoothingMetadata, model):
-        self.swaModel = torch.optim.swa_utils.AveragedModel(model)
+        super().__init__(smoothingMetadata)
+        self.swaModel = torch.optim.swa_utils.AveragedModel(model.getNNModelModule())
     
     def __call__(self, helperEpoch, helper, model, dataMetadata, modelMetadata, smoothingMetadata, metadata):
-        super().__call__(helperEpoch=helperEpoch, helper=helper, model=model, dataMetadata=dataMetadata, modelMetadata=modelMetadata, metadata=metadata, smoothingMetadata=smoothingMetadata)
+        #super().__call__(helperEpoch=helperEpoch, helper=helper, model=model, dataMetadata=dataMetadata, modelMetadata=modelMetadata, metadata=metadata, smoothingMetadata=smoothingMetadata)
 
         if(helperEpoch.trainTotalNumber > (smoothingMetadata.smoothingStartPercent * helperEpoch.maxTrainTotalNumber)):
-            self.swaModel.update_parameters(model)
+            self.swaModel.update_parameters(model.getNNModelModule())
+            return True
         return False
 
     def __isSmoothingGoodEnough__(self, helperEpoch, helper, model, dataMetadata, modelMetadata, metadata, smoothingMetadata):
@@ -840,14 +842,14 @@ class DefaultPytorchAveragedSmoothing(sf.Smoothing):
     def createDefaultMetadataObj(self):
         return DefaultPytorchAveragedSmoothing_Metadata()
 
+    def getSWAModel(self):
+        return self.swaModel
+
     def __getSmoothedWeights__(self, smoothingMetadata, metadata):
         average = super().__getSmoothedWeights__(smoothingMetadata=smoothingMetadata, metadata=metadata)
         if(average is not None):
             return average
-        return self.swaModel.state_dict()
-
-    def saveWeights(self, weights, key, canOverride = True, toDevice = None):
-        pass
+        return self.swaModel.module.state_dict()
 
 
 # data classes
@@ -958,11 +960,24 @@ class DefaultData(sf.Data):
 
     def __afterTrainLoop__(self, helperEpoch: 'EpochDataContainer', helper, model: 'Model', dataMetadata: 'Data_Metadata', modelMetadata: 'Model_Metadata', metadata: 'Metadata', smoothing: 'Smoothing', smoothingMetadata: 'Smoothing_Metadata'):
         super().__afterTrainLoop__(helperEpoch=helperEpoch, helper=helper, model=model, dataMetadata=dataMetadata, modelMetadata=modelMetadata, metadata=metadata, smoothing=smoothing, smoothingMetadata=smoothingMetadata)
+        if(isinstance(smoothing, DefaultPytorchAveragedSmoothing)):
+            self.trainHelper.timer.clearTime()
+            self.trainHelper.loopTimer.clearTime()
+
+            self.trainHelper.loopTimer.start()
+            self.trainHelper.timer.start()
+            torch.optim.swa_utils.update_bn(loader=self.trainloader, model=smoothing.getSWAModel(), device=modelMetadata.device)
+            self.trainHelper.timer.end()
+            self.trainHelper.loopTimer.end()
+
+            self.trainHelper.timer.addToStatistics()
+            self.trainHelper.loopTimer.addToStatistics()
+        
         with torch.no_grad():
             if(helper.diff is not None):
                 diffKey = list(helper.diff.keys())[-1]
                 metadata.stream.print("\n\ntrainLoop;\nAverage train time;Loop train time;Weight difference of last layer average;divided by;", ['stat'])
-                metadata.stream.print(f"{helper.timer.getAverage()};{helper.loopTimer.getDiff()};{helper.diff[diffKey].sum() / helper.diff[diffKey].numel()};{helper.diff[diffKey].numel()}", ['stat'])
+                metadata.stream.print(f"{helper.timer.getAverage()};{helper.loopTimer.getTimeSum()};{helper.diff[diffKey].sum() / helper.diff[diffKey].numel()};{helper.diff[diffKey].numel()}", ['stat'])
                 del diffKey
 
     def __beforeTestLoop__(self, helperEpoch: 'EpochDataContainer', helper, model: 'Model', dataMetadata: 'Data_Metadata', modelMetadata: 'Model_Metadata', metadata: 'Metadata', smoothing: 'Smoothing', smoothingMetadata: 'Smoothing_Metadata'):
@@ -977,7 +992,7 @@ class DefaultData(sf.Data):
 
     def __afterTestLoop__(self, helperEpoch: 'EpochDataContainer', helper, model: 'Model', dataMetadata: 'Data_Metadata', modelMetadata: 'Model_Metadata', metadata: 'Metadata', smoothing: 'Smoothing', smoothingMetadata: 'Smoothing_Metadata'):
         super().__afterTestLoop__(helperEpoch=helperEpoch, helper=helper, model=model, dataMetadata=dataMetadata, modelMetadata=modelMetadata, metadata=metadata, smoothing=smoothing, smoothingMetadata=smoothingMetadata)
-        metadata.stream.print(f"{helper.timer.getAverage()};{helper.loopTimer.getDiff()};{(helperEpoch.statistics.correctRatio[-1]):>0.0001f};{helperEpoch.statistics.lossRatio[-1]:>8f}", ['stat'])
+        metadata.stream.print(f"{helper.timer.getAverage()};{helper.loopTimer.getTimeSum()};{(helperEpoch.statistics.correctRatio[-1]):>0.0001f};{helperEpoch.statistics.lossRatio[-1]:>8f}", ['stat'])
 
     def __howManyTestInvInOneEpoch__(self):
         return 2
@@ -1141,7 +1156,7 @@ def __checkClassExistence(checkedMap, obj):
 
 
 def run(data, model, smoothing, metadataObj, modelMetadata, dataMetadata, smoothingMetadata, optimizer, lossFunc, schedulers: list=None,
-    rootFolder = None, printPlots = True, startPrintAt = -10, runningAvgSize=1):
+    rootFolder = None, startPrintAt = -10, runningAvgSize=1):
     """
         Funckja przygotowuje do wywołania eksperymentu. Na końcu działania funkcja tworzy wykresy.
     """
