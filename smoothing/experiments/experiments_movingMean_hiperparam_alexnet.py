@@ -12,7 +12,7 @@ import torchvision.models as models
 from framework import defaultClasses as dc
 
 if(__name__ == '__main__'):
-    sf.StaticData.TEST_MODE = True
+    #sf.StaticData.TEST_MODE = True
 
     # pin_memory = False - na serwerze inaczej występuje Warning: Leaking Caffe2 thread-pool after fork. 
     # więcej w wątku https://github.com/pytorch/pytorch/issues/57273
@@ -36,10 +36,16 @@ if(__name__ == '__main__'):
             metadata.resetOutput()
 
             modelMetadata = dc.DefaultModel_Metadata()
+            data = DataMap[dataType](dataMetadata)
+            smoothing = SmoothingMap[smoothingType](smoothingMetadata)
+            model = ModelMap[modelType](obj=modelPredefObj, modelMetadata=modelMetadata, name=modelPredefObjName, optimizer=optimizer, lossFunc=lossFunc)
+            optimizer = optim.SGD(self.getNNModelModule().parameters(), lr=1e-3, momentum=0.9)
+            loss_fn = nn.CrossEntropyLoss()
 
-            stat=dc.run(numbOfRepetition=2, modelType=types[0], dataType=types[1], smoothingType=types[2], metadataObj=metadata, 
+            stat=dc.run(modelType=types[0], dataType=types[1], smoothingType=types[2], metadataObj=metadata, 
                 modelMetadata=modelMetadata, dataMetadata=dataMetadata, smoothingMetadata=smoothingMetadata, modelPredefObj=obj,
-                modelPredefObjName=modelName, rootFolder=rootFolder, runningAvgSize=runningAvgSize)
+                modelPredefObjName=modelName, rootFolder=rootFolder, runningAvgSize=runningAvgSize,
+                optimizer=optimizer, lossFunc=loss_fn)
             for idx, s in enumerate(stat):
                 s.saveSelf(name="stat" + str(idx))
             stats.append(stat.pop()) # weź pod uwagę tylko ostatni wynik (najlepiej wyćwiczony)

@@ -32,38 +32,44 @@ class DefaultWeightDecay():
 
 # model classes
 class DefaultModel_Metadata(sf.Model_Metadata):
-    def __init__(self,
-        device = 'cuda:0', learning_rate = 1e-3, momentum = 0.9):
+    def __init__(self, lossFuncDataDict={}, optimizerDataDict={},
+        device = 'cuda:0'):
         super().__init__()
         self.device = device
-        self.learning_rate = learning_rate
-        self.momentum = momentum
+        self.lossFuncDataDict = lossFuncDataDict
+        self.optimizerDataDict = optimizerDataDict
+
+    def prepare(self, lossFunc, optimizer):
+        self.loss_fn = lossFunc
+        self.optimizer = optimizer
 
     def __strAppend__(self):
         tmp_str = super().__strAppend__()
-        tmp_str += ('Learning rate:\t{}\n'.format(self.learning_rate))
-        tmp_str += ('Momentum:\t{}\n'.format(self.momentum))
         tmp_str += ('Model device :\t{}\n'.format(self.device))
+        tmp_str += ('Loss function name:\t{}\n'.format(str(type(self.loss_fn))))
+        tmp_str += ('Loss function values:\n{}\n'.format(self.lossFuncDataDict))
+        tmp_str += ('Optimizer name:\t{}\n'.format(str(type(self.optimizer))))
+        tmp_str += ('Optimizer values:\n{}\n'.format((self.optimizer.defaults)))
+        tmp_str += ('Optimizer provided data:\n{}\n'.format((self.optimizerDataDict)))
         return tmp_str
-
 
 class DefaultModelSimpleConv(sf.Model):
     """
     Z powodu jego prostoty i słabych wyników zaleca się go używać podczas testowania sieci.
     """
     def __init__(self, modelMetadata):
-        super().__init__(modelMetadata)
+        super().__init__(modelMetadata=modelMetadata)
 
         self.conv1 = nn.Conv2d(3, 6, 5)
         self.pool = nn.MaxPool2d(2, 2)
         self.conv2 = nn.Conv2d(6, 16, 5)
-        self.linear1 = nn.Linear(212 * 212, 212)
+        self.linear1 = nn.Linear(16 * 16, 212)
         self.linear2 = nn.Linear(212, 120)
         self.linear3 = nn.Linear(120, 84)
         self.linear4 = nn.Linear(84, 10)
 
-        self.loss_fn = nn.CrossEntropyLoss()
-        self.optimizer = optim.SGD(self.getNNModelModule().parameters(), lr=modelMetadata.learning_rate, momentum=modelMetadata.momentum)
+        #self.loss_fn = nn.CrossEntropyLoss()
+        #self.optimizer = optim.SGD(self.getNNModelModule().parameters(), lr=modelMetadata.learning_rate, momentum=modelMetadata.momentum)
         #self.optimizer = optim.AdamW(self.parameters(), lr=modelMetadata.learning_rate)
 
         self.getNNModelModule().to(modelMetadata.device)
@@ -74,7 +80,7 @@ class DefaultModelSimpleConv(sf.Model):
         x = self.pool(F.hardswish(self.conv2(x)))
         # 16 * 212 * 212 może zmienić rozmiar tensora na [1, 16 * 212 * 212] co nie zgadza się z rozmiarem batch_number 1 != 16. Wtedy należy dać [-1, 212 * 212] = [16, 212 * 212]
         # ogółem ta operacja nie jest bezpieczna przy modyfikacji danych.
-        x = x.view(-1, 212 * 212)   
+        x = x.view(-1, 16*16)   
         x = F.hardswish(self.linear1(x))
         x = F.hardswish(self.linear2(x))
         x = F.hardswish(self.linear3(x))
@@ -83,7 +89,7 @@ class DefaultModelSimpleConv(sf.Model):
 
     def __update__(self, modelMetadata):
         self.getNNModelModule().to(modelMetadata.device)
-        self.optimizer = optim.SGD(self.getNNModelModule().parameters(), lr=modelMetadata.learning_rate, momentum=modelMetadata.momentum)
+        #self.optimizer = optim.SGD(self.getNNModelModule().parameters(), lr=modelMetadata.learning_rate, momentum=modelMetadata.momentum)
 
     def __initializeWeights__(self):
         for m in self.modules():
@@ -102,15 +108,15 @@ class DefaultModelPredef(sf.PredefinedModel):
     def __init__(self, obj, modelMetadata, name):
         super().__init__(obj=obj, modelMetadata=modelMetadata, name=name)
 
-        self.loss_fn = nn.CrossEntropyLoss()
-        self.optimizer = optim.SGD(self.getNNModelModule().parameters(), lr=modelMetadata.learning_rate, momentum=modelMetadata.momentum)
+        #self.loss_fn = nn.CrossEntropyLoss()
+        #self.optimizer = optim.SGD(self.getNNModelModule().parameters(), lr=modelMetadata.learning_rate, momentum=modelMetadata.momentum)
         #self.optimizer = optim.AdamW(self.parameters(), lr=modelMetadata.learning_rate)
 
         self.getNNModelModule().to(modelMetadata.device)
 
     def __update__(self, modelMetadata):
         self.getNNModelModule().to(modelMetadata.device)
-        self.optimizer = optim.SGD(self.getNNModelModule().parameters(), lr=modelMetadata.learning_rate, momentum=modelMetadata.momentum)
+        #self.optimizer = optim.SGD(self.getNNModelModule().parameters(), lr=modelMetadata.learning_rate, momentum=modelMetadata.momentum)
 
     def createDefaultMetadataObj(self):
         return None
@@ -296,7 +302,6 @@ class _SmoothingOscilationBase(sf.Smoothing):
                 return False
             return ret
         return False
-
 
     def __isSmoothingGoodEnough__(self, helperEpoch, helper, model, dataMetadata, modelMetadata, metadata, smoothingMetadata):
         """
@@ -579,7 +584,7 @@ class DefaultSmoothingOscilationEWMA(_SmoothingOscilationBase):
                 valDevice = val.device
                 # S = ax + (1-a)S
                 self.weightsSum[key] = self.weightsSum[key].mul_(self.movingAvgTensorHigh).add_(
-                    (val.type(torch.float32).mul(self.movingAvgTensorLow.to(valDevice))).to(smoothingMetadata.device)
+                    (val.type(torch.float32).mul(self.movingAvgTensorLow)).to(smoothingMetadata.device)
                     ).type(torch.float32)
 
     def __getSmoothedWeights__(self, smoothingMetadata, metadata):
@@ -796,16 +801,66 @@ class DefaultSmoothingOscilationWeightedMean(_SmoothingOscilationBase):
             return self._smoothingGoodEnoughCheck(val=stdDev, smoothingMetadata=smoothingMetadata)
         return False
 
+
+
+# pytorch SWA model implementation
+
+class DefaultPytorchAveragedSmoothing_Metadata(sf.Smoothing_Metadata):
+    def __init__(self, device = 'cpu', smoothingStartPercent = 0.8):
+        super().__init__()
+        self.device = device
+        self.smoothingStartPercent = smoothingStartPercent
+
+    def __strAppend__(self):
+        tmp_str = super().__strAppend__()
+        tmp_str += ('\nStart inner {} class\n+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++\n'.format(type(self.weightIter).__name__))
+        tmp_str += ('Device:\t{}\n'.format(str(self.device)))
+        tmp_str += ('Smoothing start percent:\t{}\n'.format(str(self.smoothingStartPercent)))
+        tmp_str += ('+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++\nEnd inner {} class\n'.format(type(self.weightIter).__name__))
+        return tmp_str
+
+class Test_DefaultPytorchAveragedSmoothing_Metadata(DefaultPytorchAveragedSmoothing_Metadata):
+    def __init__(self, test_device = 'cpu', test_smoothingStartPercent = 0.8):
+        super().__init__(device=test_device, smoothingStartPercent=test_smoothingStartPercent)
+
+class DefaultPytorchAveragedSmoothing(sf.Smoothing):
+    def __init__(self, smoothingMetadata, model):
+        self.swaModel = torch.optim.swa_utils.AveragedModel(model)
+    
+    def __call__(self, helperEpoch, helper, model, dataMetadata, modelMetadata, smoothingMetadata, metadata):
+        super().__call__(helperEpoch=helperEpoch, helper=helper, model=model, dataMetadata=dataMetadata, modelMetadata=modelMetadata, metadata=metadata, smoothingMetadata=smoothingMetadata)
+
+        if(helperEpoch.trainTotalNumber > (smoothingMetadata.smoothingStartPercent * helperEpoch.maxTrainTotalNumber)):
+            self.swaModel.update_parameters(model)
+        return False
+
+    def __isSmoothingGoodEnough__(self, helperEpoch, helper, model, dataMetadata, modelMetadata, metadata, smoothingMetadata):
+        return False
+
+    def createDefaultMetadataObj(self):
+        return DefaultPytorchAveragedSmoothing_Metadata()
+
+    def __getSmoothedWeights__(self, smoothingMetadata, metadata):
+        average = super().__getSmoothedWeights__(smoothingMetadata=smoothingMetadata, metadata=metadata)
+        if(average is not None):
+            return average
+        return self.swaModel.state_dict()
+
+    def saveWeights(self, weights, key, canOverride = True, toDevice = None):
+        pass
+
+
 # data classes
 class DefaultData_Metadata(sf.Data_Metadata):
     def __init__(self, worker_seed = 8418748, download = True, pin_memoryTrain = False, pin_memoryTest = False,
         epoch = 1, batchTrainSize = 16, batchTestSize = 16, fromGrayToRGB = True,
-        test_howOftenPrintTrain = 200, howOftenPrintTrain = 2000):
+        test_howOftenPrintTrain = 200, howOftenPrintTrain = 2000, resizeTo=None):
 
         super().__init__(worker_seed = worker_seed, train = True, download = download, pin_memoryTrain = pin_memoryTrain, pin_memoryTest = pin_memoryTest,
             epoch = epoch, batchTrainSize = batchTrainSize, batchTestSize = batchTestSize, howOftenPrintTrain = howOftenPrintTrain)
 
         self.fromGrayToRGB = fromGrayToRGB
+        self.resizeTo = resizeTo
 
         # batch size * howOftenPrintTrain
         if(sf.test_mode.isActive()):
@@ -816,9 +871,14 @@ class DefaultData_Metadata(sf.Data_Metadata):
     def __strAppend__(self):
         tmp_str = super().__strAppend__()
         tmp_str += ('Resize data from Gray to RGB:\t{}\n'.format(self.fromGrayToRGB))
+        tmp_str += ('Resize data to size:\t{}\n'.format(self.resizeTo))
         return tmp_str
 
 class DefaultData(sf.Data):
+    """
+        Domyślna klasa na dane. Jeżeli zabrakło pamięci, należy zwrócić uwagę na rozmiar wejściowego obrazka. Można go zmniejszyć
+        uswawiając odpowiedni rozmiar w metadanych dla tej klasy argumentem resizeTo. 
+    """
     def __init__(self, dataMetadata):
         super().__init__(dataMetadata=dataMetadata)
         self.testAlias = 'statLossTest_normal'
@@ -837,27 +897,49 @@ class DefaultData(sf.Data):
         return obj
 
     def __setInputTransform__(self, dataMetadata):
-        ''' self.trainTransform = transforms.Compose(
+        """ self.trainTransform = transforms.Compose(
             [transforms.ToTensor(),
             transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))]
 
             self.testTransform = ...
         )
-        '''
+        """
 
-        self.trainTransform = transforms.Compose([
-            transforms.Resize(224),
-            transforms.RandomHorizontalFlip(),
-            transforms.ToTensor(),
-            transforms.Lambda(DefaultData.lambdaGrayToRGB if dataMetadata.fromGrayToRGB else DefaultData.NoneTransform),
-            transforms.Normalize((0.4914, 0.4822, 0.4465), (0.2023, 0.1994, 0.2010)), 
-        ])
-        self.testTransform = transforms.Compose([
-            transforms.Resize(224),
-            transforms.ToTensor(),
-            transforms.Lambda(DefaultData.lambdaGrayToRGB if dataMetadata.fromGrayToRGB else DefaultData.NoneTransform),
-            transforms.Normalize((0.4914, 0.4822, 0.4465), (0.2023, 0.1994, 0.2010)),
-        ])
+        if(dataMetadata.resizeTo is not None):
+            self.trainTransform = transforms.Compose([
+                transforms.Resize(dataMetadata.resizeTo),
+                transforms.RandomHorizontalFlip(),
+                transforms.ToTensor(),
+                transforms.Lambda(DefaultData.lambdaGrayToRGB if dataMetadata.fromGrayToRGB else DefaultData.NoneTransform),
+                transforms.Normalize((0.4914, 0.4822, 0.4465), (0.2023, 0.1994, 0.2010)), 
+            ])
+            self.testTransform = transforms.Compose([
+                transforms.Resize(dataMetadata.resizeTo),
+                transforms.ToTensor(),
+                transforms.Lambda(DefaultData.lambdaGrayToRGB if dataMetadata.fromGrayToRGB else DefaultData.NoneTransform),
+                transforms.Normalize((0.4914, 0.4822, 0.4465), (0.2023, 0.1994, 0.2010)),
+            ])
+        else:
+            self.trainTransform = transforms.Compose([
+                transforms.RandomHorizontalFlip(),
+                transforms.ToTensor(),
+                transforms.Lambda(DefaultData.lambdaGrayToRGB if dataMetadata.fromGrayToRGB else DefaultData.NoneTransform),
+                transforms.Normalize((0.4914, 0.4822, 0.4465), (0.2023, 0.1994, 0.2010)), 
+            ])
+            self.testTransform = transforms.Compose([
+                transforms.ToTensor(),
+                transforms.Lambda(DefaultData.lambdaGrayToRGB if dataMetadata.fromGrayToRGB else DefaultData.NoneTransform),
+                transforms.Normalize((0.4914, 0.4822, 0.4465), (0.2023, 0.1994, 0.2010)),
+            ])
+
+        '''
+        self.trainTransform = transforms.Compose(
+        [transforms.ToTensor(),
+        transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))])
+
+        self.testTransform = transforms.Compose(
+        [transforms.ToTensor(),
+        transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))])'''
 
     def __prepare__(self, dataMetadata):
         raise NotImplementedError("def __prepare__(self, dataMetadata)")
@@ -1025,6 +1107,7 @@ class DefaultDataCIFAR100(DefaultData):
                                          shuffle=False, num_workers=2, pin_memory=dataMetadata.pin_memoryTest, worker_init_fn=dataMetadata.worker_seed if sf.enabledDeterminism() else None)
 
 
+
 ModelMap = {
     'simpleConvModel': DefaultModelSimpleConv,
     'predefModel': DefaultModelPredef
@@ -1041,80 +1124,56 @@ SmoothingMap = {
     'disabled': DisabledSmoothing,
     'borderline': DefaultSmoothingBorderline,
     'generalizedMean': DefaultSmoothingOscilationGeneralizedMean,
-    'movingMean': DefaultSmoothingOscilationEWMA,
-    'weightedMean': DefaultSmoothingOscilationWeightedMean
+    'EWMA': DefaultSmoothingOscilationEWMA,
+    'weightedMean': DefaultSmoothingOscilationWeightedMean,
+    'pytorchSWA' : DefaultPytorchAveragedSmoothing
 }
 
-def run(modelType, dataType, smoothingType, metadataObj, modelMetadata, dataMetadata, smoothingMetadata, modelPredefObj = None, modelPredefObjName = None,
-    numbOfRepetition = 1, rootFolder = None, printPlots = True, startPrintAt = -10, runningAvgSize=1):
+def __checkClassExistence(checkedMap, obj):
+    for name, i in checkedMap.items():
+        if(isinstance(obj, i)):
+            ok = True
+            return name
+
+    sf.Output.printBash("Cannot run test, because used unregistered class '{}'. Cannot name folder because of that.\nMap: {}: ".format(str(type(obj)), checkedMap), 
+        'warn')
+    return None
+
+
+def run(data, model, smoothing, metadataObj, modelMetadata, dataMetadata, smoothingMetadata, optimizer, lossFunc, schedulers: list=None,
+    rootFolder = None, printPlots = True, startPrintAt = -10, runningAvgSize=1):
     """
-        numbOfRepetition - mówi ile razy model powinien ponownie przejść przez pętlę epocha. Każde takie powtórzenie kończy się zapisem
-            go do odpowiedniego folderu grupującego. Przy każdym przejściu model nie jest resetowany.
-            Można to uznać za przerwę w epochu, która zapisuje dotychczasowe wyniki do pliku.
+        Funckja przygotowuje do wywołania eksperymentu. Na końcu działania funkcja tworzy wykresy.
     """
 
-    listStat = []
-    folderRelativeRoot = None
-    model = None
+    dataType = __checkClassExistence(checkedMap=DataMap, obj=data)
+    modelType = __checkClassExistence(checkedMap=ModelMap, obj=model)
+    smoothingType = __checkClassExistence(checkedMap=SmoothingMap, obj=smoothing)
 
-    for experimentNumber in range(numbOfRepetition):
-        if(modelPredefObj is None and modelType == 'predefModel'):
-            sf.Output.printBash("Cannot run test, because model '{}' does not have provided object.".format(modelType), 'warn')
-            return
-        if(modelType not in ModelMap):
-            sf.Output.printBash("Cannot run test, because model '{}' not found.".format(modelType), 'warn')
-            return
-        if(dataType not in DataMap):
-            sf.Output.printBash("Cannot run test, because data '{}' not found.".format(dataType), 'warn')
-            return
-        if(smoothingType not in SmoothingMap):
-            sf.Output.printBash("Cannot run test, because smoothing '{}' not found.".format(smoothingType), 'warn')
-            return
-        if(modelPredefObj is not None and modelType != 'predefModel'):
-            sf.Output.printBash("Cannot run test, because modelObj is not None and choosed model type '{}'.".format(modelType), 'warn')
-            return
-        if(modelPredefObj is not None and modelPredefObjName is None):
-            sf.Output.printBash("Cannot run test, because modelObj is not None and not provided model name. Choosed model type '{}'.".format(modelType), 'warn')
-            return
+    metadataObj.resetOutput() 
+    modelMetadata.prepare(lossFunc=lossFunc, optimizer=optimizer)
+    model.prepare(lossFunc=lossFunc, optimizer=optimizer, schedulers=schedulers)
 
-        metadataObj.resetOutput() 
+    logFolderSuffix = modelType + '_' + dataType + '_' + smoothingType
 
-        logFolderSuffix = modelType + '_' + dataType + '_' + smoothingType
-        if(numbOfRepetition != 1):
-            if(folderRelativeRoot is None):
-                _, folderRelativeRoot = sf.Output.createLogFolder(logFolderSuffix + "_set", relativeRoot=rootFolder)
-        elif(rootFolder is not None):
-            _, folderRelativeRoot = sf.Output.tryCreateFolder(rootFolder)
+    metadataObj.name = logFolderSuffix
+    metadataObj.logFolderSuffix = logFolderSuffix
+    metadataObj.relativeRoot = rootFolder
 
-        metadataObj.name = logFolderSuffix
-        metadataObj.logFolderSuffix = logFolderSuffix
-        metadataObj.relativeRoot = folderRelativeRoot
+    metadataObj.prepareOutput()
+    smoothing.__setDictionary__(smoothingMetadata=smoothingMetadata, dictionary=model.getNNModelModule().state_dict().items())
 
-        metadataObj.prepareOutput()
-        
-        data = DataMap[dataType](dataMetadata)
-        smoothing = SmoothingMap[smoothingType](smoothingMetadata)
-        statistics = None
+    metadataObj.printStartNewModel()
 
-        if(model is None and modelPredefObj is None):
-            model = ModelMap[modelType](modelMetadata=modelMetadata)
-        elif(model is None):
-            model = ModelMap[modelType](obj=modelPredefObj, modelMetadata=modelMetadata, name=modelPredefObjName)
-        smoothing.__setDictionary__(smoothingMetadata=smoothingMetadata, dictionary=model.getNNModelModule().state_dict().items())
+    statistics = sf.runObjs(metadataObj=metadataObj, dataMetadataObj=dataMetadata, modelMetadataObj=modelMetadata, 
+            smoothingMetadataObj=smoothingMetadata, smoothingObj=smoothing, dataObj=data, modelObj=model, 
+            folderLogNameSuffix=logFolderSuffix, folderRelativeRoot=rootFolder)
 
-        metadataObj.printStartNewModel()
+    metadataObj.printEndModel()
 
-        statistics = sf.runObjs(metadataObj=metadataObj, dataMetadataObj=dataMetadata, modelMetadataObj=modelMetadata, 
-                smoothingMetadataObj=smoothingMetadata, smoothingObj=smoothing, dataObj=data, modelObj=model, 
-                folderLogNameSuffix=logFolderSuffix, folderRelativeRoot=folderRelativeRoot)
+    statistics.printPlots(startAt=startPrintAt, runningAvgSize=runningAvgSize)
 
-        metadataObj.printEndModel()
-
-        statistics.printPlots(startAt=startPrintAt, runningAvgSize=runningAvgSize)
-
-        listStat.append(statistics)
-
-    return listStat
+    return statistics
 
 
 

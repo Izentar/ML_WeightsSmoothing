@@ -6,6 +6,12 @@ sys.path.append(str(Path(__file__).parents[1]))
 from framework import smoothingFramework as sf
 import traceback
 
+for i, arg in enumerate(sys.argv):
+    if(arg == "debug" or arg == "test"):
+        sf.StaticData.TEST_MODE = True
+
+##############################################################
+
 def setupWorkingDir():
     os.chdir(Path(__file__).parents[1])
 

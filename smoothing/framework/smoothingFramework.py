@@ -21,9 +21,6 @@ import matplotlib.pyplot as plt
 import numpy
 
 SAVE_AND_EXIT_FLAG = False
-DETERMINISTIC = False
-PRINT_WARNINGS = True
-FORCE_PRINT_WARNINGS = False
 
 
 def saveWorkAndExit(signumb, frame):
@@ -37,7 +34,7 @@ def terminate(signumb, frame):
     exit(2)
 
 def enabledDeterminism():
-    return bool(DETERMINISTIC)
+    return bool(StaticData.DETERMINISTIC)
 
 def enabledSaveAndExit():
     return bool(SAVE_AND_EXIT_FLAG)
@@ -49,7 +46,7 @@ signal.signal(signal.SIGINT, terminate)
 #reproducibility https://pytorch.org/docs/stable/generated/torch.use_deterministic_algorithms.html#torch.use_deterministic_algorithms
 # set in environment CUBLAS_WORKSPACE_CONFIG=':4096:2' or CUBLAS_WORKSPACE_CONFIG=':16:8'
 def useDeterministic(torchSeed = 0, randomSeed = 0):
-    DETERMINISTIC = True
+    StaticData.DETERMINISTIC = True
     torch.cuda.manual_seed(torchSeed)
     torch.cuda.manual_seed_all(torchSeed)
     torch.manual_seed(torchSeed)
@@ -62,7 +59,7 @@ def useDeterministic(torchSeed = 0, randomSeed = 0):
     os.environ['CUBLAS_WORKSPACE_CONFIG'] = ':16:8'
 
 def warnings():
-    return FORCE_PRINT_WARNINGS or PRINT_WARNINGS
+    return StaticData.FORCE_PRINT_WARNINGS or StaticData.PRINT_WARNINGS
 
 class StaticData:
     PATH = os.path.join(expanduser("~"), '.data', 'models')
@@ -75,15 +72,20 @@ class StaticData:
     OUTPUT_SUFFIX = '.output'
     DATA_METADATA_SUFFIX = '.dmd'
     MODEL_METADATA_SUFFIX = '.mmd'
+    PYTORCH_AVERAGED_MODEL_SUFFIX = '.pyavgmmd'
     SMOOTHING_METADATA_SUFFIX = '.smthmd'
     NAME_CLASS_METADATA = 'Metadata'
     DATA_PATH = os.path.join(expanduser("~"), '.data')
     PREDEFINED_MODEL_SUFFIX = '.pdmodel'
     LOG_FOLDER = os.path.join('.', 'savedLogs')
     IGNORE_IO_WARNINGS = False
+    FORCE_DEBUG_PRINT = False
     TEST_MODE = False
+    DETERMINISTIC = False
+    PRINT_WARNINGS = True
+    FORCE_PRINT_WARNINGS = False
     MAX_DEBUG_LOOPS = 71
-    MAX_EPOCH_LOOPS = 3
+    MAX_EPOCH_LOOPS = 2
 
 class SaveClass:
     def __init__(self):
@@ -357,6 +359,8 @@ class Metadata(SaveClass, BaseMainClass):
         self.trainFlag = trainFlag
 
         self.debugInfo = debugInfo
+
+
         self.modelOutput = modelOutput
         self.debugOutput = debugOutput
         self.stream = stream
@@ -467,20 +471,20 @@ class Metadata(SaveClass, BaseMainClass):
             self.stream = Output(self.logFolderSuffix, self.relativeRoot)
 
         if(self.debugInfo == True):
-            self.stream.open('debug', 'debug:0', 'debug')
-        self.stream.open('model', 'model:0', 'model')
-        self.stream.open('bash')
-        self.stream.open('formatedLog', 'stat', 'statistics')
+            self.stream.open(metadata=self, outputType='debug', alias='debug:0', pathName='debug')
+        self.stream.open(metadata=self, outputType='model', alias='model:0', pathName='model')
+        self.stream.open(metadata=self, outputType='bash')
+        self.stream.open(metadata=self, outputType='formatedLog', alias='stat', pathName='statistics')
 
-        self.stream.open('formatedLog', 'loopTrainTime', 'loopTrainTime')
-        self.stream.open('formatedLog', 'loopTestTime_normal', 'loopTestTime_normal')
-        self.stream.open('formatedLog', 'loopTestTime_smooothing', 'loopTestTime_smooothing')
+        self.stream.open(metadata=self, outputType='formatedLog', alias='loopTrainTime', pathName='loopTrainTime')
+        self.stream.open(metadata=self, outputType='formatedLog', alias='loopTestTime_normal', pathName='loopTestTime_normal')
+        self.stream.open(metadata=self, outputType='formatedLog', alias='loopTestTime_smooothing', pathName='loopTestTime_smooothing')
 
-        self.stream.open('formatedLog', 'statLossTrain', 'statLossTrain')
-        self.stream.open('formatedLog', 'statLossTest_normal', 'statLossTest_normal')
-        self.stream.open('formatedLog', 'statLossTest_smooothing', 'statLossTest_smooothing')
+        self.stream.open(metadata=self, outputType='formatedLog', alias='statLossTrain', pathName='statLossTrain')
+        self.stream.open(metadata=self, outputType='formatedLog', alias='statLossTest_normal', pathName='statLossTest_normal')
+        self.stream.open(metadata=self, outputType='formatedLog', alias='statLossTest_smooothing', pathName='statLossTest_smooothing')
 
-        self.stream.open('formatedLog', 'weightsSumTrain', 'weightsSumTrain')
+        self.stream.open(metadata=self, outputType='formatedLog', alias='weightsSumTrain', pathName='weightsSumTrain')
 
         Output.printBash('Default outputs prepared.', 'info')
 
@@ -654,6 +658,7 @@ class Output(SaveClass):
         self.relativeRoot = relativeRoot
         self.root = None
         self.currentDefaultAlias = None
+        self.debugDisabled = False
 
     def __getstate__(self):
         state = self.__dict__.copy()
@@ -669,12 +674,18 @@ class Output(SaveClass):
         self.currentDefaultAlias = name
         return True
 
-    def __open(self, alias, root, pathName, outputType):
+    def __open(self, alias, root, pathName, outputType, metadata):
         if(alias in self.aliasToFH and self.aliasToFH[alias].exist()):
             if(warnings()):
-                Output.printBash("Provided alias '{}' with opened file already exist: {}.".format(alias, outputType), 'This may be due to loaded Metadata object.',
+                Output.printBash("Provided alias '{}' with opened file already exist: {}. This may be due to loaded Metadata object.".format(alias, outputType),
                 'warn')
             return
+        if(alias == 'debug' and not (metadata.debugInfo or StaticData.FORCE_DEBUG_PRINT)):
+            Output.printBash("Debug mode is not active. Debug output disabled.",
+                'info')
+            self.debugDisabled = True
+            return
+
         suffix = '.log'
         if(outputType == 'formatedLog'):
             suffix = '.csv'
@@ -682,7 +693,7 @@ class Output(SaveClass):
         self.filesDict[pathName] = {outputType: fh}
         self.aliasToFH[alias] = fh
 
-    def open(self, outputType: str, alias: str = None, pathName: str = None):
+    def open(self, metadata, outputType: str, alias: str = None, pathName: str = None):
         if((outputType != 'debug' and outputType != 'model' and outputType != 'bash' and outputType != 'formatedLog') or outputType is None):
             if(warnings()):
                 Output.printBash("Unknown command in open for Output class.", 'warn')
@@ -717,7 +728,7 @@ class Output(SaveClass):
                             return True
                         else:
                             del val
-            self.__open(alias, root, pathName, outputType)
+            self.__open(alias=alias, root=root, pathName=pathName, outputType=outputType, metadata=metadata)
         else:
             if(warnings()):
                 Output.printBash("For this '{}' Output type pathName should not be None.".format(outputType), 'warn')
@@ -772,6 +783,8 @@ class Output(SaveClass):
         Przekazuje argument do wszystkich możliwych, aktywnych strumieni wyjściowych.\n
         Na końcu argumentu nie daje znaku nowej linii.
         """
+        if(alias == 'debug' and self.debugDisabled):
+            return
         prefix = Output.__getPrefix(mode)
 
         if(alias is None):
@@ -1043,6 +1056,7 @@ class Smoothing_Metadata(SaveClass, BaseMainClass):
 
     def canUpdate(self = None):
         return False
+
 
 
 class TrainDataContainer():
@@ -1346,13 +1360,14 @@ class Data(SaveClass, BaseMainClass, BaseLogicClass):
         """
         
         # forward + backward + optimize
+        #print(torch.cuda.memory_summary(device='cuda:0'))
         outputs = model.getNNModelModule()(helper.inputs)
-        helper.loss = model.loss_fn(outputs, helper.labels)
+        helper.loss = model.__getLossFun__()(outputs, helper.labels)
         del outputs
         #print(torch.cuda.memory_summary())
         helper.loss.backward()
         #print(torch.cuda.memory_summary())
-        model.optimizer.step()
+        model.__getOptimizer__().step()
 
         # run smoothing
         helper.smoothingSuccess = smoothing(helperEpoch=helperEpoch, helper=helper, model=model, dataMetadata=dataMetadata, modelMetadata=modelMetadata, smoothingMetadata=smoothingMetadata, metadata=metadata)
@@ -1374,7 +1389,7 @@ class Data(SaveClass, BaseMainClass, BaseLogicClass):
 
     def __beforeTrain__(self, helperEpoch: 'EpochDataContainer', helper, model: 'Model', dataMetadata: 'Data_Metadata', modelMetadata: 'Model_Metadata', metadata: 'Metadata', smoothing: 'Smoothing', smoothingMetadata: 'Smoothing_Metadata'):
         helper.inputs, helper.labels = helper.inputs.to(modelMetadata.device), helper.labels.to(modelMetadata.device)
-        model.optimizer.zero_grad()
+        model.__getOptimizer__().zero_grad()
 
     def __afterTrain__(self, helperEpoch: 'EpochDataContainer', helper, model: 'Model', dataMetadata: 'Data_Metadata', modelMetadata: 'Model_Metadata', metadata: 'Metadata', smoothing: 'Smoothing', smoothingMetadata: 'Smoothing_Metadata'):
         with torch.no_grad():
@@ -1465,6 +1480,7 @@ class Data(SaveClass, BaseMainClass, BaseLogicClass):
                 break
 
             self.trainHelper.smoothingSuccess = False
+            
 
         self.trainHelper.loopTimer.end()
         self.trainHelper.loopEnded = True
@@ -1483,7 +1499,7 @@ class Data(SaveClass, BaseMainClass, BaseLogicClass):
         """
         
         helper.pred = model.getNNModelModule()(helper.inputs)
-        helper.test_loss = model.loss_fn(helper.pred, helper.labels).item()
+        helper.test_loss = model.__getLossFun__()(helper.pred, helper.labels).item()
 
     def setTestLoop(self, model: 'Model', modelMetadata: 'Model_Metadata', metadata: 'Metadata'):
         helper = TestDataContainer()
@@ -1644,6 +1660,8 @@ class Data(SaveClass, BaseMainClass, BaseLogicClass):
             metadata.stream.flushAll()
             
             self.__epoch__(helperEpoch=self.epochHelper, model=model, dataMetadata=dataMetadata, modelMetadata=modelMetadata, metadata=metadata, smoothing=smoothing, smoothingMetadata=smoothingMetadata)
+            model.schedulerStep(epochNumb=ep)
+
             if(SAVE_AND_EXIT_FLAG):
                 self.__epochLoopExit__(helperEpoch=self.epochHelper, model=model, dataMetadata=dataMetadata, modelMetadata=modelMetadata, metadata=metadata, smoothing=smoothing, smoothingMetadata=smoothingMetadata)
                 return
@@ -1726,7 +1744,7 @@ class Smoothing(SaveClass, BaseMainClass, BaseLogicClass):
         # dane wewnętrzne
         self.enabled = False # used only to prevent using smoothing when weights and dict are not set
 
-        self.savedWeights = {}
+        self.savedWeightsState = {}
 
     def __call__(self, helperEpoch, helper, model, dataMetadata, modelMetadata, smoothingMetadata, metadata):
         """
@@ -1754,11 +1772,11 @@ class Smoothing(SaveClass, BaseMainClass, BaseLogicClass):
         raise Exception("Not implemented.")
 
     def getWeights(self, key, toDevice=None, copy = False):
-        if(key in self.savedWeights.keys()):
+        if(key in self.savedWeightsState.keys()):
             if(copy):
-                return cloneTorchDict(self.savedWeights[key], toDevice)
+                return cloneTorchDict(self.savedWeightsState[key], toDevice)
             else:
-                return moveToDevice(self.savedWeights[key], toDevice)
+                return moveToDevice(self.savedWeightsState[key], toDevice)
         else:
             Output.printBash("Smoothing: could not find key '{}' while searching for weights.".format(key), 'warn')
             return None
@@ -1772,10 +1790,10 @@ class Smoothing(SaveClass, BaseMainClass, BaseLogicClass):
     def saveWeights(self, weights, key, canOverride = True, toDevice = None):
         with torch.no_grad():
             if(canOverride):
-                self.savedWeights[key] = cloneTorchDict(weights, toDevice)
-            elif(key in self.savedWeights.keys()):
+                self.savedWeightsState[key] = cloneTorchDict(weights, toDevice)
+            elif(key in self.savedWeightsState.keys()):
                 Output.printBash("The given key '{}' was found during the cloning of the scales. No override flag was specified.".format(key), 'warn')
-                self.savedWeights[key] = cloneTorchDict(weights, toDevice)
+                self.savedWeightsState[key] = cloneTorchDict(weights, toDevice)
 
     def trySave(self, metadata, onlyKeyIngredients = False, temporaryLocation = False):
         return super().trySave(metadata=metadata, suffix=StaticData.SMOOTHING_SUFFIX, onlyKeyIngredients=onlyKeyIngredients, temporaryLocation=temporaryLocation)
@@ -1784,9 +1802,44 @@ class Smoothing(SaveClass, BaseMainClass, BaseLogicClass):
         return StaticData.SMOOTHING_SUFFIX
 
     def canUpdate(self = None):
-        return False
+        return True
 
-class Model(nn.Module, SaveClass, BaseMainClass, BaseLogicClass):
+class __BaseModel(nn.Module, SaveClass, BaseMainClass, BaseLogicClass):
+    def __init__(self):
+        super().__init__()
+
+        self.loss_fn = None
+        self.optimizer = None
+        self.schedulers = None
+
+    def prepare(self, lossFunc, optimizer, schedulers: list=None):
+        """
+            Set optimizer and loss function.
+
+            schedulers - a list of tuple with 2 aruments: list of epochs where the step will be called and scheduler.
+                If list of epochs is None, on each call will be called step on scheduler.
+        """
+        self.loss_fn = lossFunc
+        self.optimizer = optimizer
+        self.schedulers = schedulers
+
+    def schedulerStep(self, epochNumb):
+        if(self.schedulers is not None):
+            for epochStep, scheduler in self.schedulers:
+                if(epochStep == epochNumb or epochStep is None):
+                    scheduler.step()
+
+    def canUpdate(self = None):
+        return True
+
+    def __getOptimizer__(self):
+        return self.optimizer
+
+    def __getLossFun__(self):
+        return self.loss_fn
+
+
+class Model(__BaseModel):
     """
         Klasa służąca do tworzenia nowych modeli.
         Aby bezpiecznie skorzystać z metod nn.Module należy wywołać metodę getNNModelModule(), która zwróci obiekt typu nn.Module.
@@ -1851,16 +1904,13 @@ class Model(nn.Module, SaveClass, BaseMainClass, BaseLogicClass):
     def getFileSuffix(self = None):
         return StaticData.MODEL_SUFFIX
 
-    def canUpdate(self = None):
-        return True
-
     def getNNModelModule(self):
         """
         Używany, gdy chcemy skorzystać z funckji modułu nn.Module. Zwraca obiekt dla którego jest pewność, że implementuje klasę nn.Module. 
         """
         return self
 
-class PredefinedModel(SaveClass, BaseMainClass, BaseLogicClass):
+class PredefinedModel(__BaseModel):
     """
         Klasa używana do kapsułkowania istniejących już obiektów predefiniowanych modeli.
         Aby bezpiecznie skorzystać z metod nn.Module należy wywołać metodę getNNModelModule(), która zwróci obiekt typu nn.Module
@@ -1934,8 +1984,6 @@ class PredefinedModel(SaveClass, BaseMainClass, BaseLogicClass):
         """
         return self.modelObj
 
-    def canUpdate(self = None):
-        return True
 
 def tryLoad(tupleClasses: list, metadata, temporaryLocation = False):
     dictObjs = {}
@@ -2136,10 +2184,10 @@ def averageStatistics(statistics: list, filePaths: dict = {
 
         tmp_testTimeLoop        += st.testTimeLoop
         tmp_avgTestTimeLoop     += st.avgTestTimeLoop
-        tmp_testTimeUnits       = st.testTimeUnits[0]
+        tmp_testTimeUnits       = st.testTimeUnits[0] if st.testTimeUnits else "(s)"
         tmp_smthTestTimeLoop    += st.smthTestTimeLoop
         tmp_smthAvgTestTimeLoop += st.smthAvgTestTimeLoop
-        tmp_smthTestTimeUnits   = st.smthTestTimeUnits[0]
+        tmp_smthTestTimeUnits   = st.smthTestTimeUnits[0] if st.smthTestTimeUnits else "(s)"
         
 
     newStats.testLossSum.append(torch.mean(torch.as_tensor(tmp_testLossSum, dtype=torch.float64)))
