@@ -2183,6 +2183,7 @@ def averageStatistics(statistics: list, filePaths: dict = {
                     flattedNewVals[index] = flattedNewVals[index] + [0.0 for item in range(len(rows) - len(flattedNewVals[index]))]
                 flattedNewVals[index] = list(map(operator.add, rows, flattedNewVals[index]))
 
+        # dodaj do statystyk sumy
         tmp_testLossSum += st.testLossSum
         tmp_testCorrectSum += st.testCorrectSum
         tmp_predSizeSum += st.predSizeSum
@@ -2191,11 +2192,20 @@ def averageStatistics(statistics: list, filePaths: dict = {
         tmp_smthTestCorrectSum += st.smthTestCorrectSum
         tmp_smthPredSizeSum += st.smthPredSizeSum
 
-        if((tmp_trainTimeUnits is not None and tmp_trainTimeUnits != st.trainTimeUnits[0]) or 
-            (tmp_testTimeUnits is not None and tmp_testTimeUnits != st.testTimeUnits[0]) or
-            (tmp_smthTestTimeUnits is not None and tmp_smthTestTimeUnits != st.smthTestTimeUnits[0])):
+        # sprawdź jednostkę czasu
+        if(not st.trainTimeUnits):
+            tmp_trainTimeUnits = "s"
+        if(not st.testTimeUnits):
+            tmp_testTimeUnits = "s"
+        if(not st.smthTestTimeUnits):
+            tmp_smthTestTimeUnits = "s"
+
+        if((tmp_trainTimeUnits is not None and st.trainTimeUnits and tmp_trainTimeUnits != st.trainTimeUnits[0]) or 
+            (tmp_testTimeUnits is not None and st.testTimeUnits and tmp_testTimeUnits != st.testTimeUnits[0]) or
+            (tmp_smthTestTimeUnits is not None and st.smthTestTimeUnits and tmp_smthTestTimeUnits != st.smthTestTimeUnits[0])):
             Output.printBash("Statistics have different time units when averaging. The time units displayed may be incorrect", 'warn')
 
+        # dodaj do statystyk czasy
         tmp_trainTimeLoop    += st.trainTimeLoop
         tmp_trainTimeUnits   = st.trainTimeUnits[0]
         tmp_avgTrainTimeLoop += st.avgTrainTimeLoop
