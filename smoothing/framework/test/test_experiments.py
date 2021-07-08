@@ -242,11 +242,11 @@ class Test_RunExperiment(unittest.TestCase):
 
             stat=dc.run(metadataObj=metadata, data=data, model=model, smoothing=smoothing, optimizer=optimizer, lossFunc=loss_fn,
                 modelMetadata=modelMetadata, dataMetadata=dataMetadata, smoothingMetadata=smoothingMetadata)
-
+    
 
     def test_experiment_pytorchSWA_CIFAR10_predefModel_alexnet(self):
         with sf.test_mode():
-            modelName = "alexnet"
+            modelName = "simpleConv"
 
             metadata = sf.Metadata(testFlag=True, trainFlag=True, debugInfo=True)
             dataMetadata = dc.DefaultData_Metadata(pin_memoryTest=True, pin_memoryTrain=True, epoch=1, 
@@ -257,8 +257,8 @@ class Test_RunExperiment(unittest.TestCase):
             modelMetadata = dc.DefaultModel_Metadata(lossFuncDataDict={}, optimizerDataDict=optimizerDataDict, device='cuda:0')
 
             data = dc.DefaultDataMNIST(dataMetadata)
-            smoothing = dc.DefaultPytorchAveragedSmoothing(smoothingMetadata)
             model = dc.DefaultModelSimpleConv(modelMetadata=modelMetadata)
+            smoothing = dc.DefaultPytorchAveragedSmoothing(smoothingMetadata, model=model)
 
             optimizer = optim.SGD(model.getNNModelModule().parameters(), lr=optimizerDataDict['learning_rate'], 
                 momentum=optimizerDataDict['momentum'])
