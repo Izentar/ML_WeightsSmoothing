@@ -1407,9 +1407,6 @@ class Data(SaveClass, BaseMainClass, BaseLogicClass):
         with torch.no_grad():
             metadata.stream.print(helper.loss.item(), ['statLossTrain'])
 
-            if(bool(metadata.debugInfo) and dataMetadata.howOftenPrintTrain is not None and (helper.batchNumber % dataMetadata.howOftenPrintTrain == 0 or test_mode.isActive())):
-                DefaultMethods.printLoss(metadata, helper)
-
     def __afterTrainLoop__(self, helperEpoch: 'EpochDataContainer', helper, model: 'Model', dataMetadata: 'Data_Metadata', modelMetadata: 'Model_Metadata', metadata: 'Metadata', smoothing: 'Smoothing', smoothingMetadata: 'Smoothing_Metadata'):
         metadata.stream.print("Train summary:")
         metadata.stream.print(f" Average train time ({helper.timer.getUnits()}): {helper.timer.getAverage()}")
@@ -1907,7 +1904,6 @@ class Model(__BaseModel):
         self.eval()
 
     def _Private_setWeights(self, weights, metadata):
-        metadata.stream.print(arg="Setting weights:\n" + str(weights.keys()), alias='debug:0', mode='debug')
         self.load_state_dict(weights)
 
     def getWeights(self):
@@ -1978,7 +1974,6 @@ class PredefinedModel(__BaseModel):
         self.modelObj.eval()
 
     def _Private_setWeights(self, weights, metadata):
-        metadata.stream.print(arg="Setting weights:\n" + str(weights.keys()), alias='debug:0', mode='debug')
         self.modelObj.load_state_dict(weights)
 
     def getWeights(self):
