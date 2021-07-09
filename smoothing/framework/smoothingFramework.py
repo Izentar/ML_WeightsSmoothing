@@ -85,7 +85,7 @@ class StaticData:
     PRINT_WARNINGS = True
     FORCE_PRINT_WARNINGS = False
     MAX_DEBUG_LOOPS = 71
-    MAX_EPOCH_DEBUG_LOOPS = 1
+    MAX_EPOCH_DEBUG_LOOPS = 2
 
 class SaveClass:
     def __init__(self):
@@ -1673,6 +1673,8 @@ class Data(SaveClass, BaseMainClass, BaseLogicClass):
         for ep, (loopEpoch) in enumerate(range(dataMetadata.epoch)):  # loop over the dataset multiple times
             if(ep < self.epochHelper.epochNumber): # already iterated
                 continue
+            if(StaticData.TEST_MODE and ep >= StaticData.MAX_EPOCH_DEBUG_LOOPS):
+                break
             self.epochHelper.epochNumber = ep
             self._updateTotalNumbLoops(dataMetadata=dataMetadata)
             metadata.stream.print(f"\nEpoch {loopEpoch+1}\n-------------------------------")
@@ -1684,9 +1686,6 @@ class Data(SaveClass, BaseMainClass, BaseLogicClass):
             if(SAVE_AND_EXIT_FLAG):
                 self.__epochLoopExit__(helperEpoch=self.epochHelper, model=model, dataMetadata=dataMetadata, modelMetadata=modelMetadata, metadata=metadata, smoothing=smoothing, smoothingMetadata=smoothingMetadata)
                 return
-
-            if(StaticData.TEST_MODE and ep == StaticData.MAX_EPOCH_DEBUG_LOOPS):
-                break
 
         self.__afterEpochLoop__(helperEpoch=self.epochHelper, model=model, dataMetadata=dataMetadata, modelMetadata=modelMetadata, metadata=metadata, smoothing=smoothing, smoothingMetadata=smoothingMetadata)
         self.__epochLoopExit__(helperEpoch=self.epochHelper, model=model, dataMetadata=dataMetadata, modelMetadata=modelMetadata, metadata=metadata, smoothing=smoothing, smoothingMetadata=smoothingMetadata)
@@ -2209,7 +2208,7 @@ def averageStatistics(statistics: list, filePaths: dict = {
         tmp_trainTimeLoop    += st.trainTimeLoop
         tmp_trainTimeUnits   = st.trainTimeUnits[0]
         tmp_avgTrainTimeLoop += st.avgTrainTimeLoop
-        tmp_trainTotalNumb   += st.trainTotalNumb
+        tmp_trainTotalNumb.append(st.trainTotalNumb[-1]) # tylko z ostatniego epocha
 
         tmp_testTimeLoop        += st.testTimeLoop
         tmp_avgTestTimeLoop     += st.avgTestTimeLoop

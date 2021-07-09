@@ -854,8 +854,14 @@ class DefaultPytorchAveragedSmoothing(sf.Smoothing):
 
 # data classes
 class DefaultData_Metadata(sf.Data_Metadata):
+    """
+        startTestAtEpoch - wartość -1, jeżeli przy każdym epochu należy wywołać test albo lista epochy dla których należy wywołać test.
+            Przykład 
+            startTestAtEpoch = [*range(3)] # wywoła testy tylko dla pierwszych 3 epochy [0, 1, 2]
+            startTestAtEpoch = -1 # inaczej [*range(epoch)]
+    """
     def __init__(self, worker_seed = 8418748, download = True, pin_memoryTrain = False, pin_memoryTest = False,
-        epoch = 1, batchTrainSize = 16, batchTestSize = 16, fromGrayToRGB = True,
+        epoch = 1, batchTrainSize = 16, batchTestSize = 16, fromGrayToRGB = True, startTestAtEpoch=-1, 
         test_howOftenPrintTrain = 200, howOftenPrintTrain = 2000, resizeTo=None):
 
         super().__init__(worker_seed = worker_seed, train = True, download = download, pin_memoryTrain = pin_memoryTrain, pin_memoryTest = pin_memoryTest,
@@ -863,6 +869,10 @@ class DefaultData_Metadata(sf.Data_Metadata):
 
         self.fromGrayToRGB = fromGrayToRGB
         self.resizeTo = resizeTo
+        if(startTestAtEpoch == -1):
+            self.startTestAtEpoch = [*range(epoch)]
+        else:
+            self.startTestAtEpoch = startTestAtEpoch # list of epoches where the test should be called
 
         # batch size * howOftenPrintTrain
         if(sf.test_mode.isActive()):
@@ -1009,7 +1019,7 @@ class DefaultData(sf.Data):
             return 
 
         with torch.no_grad():
-            if(metadata.shouldTest()):
+            if(metadata.shouldTest() and (helperEpoch.epochNumber in dataMetadata.startTestAtEpoch) ):
                 helperEpoch.currentLoopTimeAlias = 'loopTestTime_normal'
                 self.testLoop(model=model, helperEpoch=helperEpoch, dataMetadata=dataMetadata, modelMetadata=modelMetadata, metadata=metadata, smoothing=smoothing, smoothingMetadata=smoothingMetadata)
                 smoothing.saveWeights(weights=model.getNNModelModule().state_dict().items(), key='main')
