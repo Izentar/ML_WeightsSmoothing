@@ -1375,7 +1375,6 @@ class Data(SaveClass, BaseMainClass, BaseLogicClass):
         #print(torch.cuda.memory_summary(device='cuda:0'))
         outputs = model.getNNModelModule()(helper.inputs)
         helper.loss = model.__getLossFun__()(outputs, helper.labels)
-        del outputs
         #print(torch.cuda.memory_summary())
         helper.loss.backward()
         #print(torch.cuda.memory_summary())
