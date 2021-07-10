@@ -1207,7 +1207,7 @@ def run(data, model, smoothing, metadataObj, modelMetadata, dataMetadata, smooth
 
     metadataObj.printEndModel()
 
-    #statistics.printPlots(startAt=startPrintAt, runningAvgSize=runningAvgSize)
+    statistics.printPlots(startAt=startPrintAt, runningAvgSize=runningAvgSize)
 
     return statistics
 
