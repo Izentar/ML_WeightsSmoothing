@@ -3,7 +3,7 @@
 # -*- coding: utf-8 -*- 
 
 declare -a commands=(
-    "python3 smoothing/experiments/exp_wide_resnet.py"
+    "python3 smoothing/experiments/exp_wide_resnet_disabled.py"
 )
 
 declare -a names=(
