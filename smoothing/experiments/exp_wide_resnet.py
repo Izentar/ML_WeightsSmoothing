@@ -23,7 +23,7 @@ if(__name__ == '__main__'):
 
     metadata = sf.Metadata(testFlag=True, trainFlag=True, debugInfo=True)
     dataMetadata = dc.DefaultData_Metadata(pin_memoryTest=False, pin_memoryTrain=False, epoch=200, fromGrayToRGB=False,
-        batchTrainSize=128, batchTestSize=128, startTestAtEpoch=[0, 49, 99, 149, 199])
+        batchTrainSize=32, batchTestSize=32, startTestAtEpoch=[0, 49, 99, 149, 199])
     optimizerDataDict={"learning_rate":0.1, "momentum":0.9, "weight_decay":0.0005}
     modelMetadata = dc.DefaultModel_Metadata(device=modelDevice, lossFuncDataDict={}, optimizerDataDict=optimizerDataDict)
     loop = 5
