@@ -1135,104 +1135,107 @@ class Statistics():
     """
     Klasa zwracana przez metodę epochLoop.
     """
-    def __init__(self, logFolder = None, plotBatches = {}, avgPlotBatches = {}, rootInputFolder = None,
-            trainLoopTimerSum = [], testLoopTimerSum = [], 
-            lossRatio = [], correctRatio = [], testLossSum = [], testCorrectSum = [], predSizeSum = [],
-            trainTimeLoop = [], avgTrainTimeLoop = [], trainTotalNumb = [], trainTimeUnits = [],
-            testTimeLoop = [], avgTestTimeLoop = [], testTimeUnits = [],
-            smthTestTimeLoop = [], smthAvgTestTimeLoop = [], smthTestTimeUnits = [],
-            smthLossRatio = [], smthCorrectRatio = [], smthTestLossSum = [], smthTestCorrectSum = [], smthPredSizeSum = []):
+    def __init__(self, logFolder = None, plotBatches = None, avgPlotBatches = None, rootInputFolder = None,
+            trainLoopTimerSum = None, testLoopTimerSum = None, 
+            lossRatio = None, correctRatio = None, testLossSum = None, testCorrectSum = None, predSizeSum = None,
+            trainTimeLoop = None, avgTrainTimeLoop = None, trainTotalNumb = None, trainTimeUnits = None,
+            testTimeLoop = None, avgTestTimeLoop = None, testTimeUnits = None,
+            smthTestTimeLoop = None, smthAvgTestTimeLoop = None, smthTestTimeUnits = None,
+            smthLossRatio = None, smthCorrectRatio = None, smthTestLossSum = None, smthTestCorrectSum = None, smthPredSizeSum = None):
         """
             logFolder - folder wyjściowy dla zapisywanych logów
-            plotBatches - słownik {nazwa_nowego_pliku: [lista_nazw_plików_do_przeczytania]}
-            avgPlotBatches - słownik uśrednionych plików csv {nazwa_nowego_pliku: [lista_nazw_plików_do_przeczytania]}
+            plotBatches - słownik {nazwa_nowego_pliku: [lista_nazw_plików_do_przeczytania]}. Domyślnie {} dla None.
+            avgPlotBatches - słownik uśrednionych plików csv {nazwa_nowego_pliku: [lista_nazw_plików_do_przeczytania]}. Domyślnie {} dla None.
             rootInputFolder - folder wejściowy dla plików. Może być None.
 
-            trainLoopTimerSum 
-            testLoopTimerSum 
+            trainLoopTimerSum - Domyślnie [] dla None.
+            testLoopTimerSum - Domyślnie [] dla None.
 
             lossRatio - zapisywane po wykonanym teście, średnia strata modelu. Dla obliczenia jej przy tworzeniu
-                należy przypisać mu wyraz "count".
+                należy przypisać mu wyraz "count". Domyślnie [] dla None.
             correctRatio - zapisywane po wykonanym teście, stosunek udanych do wszystkich predykcji. Dla obliczenia jej przy tworzeniu
-                należy przypisać mu wyraz "count".
-            testLossSum - zapisywane po wykonanym teście, suma strat testowych
-            self.testCorrectSum - zapisywane po wykonanym teście, suma poprawnych predykcji testowych
-            predSizeSum - zapisywane po wykonanym teście, ilość wszystkich predykcji
+                należy przypisać mu wyraz "count". Domyślnie [] dla None.
+            testLossSum - zapisywane po wykonanym teście, suma strat testowych. Domyślnie [] dla None.
+            self.testCorrectSum - zapisywane po wykonanym teście, suma poprawnych predykcji testowych. Domyślnie [] dla None.
+            predSizeSum - zapisywane po wykonanym teście, ilość wszystkich predykcji. Domyślnie [] dla None.
 
-            trainTimeLoop - czas wykonania całej pętli treningowej
-            avgTrainTimeLoop - średni czas wykonania jednej pętli treningowej
-            trainTotalNumb - całkowita liczba przebytych pętli treningowych
-            self.trainTimeUnits - jednostki w jakich liczony był czas
+            trainTimeLoop - czas wykonania całej pętli treningowej. Domyślnie [] dla None.
+            avgTrainTimeLoop - średni czas wykonania jednej pętli treningowej. Domyślnie [] dla None.
+            trainTotalNumb - całkowita liczba przebytych pętli treningowych. Domyślnie [] dla None.
+            self.trainTimeUnits - jednostki w jakich liczony był czas. Domyślnie [] dla None.
 
-            testTimeLoop - czas wykonania całej pętli testowej
-            avgTestTimeLoop - średni czas wykonania jednej pętli testowej
-            testTimeUnits - jednostki w jakich liczony był czas
+            testTimeLoop - czas wykonania całej pętli testowej. Domyślnie [] dla None.
+            avgTestTimeLoop - średni czas wykonania jednej pętli testowej. Domyślnie [] dla None.
+            testTimeUnits - jednostki w jakich liczony był czas. Domyślnie [] dla None.
 
-            smthTestTimeLoop - czas wykonania całej pętli testowej z wygładzonymi wagami
-            smthAvgTestTimeLoop - średni czas wykonania jednej pętli testowej z wygładzonymi wagami
-            smthTestTimeUnits - jednostki w jakich liczony był czas
+            smthTestTimeLoop - czas wykonania całej pętli testowej z wygładzonymi wagami. Domyślnie [] dla None.
+            smthAvgTestTimeLoop - średni czas wykonania jednej pętli testowej z wygładzonymi wagami. Domyślnie [] dla None.
+            smthTestTimeUnits - jednostki w jakich liczony był czas. Domyślnie [] dla None.
 
             smthLossRatio - zapisywane po wykonanym teście, gdy model posiada wygładzone wagi, średnia strata modelu. Dla obliczenia jej przy tworzeniu
-                należy przypisać mu wyraz "count".
+                należy przypisać mu wyraz "count". Domyślnie [] dla None.
             smthCorrectRatio - zapisywane po wykonanym teście, gdy model posiada wygładzone wagi, stosunek udanych do wszystkich 
-                predykcji. Dla obliczenia jej przy tworzeniu należy przypisać mu wyraz "count".
-            smthTestLossSum - zapisywane po wykonanym teści, gdy model posiada wygładzone wagie, suma strat testowych
-            smthTestCorrectSum - zapisywane po wykonanym teście, gdy model posiada wygładzone wagi, suma poprawnych predykcji testowych
-            smthPredSizeSum - zapisywane po wykonanym teście, gdy model posiada wygładzone wagi, ilość wszystkich predykcji
+                predykcji. Dla obliczenia jej przy tworzeniu należy przypisać mu wyraz "count". Domyślnie [] dla None.
+            smthTestLossSum - zapisywane po wykonanym teści, gdy model posiada wygładzone wagie, suma strat testowych. Domyślnie [] dla None.
+            smthTestCorrectSum - zapisywane po wykonanym teście, gdy model posiada wygładzone wagi, suma poprawnych predykcji testowych. Domyślnie [] dla None.
+            smthPredSizeSum - zapisywane po wykonanym teście, gdy model posiada wygładzone wagi, ilość wszystkich predykcji. Domyślnie [] dla None.
         """
         self.logFolder = logFolder
-        if(isinstance(plotBatches, dict)):
-            self.plotBatches = plotBatches
+        if(isinstance(plotBatches, dict) or plotBatches is None):
+            self.plotBatches = plotBatches if plotBatches is not None else {}
         else:
             raise Exception("Plot batches must be dictionary")
-        if(isinstance(avgPlotBatches, dict)):
-            self.avgPlotBatches = avgPlotBatches
+        if(isinstance(avgPlotBatches, dict) or avgPlotBatches is None):
+            self.avgPlotBatches = avgPlotBatches if avgPlotBatches is not None else {}
         else:
             raise Exception("Average plot batches must be dictionary")
         self.rootInputFolder = rootInputFolder
 
         ###################################
-        self.testLossSum = testLossSum if isinstance(testLossSum, list) else [testLossSum]
-        self.testCorrectSum = testCorrectSum if isinstance(testCorrectSum, list) else [testCorrectSum]
-        self.predSizeSum = predSizeSum if isinstance(predSizeSum, list) else [predSizeSum]
+        def setAndCheckList(fromObj):
+            return (fromObj if isinstance(fromObj, list) else [fromObj]) if fromObj is not None else []
+
+        self.testLossSum = setAndCheckList(testLossSum)
+        self.testCorrectSum = setAndCheckList(testCorrectSum)
+        self.predSizeSum = setAndCheckList(predSizeSum)
         if(correctRatio == "count"):
             self.correctRatio = [float(self.testCorrectSum[0] / self.predSizeSum[0])]
         else:
-            self.correctRatio = correctRatio if isinstance(correctRatio, list) else [correctRatio]
+            self.correctRatio = setAndCheckList(correctRatio)
 
-        self.trainLoopTimerSum = trainLoopTimerSum if isinstance(trainLoopTimerSum, list) else [trainLoopTimerSum]
-        self.testLoopTimerSum = testLoopTimerSum if isinstance(testLoopTimerSum, list) else [testLoopTimerSum]
+        self.trainLoopTimerSum = setAndCheckList(trainLoopTimerSum)
+        self.testLoopTimerSum = setAndCheckList(testLoopTimerSum)
 
         if(lossRatio == "count"):
             self.lossRatio = [float(self.testLossSum[0] / self.predSizeSum[0])]
         else:
-            self.lossRatio = lossRatio if isinstance(lossRatio, list) else [lossRatio]
+            self.lossRatio = setAndCheckList(lossRatio)
         
-        self.trainTimeLoop = trainTimeLoop if isinstance(trainTimeLoop, list) else [trainTimeLoop]
-        self.avgTrainTimeLoop = avgTrainTimeLoop if isinstance(avgTrainTimeLoop, list) else [avgTrainTimeLoop]
-        self.trainTotalNumb = trainTotalNumb if isinstance(trainTotalNumb, list) else [trainTotalNumb]
-        self.trainTimeUnits = trainTimeUnits if isinstance(trainTimeUnits, list) else [trainTimeUnits]
+        self.trainTimeLoop = setAndCheckList(trainTimeLoop)
+        self.avgTrainTimeLoop = setAndCheckList(avgTrainTimeLoop)
+        self.trainTotalNumb = setAndCheckList(trainTotalNumb)
+        self.trainTimeUnits = setAndCheckList(trainTimeUnits)
 
-        self.testTimeLoop = testTimeLoop if isinstance(testTimeLoop, list) else [testTimeLoop]
-        self.avgTestTimeLoop = avgTestTimeLoop if isinstance(avgTestTimeLoop, list) else [avgTestTimeLoop]
-        self.testTimeUnits = testTimeUnits if isinstance(testTimeUnits, list) else [testTimeUnits]
+        self.testTimeLoop = setAndCheckList(testTimeLoop)
+        self.avgTestTimeLoop = setAndCheckList(avgTestTimeLoop)
+        self.testTimeUnits = setAndCheckList(testTimeUnits)
 
-        self.smthTestTimeLoop = smthTestTimeLoop if isinstance(smthTestTimeLoop, list) else [smthTestTimeLoop]
-        self.smthAvgTestTimeLoop = smthAvgTestTimeLoop if isinstance(smthAvgTestTimeLoop, list) else [smthAvgTestTimeLoop]
-        self.smthTestTimeUnits = smthTestTimeUnits if isinstance(smthTestTimeUnits, list) else [smthTestTimeUnits]
+        self.smthTestTimeLoop = setAndCheckList(smthTestTimeLoop)
+        self.smthAvgTestTimeLoop = setAndCheckList(smthAvgTestTimeLoop)
+        self.smthTestTimeUnits = setAndCheckList(smthTestTimeUnits)
 
         #####################################
-        self.smthTestLossSum = smthTestLossSum if isinstance(smthTestLossSum, list) else [smthTestLossSum]
-        self.smthTestCorrectSum = smthTestCorrectSum if isinstance(smthTestCorrectSum, list) else [smthTestCorrectSum]
-        self.smthPredSizeSum = smthPredSizeSum if isinstance(smthPredSizeSum, list) else [smthPredSizeSum]
+        self.smthTestLossSum = setAndCheckList(smthTestLossSum)
+        self.smthTestCorrectSum = setAndCheckList(smthTestCorrectSum)
+        self.smthPredSizeSum = setAndCheckList(smthPredSizeSum)
         if(smthLossRatio == "count"):
             self.smthLossRatio = [float(self.smthTestLossSum[0] / self.smthPredSizeSum[0])]
         else:
-            self.smthLossRatio = smthLossRatio if isinstance(smthLossRatio, list) else [smthLossRatio]
+            self.smthLossRatio = setAndCheckList(smthLossRatio)
         if(smthCorrectRatio == "count"):
             self.smthCorrectRatio = [float(self.smthTestCorrectSum[0] / self.smthPredSizeSum[0])]
         else:
-            self.smthCorrectRatio = smthCorrectRatio if isinstance(smthCorrectRatio, list) else [smthCorrectRatio]
+            self.smthCorrectRatio = setAndCheckList(smthCorrectRatio)
 
     def printPlots(self, fileFormat = '.svg', dpi = 900, widthTickFreq = 0.08, aspectRatio = 0.3,
     startAt = None, resolutionInches = 11.5, runningAvgSize=1):
@@ -1482,6 +1485,7 @@ class Data(SaveClass, BaseMainClass, BaseLogicClass):
         helperEpoch.statistics.trainTimeUnits.append(helper.timer.getUnits())
         helperEpoch.statistics.avgTrainTimeLoop.append(helper.timer.getAverage())
         helperEpoch.statistics.trainTotalNumb.append(helperEpoch.trainTotalNumber)
+        print(helperEpoch.statistics.trainTimeLoop, helperEpoch.statistics.trainTotalNumb, helper.loopTimer.getTimeSum(), helperEpoch.trainTotalNumber)
 
     def __trainLoopExit__(self, helperEpoch: 'EpochDataContainer', helper, model: 'Model', dataMetadata: 'Data_Metadata', modelMetadata: 'Model_Metadata', metadata: 'Metadata', smoothing: 'Smoothing', smoothingMetadata: 'Smoothing_Metadata'):
         helperEpoch.loopsState.imprint(numb=helper.batchNumber, isEnd=helper.loopEnded)
@@ -2198,17 +2202,26 @@ def commandLineArg(metadata, dataMetadata, modelMetadata, argv, enableLoad = Tru
 def _Private_createNewStat(statistics: list, filePaths: dict):
     pass
 
-def averageStatistics(statistics: list, filePaths: dict = {
-    'loopTestTime' : ['loopTestTime_normal.csv', 'loopTestTime_smooothing.csv'], 
-    'loopTrainTime' : ['loopTrainTime.csv'], 
-    'lossTest' : ['statLossTest_normal.csv', 'statLossTest_smooothing.csv'], 
-    'lossTrain' : ['statLossTrain.csv'], 
-    'weightsSumTrain' : ['weightsSumTrain.csv']}, 
+def averageStatistics(statistics: list, filePaths: dict=None, 
     relativeRootFolder = None,
     fileFormat = '.svg', dpi = 900, widthTickFreq = 0.08, aspectRatio = 0.3, startAt = None, resolutionInches = 11.5, outputFolderNameSuffix = None):
-
+    """
+        filePaths - wartość domyślna dla None - dict = {
+            'loopTestTime' : ['loopTestTime_normal.csv', 'loopTestTime_smooothing.csv'], 
+            'loopTrainTime' : ['loopTrainTime.csv'], 
+            'lossTest' : ['statLossTest_normal.csv', 'statLossTest_smooothing.csv'], 
+            'lossTrain' : ['statLossTrain.csv'], 
+            'weightsSumTrain' : ['weightsSumTrain.csv']}
+    """
     if(outputFolderNameSuffix is None):
         outputFolderNameSuffix = "averaging_files"
+
+    filePaths = filePaths if filePaths is not None else {
+            'loopTestTime' : ['loopTestTime_normal.csv', 'loopTestTime_smooothing.csv'], 
+            'loopTrainTime' : ['loopTrainTime.csv'], 
+            'lossTest' : ['statLossTest_normal.csv', 'statLossTest_smooothing.csv'], 
+            'lossTrain' : ['statLossTrain.csv'], 
+            'weightsSumTrain' : ['weightsSumTrain.csv']}
 
     def addLast(to, fromObj, mayBeEmpty=False):
         if(fromObj):
@@ -2289,7 +2302,6 @@ def averageStatistics(statistics: list, filePaths: dict = {
         addLast(tmp_testLossSum, st.testLossSum, True)
         addLast(tmp_testCorrectSum, st.testCorrectSum, True)
         addLast(tmp_predSizeSum, st.predSizeSum, True)
-        print(st.testCorrectSum, st.predSizeSum)
 
         addLast(tmp_smthTestLossSum, st.smthTestLossSum, True)
         addLast(tmp_smthTestCorrectSum, st.smthTestCorrectSum, True)

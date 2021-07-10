@@ -32,12 +32,16 @@ class DefaultWeightDecay():
 
 # model classes
 class DefaultModel_Metadata(sf.Model_Metadata):
-    def __init__(self, lossFuncDataDict={}, optimizerDataDict={},
+    def __init__(self, lossFuncDataDict=None, optimizerDataDict=None,
         device = 'cuda:0'):
+        """
+            lossFuncDataDict - domyślnie {} dla None
+            optimizerDataDict - domyślnie {} dla None
+        """
         super().__init__()
         self.device = device
-        self.lossFuncDataDict = lossFuncDataDict
-        self.optimizerDataDict = optimizerDataDict
+        self.lossFuncDataDict = lossFuncDataDict if lossFuncDataDict is not None else {}
+        self.optimizerDataDict = optimizerDataDict if optimizerDataDict is not None else {}
 
     def prepare(self, lossFunc, optimizer):
         self.loss_fn = lossFunc
@@ -638,12 +642,15 @@ smoothingEndCheckTypeDict = [
 
 
 class DefaultSmoothingOscilationWeightedMean_Metadata(_SmoothingOscilationBase_Metadata):
-    def __init__(self, weightIter = DefaultWeightDecay(), weightsArraySize=20, smoothingEndCheckType='std',
+    def __init__(self, weightIter = None, weightsArraySize=20, smoothingEndCheckType='std',
         device = 'cpu',
         weightSumContainerSize = 10, weightSumContainerSizeStartAt=5, softMarginAdditionalLoops = 20, 
         batchPercentMaxStart = 0.9988, batchPercentMinStart = 0.02, 
         epsilon = 1e-6, hardEpsilon=1e-8, weightsEpsilon = 1e-7,
         lossContainer=50, lossContainerDelayedStartAt = 25):
+        """
+            weightIter - domyślna wartość DefaultWeightDecay() przy None
+        """
 
         super().__init__(device=device,
         weightSumContainerSize=weightSumContainerSize, weightSumContainerSizeStartAt=weightSumContainerSizeStartAt, 
@@ -652,7 +659,7 @@ class DefaultSmoothingOscilationWeightedMean_Metadata(_SmoothingOscilationBase_M
         lossContainer=lossContainer, lossContainerDelayedStartAt=lossContainerDelayedStartAt)
 
         # jak bardzo następne wagi w kolejce mają stracić na wartości. Kolejne wagi dzieli się przez wielokrotność tej wartości.
-        self.weightIter = weightIter
+        self.weightIter = weightIter if weightIter is not None else DefaultWeightDecay()
         self.weightsArraySize=weightsArraySize
         self.smoothingEndCheckType=smoothingEndCheckType
 
@@ -670,13 +677,17 @@ class DefaultSmoothingOscilationWeightedMean_Metadata(_SmoothingOscilationBase_M
         return tmp_str
 
 class Test_DefaultSmoothingOscilationWeightedMean_Metadata(DefaultSmoothingOscilationWeightedMean_Metadata):
-    def __init__(self, test_weightIter = DefaultWeightDecay(), test_weightsArraySize=20, test_smoothingEndCheckType='std',
+    def __init__(self, test_weightIter = None, test_weightsArraySize=20, test_smoothingEndCheckType='std',
         test_device = 'cpu',
         test_weightSumContainerSize = 10, test_weightSumContainerSizeStartAt=5, test_softMarginAdditionalLoops = 3, 
         test_batchPercentMaxStart = 0.85, test_batchPercentMinStart = 0.1, 
         test_epsilon = 1e-4, test_hardEpsilon=1e-9, test_weightsEpsilon = 1e-5,
         test_lossContainer=5, test_lossContainerDelayedStartAt = 2
     ):
+        """
+            weightIter - domyślna wartość DefaultWeightDecay() przy None
+        """
+
         super().__init__(weightIter=test_weightIter, weightsArraySize=test_weightsArraySize, smoothingEndCheckType=test_smoothingEndCheckType,
         device=test_device,
         weightSumContainerSize=test_weightSumContainerSize, weightSumContainerSizeStartAt=test_weightSumContainerSizeStartAt, 
@@ -1196,7 +1207,7 @@ def run(data, model, smoothing, metadataObj, modelMetadata, dataMetadata, smooth
 
     metadataObj.printEndModel()
 
-    statistics.printPlots(startAt=startPrintAt, runningAvgSize=runningAvgSize)
+    #statistics.printPlots(startAt=startPrintAt, runningAvgSize=runningAvgSize)
 
     return statistics
 
