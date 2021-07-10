@@ -1277,12 +1277,13 @@ class Statistics():
 
     def saveSelf(self, name, path=None):
         if(path is None):
-            torch.save(self, os.path.join(self.logFolder, name))
+            torch.save({"stat" : self}, os.path.join(self.logFolder, name))
         else:
-            torch.save(self, os.path.join(path, name))
+            torch.save({"stat" : self}, os.path.join(path, name))
 
     def load(pathName):
-        return torch.load(pathName)
+        obj = torch.load(pathName)
+        return obj['stat']
 
     def __str__(self):
         return '\n'.join("%s: %s" % item for item in vars(self).items())
@@ -1485,7 +1486,6 @@ class Data(SaveClass, BaseMainClass, BaseLogicClass):
         helperEpoch.statistics.trainTimeUnits.append(helper.timer.getUnits())
         helperEpoch.statistics.avgTrainTimeLoop.append(helper.timer.getAverage())
         helperEpoch.statistics.trainTotalNumb.append(helperEpoch.trainTotalNumber)
-        print(helperEpoch.statistics.trainTimeLoop, helperEpoch.statistics.trainTotalNumb, helper.loopTimer.getTimeSum(), helperEpoch.trainTotalNumber)
 
     def __trainLoopExit__(self, helperEpoch: 'EpochDataContainer', helper, model: 'Model', dataMetadata: 'Data_Metadata', modelMetadata: 'Model_Metadata', metadata: 'Metadata', smoothing: 'Smoothing', smoothingMetadata: 'Smoothing_Metadata'):
         helperEpoch.loopsState.imprint(numb=helper.batchNumber, isEnd=helper.loopEnded)
@@ -2262,6 +2262,9 @@ def averageStatistics(statistics: list, filePaths: dict=None,
     tmp_smthTestCorrectSum = []
     tmp_smthPredSizeSum = []
     numOfAvgFiles = len(statistics)
+
+    if(numOfAvgFiles == 0):
+        raise Exception("Cannot average statistics. No statistics to average.")
 
     tmp_trainTimeLoop    = []
     tmp_trainTimeUnits       = None
