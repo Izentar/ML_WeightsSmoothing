@@ -1035,6 +1035,7 @@ class DefaultData(sf.Data):
                 smoothing.saveWeights(weights=model.getNNModelModule().state_dict().items(), key='main')
                 wg = smoothing.__getSmoothedWeights__(metadata=metadata, smoothingMetadata=smoothingMetadata)
                 if(wg):
+                    sf.Output.printBash('Starting smoothing test at epoch {}.'.format(helperEpoch.epochNumber), 'info')
                     self.setModelSmoothedWeights(model=model, helperEpoch=helperEpoch, weights=wg, metadata=metadata)
                     helperEpoch.currentLoopTimeAlias = 'loopTestTime_smooothing'
                     self.testAlias = 'statLossTest_smooothing'
@@ -1042,7 +1043,7 @@ class DefaultData(sf.Data):
                     self.testLoop(model=model, helperEpoch=helperEpoch, dataMetadata=dataMetadata, modelMetadata=modelMetadata, metadata=metadata, smoothing=smoothing, smoothingMetadata=smoothingMetadata)
                     self.setModelNormalWeights(model=model, helperEpoch=helperEpoch, weights=smoothing.getWeights(key='main'), metadata=metadata)
                 else:
-                    sf.Output.printBash('Smoothing is not enabled. Test did not executed.', 'info')
+                    sf.Output.printBash('Smoothing is not enabled at epoch {}. Test did not executed.'.format(helperEpoch.epochNumber), 'info')
 
     def createDefaultMetadataObj(self):
         return DefaultData_Metadata()

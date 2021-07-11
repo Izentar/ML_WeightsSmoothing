@@ -1477,7 +1477,7 @@ class Data(SaveClass, BaseMainClass, BaseLogicClass):
         metadata.stream.print("Train summary:")
         metadata.stream.print(f" Average train time ({helper.timer.getUnits()}): {helper.timer.getAverage()}")
         metadata.stream.print(f" Loop train time ({helper.timer.getUnits()}): {helper.loopTimer.getTimeSum()}")
-        metadata.stream.print(f" Number of batches done: {helperEpoch.trainTotalNumber}")
+        metadata.stream.print(f" Number of batches done in total: {helperEpoch.trainTotalNumber}")
         helperEpoch.statistics.trainTimeLoop.append(helper.loopTimer.getTimeSum())
         helperEpoch.statistics.trainTimeUnits.append(helper.timer.getUnits())
         helperEpoch.statistics.avgTrainTimeLoop.append(helper.timer.getAverage())
@@ -1923,7 +1923,7 @@ class __BaseModel(nn.Module, SaveClass, BaseMainClass, BaseLogicClass):
     def schedulerStep(self, epochNumb, metadata):
         if(self.schedulers is not None):
             for epochStep, scheduler in self.schedulers:
-                if(epochStep == epochNumb or epochStep is None):
+                if(epochStep is None or epochNumb in epochStep):
                     scheduler.step()
                     metadata.stream.print("Used scheduler {}".format(type(scheduler)), ['model:0'])
 
@@ -2385,7 +2385,7 @@ def averageStatistics(statistics: list, filePaths: dict=None,
         fh.write("Train summary:\n")
         fh.write(f" Average train time ({newStats.trainTimeUnits[0]}): {newStats.avgTrainTimeLoop[0]}\n")
         fh.write(f" Loop train time ({newStats.trainTimeUnits[0]}): {newStats.trainTimeLoop[0]}\n")
-        fh.write(f" Number of batches done: {newStats.trainTotalNumb[0]}\n")
+        fh.write(f" Number of batches done in total: {newStats.trainTotalNumb[0]}\n")
 
         fh.write("\nNormal model averaged\nTest summary:\n Average accuracy: {:>6f}%, Avg loss: {:>8f}\n".format(
             100*(newStats.correctRatio[0]), newStats.lossRatio[0] ))
