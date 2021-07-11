@@ -15,6 +15,7 @@ from framework import smoothingFramework as sf
 from framework import defaultClasses as dc
 
 # wzorowane na pracy https://paperswithcode.com/paper/wide-residual-networks
+# model wzorowany na resnet18 https://github.com/huyvnphan/PyTorch_CIFAR10/blob/master/module.py
 
 if(__name__ == '__main__'):
     modelDevice = 'cuda:0'
@@ -30,6 +31,9 @@ if(__name__ == '__main__'):
     modelName = "wide_resnet"
     prefix = "set_copyOfExper_"
     runningAvgSize = 10
+    num_classes = 10
+    layers = [2, 2, 2, 2]
+    block = models.BasicBlock
 
 
     types = ('predefModel', 'CIFAR10', 'disabled')
@@ -40,7 +44,7 @@ if(__name__ == '__main__'):
 
         for r in range(loop):
 
-            obj = models.resnext50_32x4d()
+            obj = models.ResNet(block, layers, num_classes=num_classes)
 
             data = dc.DefaultDataCIFAR10(dataMetadata)
             model = dc.DefaultModelPredef(obj=obj, modelMetadata=modelMetadata, name=modelName)

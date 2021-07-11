@@ -30,6 +30,10 @@ if(__name__ == '__main__'):
     modelName = "wide_resnet"
     prefix = "set_copyOfExper_"
     runningAvgSize = 10
+    runningAvgSize = 10
+    num_classes = 10
+    layers = [2, 2, 2, 2]
+    block = models.BasicBlock
 
 
     types = ('predefModel', 'CIFAR10', 'pytorchSWA')
@@ -39,8 +43,7 @@ if(__name__ == '__main__'):
         smoothingMetadata = dc.DefaultPytorchAveragedSmoothing_Metadata(device='cuda:0')
 
         for r in range(loop):
-
-            obj = models.resnext50_32x4d()
+            obj = models.ResNet(block, layers, num_classes=num_classes)
 
             data = dc.DefaultDataCIFAR10(dataMetadata)
             model = dc.DefaultModelPredef(obj=obj, modelMetadata=modelMetadata, name=modelName)
@@ -53,7 +56,7 @@ if(__name__ == '__main__'):
 
             stat=dc.run(metadataObj=metadata, data=data, model=model, smoothing=smoothing, optimizer=optimizer, lossFunc=loss_fn,
                 modelMetadata=modelMetadata, dataMetadata=dataMetadata, smoothingMetadata=smoothingMetadata, rootFolder=rootFolder,
-                schedulers=[([60, 120, 160], scheduler)])
+                schedulers=[([30, 60, 90, 120, 150, 180], scheduler)])
 
             stat.saveSelf(name="stat")
 
@@ -72,7 +75,7 @@ if(__name__ == '__main__'):
             epsilon=1e-5, hardEpsilon=1e-7, weightsEpsilon=1e-6, batchPercentMaxStart=0.98, device='cuda:0')
 
         for r in range(loop):
-            obj = models.resnext50_32x4d()
+            obj = models.ResNet(block, layers, num_classes=num_classes)
 
             data = dc.DefaultDataCIFAR10(dataMetadata)
             smoothing = dc.DefaultSmoothingOscilationEWMA(smoothingMetadata)
