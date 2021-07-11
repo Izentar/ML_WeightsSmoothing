@@ -24,7 +24,7 @@ if(__name__ == '__main__'):
     metadata = sf.Metadata(testFlag=True, trainFlag=True, debugInfo=True)
     dataMetadata = dc.DefaultData_Metadata(pin_memoryTest=False, pin_memoryTrain=False, epoch=200, fromGrayToRGB=False,
         batchTrainSize=32, batchTestSize=32, startTestAtEpoch=[0, 49, 99, 149, 199])
-    optimizerDataDict={"learning_rate":0.1, "momentum":0.9, "weight_decay":0.0005}
+    optimizerDataDict={"learning_rate":0.1, "momentum":0.9, "weight_decay":0.0001}
     modelMetadata = dc.DefaultModel_Metadata(device=modelDevice, lossFuncDataDict={}, optimizerDataDict=optimizerDataDict)
     loop = 5
     modelName = "wide_resnet"
@@ -48,7 +48,7 @@ if(__name__ == '__main__'):
 
             optimizer = optim.SGD(model.getNNModelModule().parameters(), lr=optimizerDataDict['learning_rate'], 
                 weight_decay=optimizerDataDict['weight_decay'], momentum=optimizerDataDict['momentum'])
-            scheduler = torch.optim.lr_scheduler.MultiplicativeLR(optimizer, lr_lambda=0.2, verbose=True)
+            scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=30, gamma=0.1)
             loss_fn = nn.CrossEntropyLoss()     
 
             stat=dc.run(metadataObj=metadata, data=data, model=model, smoothing=smoothing, optimizer=optimizer, lossFunc=loss_fn,
@@ -80,12 +80,12 @@ if(__name__ == '__main__'):
 
             optimizer = optim.SGD(model.getNNModelModule().parameters(), lr=optimizerDataDict['learning_rate'], 
                 weight_decay=optimizerDataDict['weight_decay'], momentum=optimizerDataDict['momentum'])
-            scheduler = torch.optim.lr_scheduler.MultiplicativeLR(optimizer, lr_lambda=0.2, verbose=True)
+            scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=30, gamma=0.1)
             loss_fn = nn.CrossEntropyLoss()     
 
             stat=dc.run(metadataObj=metadata, data=data, model=model, smoothing=smoothing, optimizer=optimizer, lossFunc=loss_fn,
                 modelMetadata=modelMetadata, dataMetadata=dataMetadata, smoothingMetadata=smoothingMetadata, rootFolder=rootFolder,
-                schedulers=[([60, 120, 160], scheduler)])
+                schedulers=[([30, 60, 90, 120, 150, 180], scheduler)])
 
             stat.saveSelf(name="stat")
 
