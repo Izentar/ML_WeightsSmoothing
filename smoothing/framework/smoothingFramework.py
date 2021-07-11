@@ -883,8 +883,6 @@ class DefaultMethods():
         """
         calcLoss, current = helper.loss.item(), helper.batchNumber * len(helper.inputs)
         metadata.stream.print(f"loss: {calcLoss:>7f}  [{current:>5d}/{helper.size:>5d}]", alias)
-        del calcLoss
-        del current
 
     # niepotrzebna
     def printWeightDifference(metadata, helper, alias: list = None):
@@ -899,7 +897,6 @@ class DefaultMethods():
             metadata.stream.print(f"Weight difference: {helper.diff[diffKey]}", 'debug:0', 'bash:0', alias)
             metadata.stream.print(f"Weight difference of last layer average: {helper.diff[diffKey].sum() / helper.diff[diffKey].numel()} :: was divided by: {helper.diff[diffKey].numel()}", alias)
             metadata.stream.print('################################################', alias)
-            del diffKey
 
 class LoopsState():
     """
@@ -1458,7 +1455,6 @@ class Data(SaveClass, BaseMainClass, BaseLogicClass):
         helper = TrainDataContainer()
         metadata.prepareOutput()
         helper.size = len(self.trainloader.dataset)
-        model.getNNModelModule().train()
         helper.timer = Timer()
         helper.loopTimer = Timer()
         helper.loss = None 
@@ -1467,7 +1463,7 @@ class Data(SaveClass, BaseMainClass, BaseLogicClass):
         return helper
 
     def __beforeTrainLoop__(self, helperEpoch: 'EpochDataContainer', helper, model: 'Model', dataMetadata: 'Data_Metadata', modelMetadata: 'Model_Metadata', metadata: 'Metadata', smoothing: 'Smoothing', smoothingMetadata: 'Smoothing_Metadata'):      
-        pass
+        model.getNNModelModule().train()
 
     def __beforeTrain__(self, helperEpoch: 'EpochDataContainer', helper, model: 'Model', dataMetadata: 'Data_Metadata', modelMetadata: 'Model_Metadata', metadata: 'Metadata', smoothing: 'Smoothing', smoothingMetadata: 'Smoothing_Metadata'):
         helper.inputs, helper.labels = helper.inputs.to(modelMetadata.device), helper.labels.to(modelMetadata.device)
@@ -1515,8 +1511,8 @@ class Data(SaveClass, BaseMainClass, BaseLogicClass):
             if(batch < startNumb): # already iterated
                 continue
 
-            del self.trainHelper.inputs
-            del self.trainHelper.labels
+            #del self.trainHelper.inputs
+            #del self.trainHelper.labels
 
             self.trainHelper.inputs = inputs
             self.trainHelper.labels = labels
@@ -1532,7 +1528,7 @@ class Data(SaveClass, BaseMainClass, BaseLogicClass):
             
             self.__beforeTrain__(helperEpoch=helperEpoch, helper=self.trainHelper, model=model, dataMetadata=dataMetadata, modelMetadata=modelMetadata, metadata=metadata, smoothing=smoothing, smoothingMetadata=smoothingMetadata)
             
-            del self.trainHelper.loss
+            #del self.trainHelper.loss
 
             self.trainHelper.timer.clearTime()
             self.trainHelper.timer.start()
@@ -1594,13 +1590,12 @@ class Data(SaveClass, BaseMainClass, BaseLogicClass):
         metadata.prepareOutput()
         helper.size = len(self.testloader.dataset)
         helper.test_loss, helper.test_correct = 0, 0
-        model.getNNModelModule().eval()
         helper.timer = Timer()
         helper.loopTimer = Timer()
         return helper
 
     def __beforeTestLoop__(self, helperEpoch: 'EpochDataContainer', helper, model: 'Model', dataMetadata: 'Data_Metadata', modelMetadata: 'Model_Metadata', metadata: 'Metadata', smoothing: 'Smoothing', smoothingMetadata: 'Smoothing_Metadata'):
-        pass
+        model.getNNModelModule().eval()
 
     def __beforeTest__(self, helperEpoch: 'EpochDataContainer', helper, model: 'Model', dataMetadata: 'Data_Metadata', modelMetadata: 'Model_Metadata', metadata: 'Metadata', smoothing: 'Smoothing', smoothingMetadata: 'Smoothing_Metadata'):
         helper.inputs = helper.inputs.to(modelMetadata.device)
@@ -1609,6 +1604,7 @@ class Data(SaveClass, BaseMainClass, BaseLogicClass):
     def __afterTest__(self, helperEpoch: 'EpochDataContainer', helper, model: 'Model', dataMetadata: 'Data_Metadata', modelMetadata: 'Model_Metadata', metadata: 'Metadata', smoothing: 'Smoothing', smoothingMetadata: 'Smoothing_Metadata'):
         helper.testLossSum += helper.test_loss
         helper.test_correct = (helper.pred.argmax(1) == helper.labels).type(torch.float).sum().item()
+        metadata.stream.print(str(helper.pred.argmax(1)) + "\n--=--\n" + str(helper.labels), "debug:0")
         helper.testCorrectSum += helper.test_correct
 
     def __afterTestLoop__(self, helperEpoch: 'EpochDataContainer', helper, model: 'Model', dataMetadata: 'Data_Metadata', modelMetadata: 'Model_Metadata', metadata: 'Metadata', smoothing: 'Smoothing', smoothingMetadata: 'Smoothing_Metadata'): 
@@ -1671,7 +1667,7 @@ class Data(SaveClass, BaseMainClass, BaseLogicClass):
                 self.testHelper.inputs = inputs
                 self.testHelper.labels = labels
                 self.testHelper.batchNumber = batch
-                helperEpoch.testTotalNumber += 1
+
                 if(SAVE_AND_EXIT_FLAG):
                     self.__testLoopExit__(helperEpoch=helperEpoch, helper=self.testHelper, model=model, dataMetadata=dataMetadata, modelMetadata=modelMetadata, metadata=metadata, smoothing=smoothing, smoothingMetadata=smoothingMetadata)
                     self.testLoopTearDown()
@@ -1679,7 +1675,8 @@ class Data(SaveClass, BaseMainClass, BaseLogicClass):
 
                 if(StaticData.TEST_MODE and batch >= StaticData.MAX_DEBUG_LOOPS):
                     break
-
+                
+                helperEpoch.testTotalNumber += 1
                 self.__beforeTest__(helperEpoch=helperEpoch, helper=self.testHelper, model=model, dataMetadata=dataMetadata, modelMetadata=modelMetadata, metadata=metadata, smoothing=smoothing, smoothingMetadata=smoothingMetadata)
 
                 self.testHelper.timer.clearTime()
@@ -1762,7 +1759,7 @@ class Data(SaveClass, BaseMainClass, BaseLogicClass):
             metadata.stream.flushAll()
             
             self.__epoch__(helperEpoch=self.epochHelper, model=model, dataMetadata=dataMetadata, modelMetadata=modelMetadata, metadata=metadata, smoothing=smoothing, smoothingMetadata=smoothingMetadata)
-            model.schedulerStep(epochNumb=ep)
+            model.schedulerStep(epochNumb=ep, metadata=metadata)
 
             if(SAVE_AND_EXIT_FLAG):
                 self.__epochLoopExit__(helperEpoch=self.epochHelper, model=model, dataMetadata=dataMetadata, modelMetadata=modelMetadata, metadata=metadata, smoothing=smoothing, smoothingMetadata=smoothingMetadata)
@@ -1923,11 +1920,12 @@ class __BaseModel(nn.Module, SaveClass, BaseMainClass, BaseLogicClass):
         self.optimizer = optimizer
         self.schedulers = schedulers
 
-    def schedulerStep(self, epochNumb):
+    def schedulerStep(self, epochNumb, metadata):
         if(self.schedulers is not None):
             for epochStep, scheduler in self.schedulers:
                 if(epochStep == epochNumb or epochStep is None):
                     scheduler.step()
+                    metadata.stream.print("Used scheduler {}".format(type(scheduler)), ['model:0'])
 
     def canUpdate(self = None):
         return True
@@ -2429,13 +2427,14 @@ def runObjs(metadataObj, dataMetadataObj, modelMetadataObj, smoothingMetadataObj
 
     dictObjs[type(metadataObj)].relativeRoot = folderRelativeRoot
 
+    printClassToLog(dictObjs[type(metadataObj)], dictObjs[type(modelMetadataObj)], dictObjs[type(dataObj)],
+        dictObjs[type(dataMetadataObj)],  dictObjs[type(modelObj)], dictObjs[type(smoothingObj)], dictObjs[type(smoothingMetadataObj)])
+
+
     stats = dictObjs[type(dataObj)].epochLoop(
         model=dictObjs[type(modelObj)], dataMetadata=dictObjs[type(dataMetadataObj)], modelMetadata=dictObjs[type(modelMetadataObj)], 
         metadata=dictObjs[type(metadataObj)], smoothing=dictObjs[type(smoothingObj)], smoothingMetadata=dictObjs[type(smoothingMetadataObj)]
         )
-
-    printClassToLog(dictObjs[type(metadataObj)], dictObjs[type(modelMetadataObj)], dictObjs[type(dataObj)],
-        dictObjs[type(dataMetadataObj)],  dictObjs[type(modelObj)], dictObjs[type(smoothingObj)], dictObjs[type(smoothingMetadataObj)])
 
     return stats
 
