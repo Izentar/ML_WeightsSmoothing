@@ -1923,7 +1923,7 @@ class __BaseModel(nn.Module, SaveClass, BaseMainClass, BaseLogicClass):
     def schedulerStep(self, epochNumb, metadata):
         if(self.schedulers is not None):
             for epochStep, scheduler in self.schedulers:
-                if(epochStep is None or epochNumb in epochStep):
+                if(epochStep is None or epochNumb + 1 in epochStep):
                     scheduler.step()
                     metadata.stream.print("Used scheduler {}".format(type(scheduler)), ['model:0'])
 

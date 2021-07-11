@@ -1029,7 +1029,7 @@ class DefaultData(sf.Data):
             return 
 
         with torch.no_grad():
-            if(metadata.shouldTest() and (helperEpoch.epochNumber in dataMetadata.startTestAtEpoch) ):
+            if(metadata.shouldTest() and (helperEpoch.epochNumber + 1 in dataMetadata.startTestAtEpoch) ):
                 helperEpoch.currentLoopTimeAlias = 'loopTestTime_normal'
                 self.testLoop(model=model, helperEpoch=helperEpoch, dataMetadata=dataMetadata, modelMetadata=modelMetadata, metadata=metadata, smoothing=smoothing, smoothingMetadata=smoothingMetadata)
                 smoothing.saveWeights(weights=model.getNNModelModule().state_dict().items(), key='main')
