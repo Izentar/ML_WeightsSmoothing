@@ -930,6 +930,7 @@ class DefaultData(sf.Data):
         if(dataMetadata.resizeTo is not None):
             self.trainTransform = transforms.Compose([
                 transforms.Resize(dataMetadata.resizeTo),
+                transforms.RandomCrop(32, padding=4),
                 transforms.RandomHorizontalFlip(),
                 transforms.ToTensor(),
                 transforms.Lambda(DefaultData.lambdaGrayToRGB if dataMetadata.fromGrayToRGB else DefaultData.NoneTransform),
@@ -943,6 +944,7 @@ class DefaultData(sf.Data):
             ])
         else:
             self.trainTransform = transforms.Compose([
+                transforms.RandomCrop(32, padding=4),
                 transforms.RandomHorizontalFlip(),
                 transforms.ToTensor(),
                 transforms.Lambda(DefaultData.lambdaGrayToRGB if dataMetadata.fromGrayToRGB else DefaultData.NoneTransform),
