@@ -880,7 +880,7 @@ class DefaultData_Metadata(sf.Data_Metadata):
         self.fromGrayToRGB = fromGrayToRGB
         self.resizeTo = resizeTo
         if(startTestAtEpoch == -1):
-            self.startTestAtEpoch = [*range(epoch)]
+            self.startTestAtEpoch = [*range(epoch + 1)]
         else:
             self.startTestAtEpoch = startTestAtEpoch # list of epoches where the test should be called
 
