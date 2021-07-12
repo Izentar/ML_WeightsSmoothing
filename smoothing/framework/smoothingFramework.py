@@ -1448,6 +1448,8 @@ class Data(SaveClass, BaseMainClass, BaseLogicClass):
         #print(torch.cuda.memory_summary())
         model.__getOptimizer__().step()
 
+        helper.outputs = outputs
+
         # run smoothing
         helper.smoothingSuccess = smoothing(helperEpoch=helperEpoch, helper=helper, model=model, dataMetadata=dataMetadata, modelMetadata=modelMetadata, smoothingMetadata=smoothingMetadata, metadata=metadata)
 
@@ -1470,8 +1472,7 @@ class Data(SaveClass, BaseMainClass, BaseLogicClass):
         model.__getOptimizer__().zero_grad()
 
     def __afterTrain__(self, helperEpoch: 'EpochDataContainer', helper, model: 'Model', dataMetadata: 'Data_Metadata', modelMetadata: 'Model_Metadata', metadata: 'Metadata', smoothing: 'Smoothing', smoothingMetadata: 'Smoothing_Metadata'):
-        with torch.no_grad():
-            metadata.stream.print(helper.loss.item(), ['statLossTrain'])
+        metadata.stream.print(helper.loss.item(), ['statLossTrain'])
 
     def __afterTrainLoop__(self, helperEpoch: 'EpochDataContainer', helper, model: 'Model', dataMetadata: 'Data_Metadata', modelMetadata: 'Model_Metadata', metadata: 'Metadata', smoothing: 'Smoothing', smoothingMetadata: 'Smoothing_Metadata'):
         metadata.stream.print("Train summary:")
@@ -1493,6 +1494,9 @@ class Data(SaveClass, BaseMainClass, BaseLogicClass):
         """
         Główna logika pętli treningowej.
         """
+        total = 0.0
+        correct = 0.0
+
         startNumb = helperEpoch.loopsState.decide()
         if(startNumb is None):
             self.trainLoopTearDown()
@@ -1502,9 +1506,9 @@ class Data(SaveClass, BaseMainClass, BaseLogicClass):
             self.trainHelper = self.setTrainLoop(model=model, modelMetadata=modelMetadata, metadata=metadata)
         
         self.trainHelper.loopTimer.clearTime()
-        torch.cuda.empty_cache()
+        #torch.cuda.empty_cache()
         self.__beforeTrainLoop__(helperEpoch=helperEpoch, helper=self.trainHelper, model=model, dataMetadata=dataMetadata, modelMetadata=modelMetadata, metadata=metadata, smoothing=smoothing, smoothingMetadata=smoothingMetadata)
-
+        metadata.stream.print("Starting train batch at: {}".format(startNumb), "debug:0")
 
         self.trainHelper.loopTimer.start()
         for batch, (inputs, labels) in enumerate(self.trainloader):
@@ -1519,11 +1523,13 @@ class Data(SaveClass, BaseMainClass, BaseLogicClass):
             self.trainHelper.batchNumber = batch
             helperEpoch.trainTotalNumber += 1
             if(SAVE_AND_EXIT_FLAG):
+                metadata.stream.print("Triggered SAVE_AND_EXIT_FLAG.", "debug:0")
                 self.__trainLoopExit__(helperEpoch=helperEpoch, helper=self.trainHelper, model=model, dataMetadata=dataMetadata, modelMetadata=modelMetadata, metadata=metadata, smoothing=smoothing, smoothingMetadata=smoothingMetadata)
                 self.trainLoopTearDown()
                 return
 
             if(StaticData.TEST_MODE and batch >= StaticData.MAX_DEBUG_LOOPS):
+                metadata.stream.print("In test mode, triggered max loops which is {} iteration. Breaking train loop.".format(StaticData.MAX_DEBUG_LOOPS), "debug:0")
                 break
             
             self.__beforeTrain__(helperEpoch=helperEpoch, helper=self.trainHelper, model=model, dataMetadata=dataMetadata, modelMetadata=modelMetadata, metadata=metadata, smoothing=smoothing, smoothingMetadata=smoothingMetadata)
@@ -1544,6 +1550,7 @@ class Data(SaveClass, BaseMainClass, BaseLogicClass):
                 metadata.stream.print(self.trainHelper.timer.getDiff() , alias=helperEpoch.currentLoopTimeAlias)
             self.trainHelper.timer.addToStatistics()
             weightsSum = sumAllWeights(dict(model.getNNModelModule().named_parameters()))
+            #weightsSum = 1.0
             metadata.stream.print(str(weightsSum), 'weightsSumTrain')
 
             if(self.trainHelper.smoothingSuccess):
@@ -1562,11 +1569,16 @@ class Data(SaveClass, BaseMainClass, BaseLogicClass):
                 break
 
             self.trainHelper.smoothingSuccess = False
+
+            total += labels.size(0)
+            correct += torch.argmax(self.trainHelper.outputs, dim=1).eq(self.trainHelper.labels.data).cpu().sum()
             
 
         self.trainHelper.loopTimer.end()
         self.trainHelper.loopTimer.addToStatistics()
         self.trainHelper.loopEnded = True
+
+        metadata.stream.print("Train epoch accuracy: {}%".format(100.*correct/total), "model:0")
 
         self.__afterTrainLoop__(helperEpoch=helperEpoch, helper=self.trainHelper, model=model, dataMetadata=dataMetadata, modelMetadata=modelMetadata, metadata=metadata, smoothing=smoothing, smoothingMetadata=smoothingMetadata)
         self.__trainLoopExit__(helperEpoch=helperEpoch, helper=self.trainHelper, model=model, dataMetadata=dataMetadata, modelMetadata=modelMetadata, metadata=metadata, smoothing=smoothing, smoothingMetadata=smoothingMetadata)
@@ -1604,7 +1616,6 @@ class Data(SaveClass, BaseMainClass, BaseLogicClass):
     def __afterTest__(self, helperEpoch: 'EpochDataContainer', helper, model: 'Model', dataMetadata: 'Data_Metadata', modelMetadata: 'Model_Metadata', metadata: 'Metadata', smoothing: 'Smoothing', smoothingMetadata: 'Smoothing_Metadata'):
         helper.testLossSum += helper.test_loss
         helper.test_correct = (helper.pred.argmax(1) == helper.labels).type(torch.float).sum().item()
-        metadata.stream.print(str(helper.pred.argmax(1)) + "\n--=--\n" + str(helper.labels), "debug:0")
         helper.testCorrectSum += helper.test_correct
 
     def __afterTestLoop__(self, helperEpoch: 'EpochDataContainer', helper, model: 'Model', dataMetadata: 'Data_Metadata', modelMetadata: 'Model_Metadata', metadata: 'Metadata', smoothing: 'Smoothing', smoothingMetadata: 'Smoothing_Metadata'): 
@@ -1656,7 +1667,7 @@ class Data(SaveClass, BaseMainClass, BaseLogicClass):
             self.testHelper = self.setTestLoop(model=model, modelMetadata=modelMetadata, metadata=metadata)
 
         self.testHelper.loopTimer.clearTime()
-        torch.cuda.empty_cache()
+        #torch.cuda.empty_cache()
         self.__beforeTestLoop__(helperEpoch=helperEpoch, helper=self.testHelper, model=model, dataMetadata=dataMetadata, modelMetadata=modelMetadata, metadata=metadata, smoothing=smoothing, smoothingMetadata=smoothingMetadata)
 
         with torch.no_grad():
@@ -2412,28 +2423,20 @@ def printClassToLog(metadata, *obj):
 
 def runObjs(metadataObj, dataMetadataObj, modelMetadataObj, smoothingMetadataObj, smoothingObj, dataObj, modelObj, folderLogNameSuffix = None, 
     folderRelativeRoot = None):
-    dictObjs = {}
     metadataObj.prepareOutput()
-    dictObjs[type(metadataObj)] = metadataObj
-    dictObjs[type(dataMetadataObj)] = dataMetadataObj
-    dictObjs[type(modelMetadataObj)] = modelMetadataObj
-    dictObjs[type(smoothingMetadataObj)] = smoothingMetadataObj
-    dictObjs[type(smoothingObj)] = smoothingObj
-    dictObjs[type(modelObj)] = modelObj
-    dictObjs[type(dataObj)] = dataObj
 
     if(folderLogNameSuffix is not None):
-        dictObjs[type(metadataObj)].logFolderSuffix = folderLogNameSuffix
+        metadataObj.logFolderSuffix = folderLogNameSuffix
 
-    dictObjs[type(metadataObj)].relativeRoot = folderRelativeRoot
+    metadataObj.relativeRoot = folderRelativeRoot
 
-    printClassToLog(dictObjs[type(metadataObj)], dictObjs[type(modelMetadataObj)], dictObjs[type(dataObj)],
-        dictObjs[type(dataMetadataObj)],  dictObjs[type(modelObj)], dictObjs[type(smoothingObj)], dictObjs[type(smoothingMetadataObj)])
+    printClassToLog(metadataObj, modelMetadataObj, dataObj,
+        dataMetadataObj,  modelObj, smoothingObj, smoothingMetadataObj)
 
 
-    stats = dictObjs[type(dataObj)].epochLoop(
-        model=dictObjs[type(modelObj)], dataMetadata=dictObjs[type(dataMetadataObj)], modelMetadata=dictObjs[type(modelMetadataObj)], 
-        metadata=dictObjs[type(metadataObj)], smoothing=dictObjs[type(smoothingObj)], smoothingMetadata=dictObjs[type(smoothingMetadataObj)]
+    stats = dataObj.epochLoop(
+        model=modelObj, dataMetadata=dataMetadataObj, modelMetadata=modelMetadataObj, 
+        metadata=metadataObj, smoothing=smoothingObj, smoothingMetadata=smoothingMetadataObj
         )
 
     return stats
@@ -2528,11 +2531,12 @@ def sumAllWeights(weights):
     """
     Oblicza sumę wszyskich wartości bezwzględnych odstarczonych wag.
     """
-    sumArray = []
-    for val in weights.values():
-        sumArray.append(torch.sum(torch.abs(val)))
-    absSum = torch.sum(torch.stack(sumArray)).item()
-    return absSum
+    with torch.no_grad():
+        sumArray = []
+        for val in weights.values():
+            sumArray.append(torch.sum(torch.abs(val)))
+        absSum = torch.sum(torch.stack(sumArray)).item()
+        return absSum
 
 def checkStrCUDA(string):
         return string.startswith('cuda')
