@@ -124,7 +124,7 @@ if(__name__ == '__main__'):
     trainset = torchvision.datasets.CIFAR10(root='~/.data', train=True, download=True, transform=transform_train)
     num_classes = 10
 
-    trainloader = torch.utils.data.DataLoader(trainset, batch_size=32, shuffle=True, num_workers=2)
+    trainloader = torch.utils.data.DataLoader(trainset, batch_size=128, shuffle=True, num_workers=2)
 
 
     net = Wide_ResNet(depth=28, widen_factor=10, dropout_rate=0.3, num_classes=num_classes)
@@ -159,7 +159,7 @@ if(__name__ == '__main__'):
             sys.stdout.write('\r')
             sys.stdout.write('| Epoch [%3d/%3d] Iter[%3d/%3d]\t\tLoss: %.4f Acc@1: %.3f%%'
                     %(epoch, 200, batch_idx+1,
-                        (len(trainset)//32)+1, loss.item(), 100.*correct/total))
+                        (len(trainset)//128)+1, loss.item(), 100.*correct/total))
             sys.stdout.flush()
 
     for epoch in range(200):
