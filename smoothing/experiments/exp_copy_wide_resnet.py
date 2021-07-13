@@ -151,28 +151,34 @@ if(__name__ == '__main__'):
                 model.getNNModelModule().train()
                 model.getNNModelModule().training = True
 
-                total = 0.0
-                correct = 0.0
+                model.getNNModelModule().train()
+                model.getNNModelModule().training = True
+                train_loss = 0
+                correct = 0
+                total = 0
+                optimizer = optim.SGD(model.getNNModelModule().parameters(), lr=0.1, momentum=0.9, weight_decay=5e-4)
 
-                optimizer = optim.SGD(model.getNNModelModule().parameters(), lr=0.1, 
-                    weight_decay=0.9, momentum=0.0005)
-
-                for batch_idx, (inputs, labels) in enumerate(data.trainloader):
-                    inputs, labels = inputs.to(device="cuda:0"), labels.to(device="cuda:0") 
+                print('\n=> Training Epoch #%d, LR=%.4f' %(epoch, 0.1))
+                for batch_idx, (inputs, targets) in enumerate(data.trainloader):
+                    inputs, targets = inputs.to(device="cuda:0"), targets.to(device="cuda:0") # GPU settings
                     optimizer.zero_grad()
-                    outputs = model.getNNModelModule()(inputs)
-                    loss = loss_fn(outputs, labels)
-                    loss.backward()
-                    optimizer.step()
+                    outputs = model.getNNModelModule()(inputs)               # Forward Propagation
+                    loss = loss_fn(outputs, targets)  # Loss
+                    loss.backward()  # Backward Propagation
+                    optimizer.step() # Optimizer update
 
-                    total += labels.size(0)
-                    correct += torch.argmax(outputs, dim=1).eq(labels.data).cpu().sum().item()
-                    print('| Epoch [%3d/%3d] Iter[%3d/%3d]\t\tLoss: %.4f Acc@1: %.3f%%'
-                        %(epoch, 200, batch_idx+1,
-                        (len(data.trainset)//32)+1, loss.item(), 100.*correct/total))
+                    train_loss += loss.item()
+                    _, predicted = torch.max(outputs.data, 1)
+                    total += targets.size(0)
+                    correct += predicted.eq(targets.data).cpu().sum()
+
+                    sys.stdout.write('\r')
+                    sys.stdout.write('| Epoch [%3d/%3d] Iter[%3d/%3d]\t\tLoss: %.4f Acc@1: %.3f%%'
+                            %(epoch, 200, batch_idx+1,
+                                (len(data.trainset)//32)+1, loss.item(), 100.*correct/total))
                     sys.stdout.flush()
 
-            stat.saveSelf(name="stat")
+            #stat.saveSelf(name="stat")
 
             #stats.append(stat)
         #experiments.printAvgStats(stats, metadata, runningAvgSize=runningAvgSize)
