@@ -872,7 +872,8 @@ class DefaultData_Metadata(sf.Data_Metadata):
     """
     def __init__(self, worker_seed = 8418748, download = True, pin_memoryTrain = False, pin_memoryTest = False,
         epoch = 1, batchTrainSize = 16, batchTestSize = 16, fromGrayToRGB = True, startTestAtEpoch=-1, 
-        test_howOftenPrintTrain = 200, howOftenPrintTrain = 2000, resizeTo=None):
+        test_howOftenPrintTrain = 200, howOftenPrintTrain = 2000, resizeTo=None, testShuffle=True, trainShuffle=True, 
+        trainSampler=None, testSampler=None, trainLoaderWorkers=2, testLoaderWorkers=2):
 
         super().__init__(worker_seed = worker_seed, train = True, download = download, pin_memoryTrain = pin_memoryTrain, pin_memoryTest = pin_memoryTest,
             epoch = epoch, batchTrainSize = batchTrainSize, batchTestSize = batchTestSize, howOftenPrintTrain = howOftenPrintTrain)
@@ -965,9 +966,6 @@ class DefaultData(sf.Data):
         [transforms.ToTensor(),
         transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))])'''
 
-    def __prepare__(self, dataMetadata):
-        raise NotImplementedError("def __prepare__(self, dataMetadata)")
-
     def __update__(self, dataMetadata):
         self.__prepare__(dataMetadata)
 
@@ -1050,100 +1048,53 @@ class DefaultData(sf.Data):
     def createDefaultMetadataObj(self):
         return DefaultData_Metadata()
 
+    def __prepare__(self, dataMetadata):
+        self.__setInputTransform__(dataMetadata)
+
+        self.trainset = torchvision.datasets.MNIST(root=sf.StaticData.DATA_PATH, train=True, transform=self.trainTransform, download=dataMetadata.download)
+        self.testset = torchvision.datasets.MNIST(root=sf.StaticData.DATA_PATH, train=False, transform=self.testTransform, download=dataMetadata.download)
+
+        self.trainloader = torch.utils.data.DataLoader(self.trainset, batch_size=dataMetadata.batchTrainSize, sampler=dataMetadata.trainSampler,
+                                          shuffle=dataMetadata.trainShuffle, num_workers=dataMetadata.trainLoaderWorkers, pin_memory=dataMetadata.pin_memoryTrain, worker_init_fn=dataMetadata.worker_seed if sf.enabledDeterminism() else None)
+
+        self.testloader = torch.utils.data.DataLoader(self.testset, batch_size=dataMetadata.batchTestSize, sampler=dataMetadata.testSampler,
+                                         shuffle=dataMetadata.testShuffle, num_workers=dataMetadata.testLoaderWorkers, pin_memory=dataMetadata.pin_memoryTest, worker_init_fn=dataMetadata.worker_seed if sf.enabledDeterminism() else None)
+
 class DefaultDataMNIST(DefaultData):
     def __init__(self, dataMetadata):
         super().__init__(dataMetadata=dataMetadata)
 
     def __prepare__(self, dataMetadata):
+        super().__prepare__(dataMetadata)
         if(not dataMetadata.fromGrayToRGB):
             raise Exception("MNIST does not have RGB and require transition from gray to RGB. Flag fromGrayToRGB is set to False. Set fromGrayToRGB to True in data-Metadata.")
-
-
-        self.__setInputTransform__(dataMetadata)
-
-        #self.trainset = torchvision.datasets.ImageNet(root=sf.StaticData.DATA_PATH, train=True, transform=self.trainTransform)
-        #self.testset = torchvision.datasets.ImageNet(root=sf.StaticData.DATA_PATH, train=False, transform=self.testTransform)
-        self.trainset = torchvision.datasets.MNIST(root=sf.StaticData.DATA_PATH, train=True, transform=self.trainTransform, download=dataMetadata.download)
-        self.testset = torchvision.datasets.MNIST(root=sf.StaticData.DATA_PATH, train=False, transform=self.testTransform, download=dataMetadata.download)
-
-        self.trainSampler = sf.BaseSampler(len(self.trainset), dataMetadata.batchTrainSize)
-        self.testSampler = sf.BaseSampler(len(self.testset), dataMetadata.batchTestSize)
-
-        self.trainloader = torch.utils.data.DataLoader(self.trainset, batch_size=dataMetadata.batchTrainSize, sampler=self.trainSampler,
-                                          shuffle=False, num_workers=2, pin_memory=dataMetadata.pin_memoryTrain, worker_init_fn=dataMetadata.worker_seed if sf.enabledDeterminism() else None)
-
-        self.testloader = torch.utils.data.DataLoader(self.testset, batch_size=dataMetadata.batchTestSize, sampler=self.testSampler,
-                                         shuffle=False, num_workers=2, pin_memory=dataMetadata.pin_memoryTest, worker_init_fn=dataMetadata.worker_seed if sf.enabledDeterminism() else None)
 
 class DefaultDataEMNIST(DefaultData):
     def __init__(self, dataMetadata):
         super().__init__(dataMetadata=dataMetadata)
 
     def __prepare__(self, dataMetadata):
-        self.__setInputTransform__(dataMetadata)
-
-        #self.trainset = torchvision.datasets.ImageNet(root=sf.StaticData.DATA_PATH, train=True, transform=self.trainTransform)
-        #self.testset = torchvision.datasets.ImageNet(root=sf.StaticData.DATA_PATH, train=False, transform=self.testTransform)
-        self.trainset = torchvision.datasets.EMNIST(root=sf.StaticData.DATA_PATH, train=True, transform=self.trainTransform, split='digits', download=dataMetadata.download)
-        self.testset = torchvision.datasets.EMNIST(root=sf.StaticData.DATA_PATH, train=False, transform=self.testTransform, split='digits', download=dataMetadata.download)
-
-        self.trainSampler = sf.BaseSampler(len(self.trainset), dataMetadata.batchTrainSize)
-        self.testSampler = sf.BaseSampler(len(self.testset), dataMetadata.batchTestSize)
-
-        self.trainloader = torch.utils.data.DataLoader(self.trainset, batch_size=dataMetadata.batchTrainSize, sampler=self.trainSampler,
-                                          shuffle=False, num_workers=2, pin_memory=dataMetadata.pin_memoryTrain, worker_init_fn=dataMetadata.worker_seed if sf.enabledDeterminism() else None)
-
-        self.testloader = torch.utils.data.DataLoader(self.testset, batch_size=dataMetadata.batchTestSize, sampler=self.testSampler,
-                                         shuffle=False, num_workers=2, pin_memory=dataMetadata.pin_memoryTest, worker_init_fn=dataMetadata.worker_seed if sf.enabledDeterminism() else None)
+        super().__prepare__(dataMetadata)
 
 class DefaultDataCIFAR10(DefaultData):
     def __init__(self, dataMetadata):
         super().__init__(dataMetadata=dataMetadata)
 
     def __prepare__(self, dataMetadata):
-        self.__setInputTransform__(dataMetadata)
+        super().__prepare__(dataMetadata)
 
         if(dataMetadata.fromGrayToRGB):
             raise Exception("CIFAR10 does have RGB and does not need transition from gray to RGB. Flag fromGrayToRGB is set to True. Set fromGrayToRGB to False in data-Metadata.")
-
-        #self.trainset = torchvision.datasets.ImageNet(root=sf.StaticData.DATA_PATH, train=True, transform=self.trainTransform)
-        #self.testset = torchvision.datasets.ImageNet(root=sf.StaticData.DATA_PATH, train=False, transform=self.testTransform)
-        self.trainset = torchvision.datasets.CIFAR10(root=sf.StaticData.DATA_PATH, train=True, transform=self.trainTransform, download=dataMetadata.download)
-        self.testset = torchvision.datasets.CIFAR10(root=sf.StaticData.DATA_PATH, train=False, transform=self.testTransform, download=dataMetadata.download)
-
-        self.trainSampler = sf.BaseSampler(len(self.trainset), dataMetadata.batchTrainSize)
-        self.testSampler = sf.BaseSampler(len(self.testset), dataMetadata.batchTestSize)
-
-        self.trainloader = torch.utils.data.DataLoader(self.trainset, batch_size=dataMetadata.batchTrainSize, sampler=self.trainSampler,
-                                          shuffle=False, num_workers=2, pin_memory=dataMetadata.pin_memoryTrain, worker_init_fn=dataMetadata.worker_seed if sf.enabledDeterminism() else None)
-
-        self.testloader = torch.utils.data.DataLoader(self.testset, batch_size=dataMetadata.batchTestSize, sampler=self.testSampler,
-                                         shuffle=False, num_workers=2, pin_memory=dataMetadata.pin_memoryTest, worker_init_fn=dataMetadata.worker_seed if sf.enabledDeterminism() else None)
 
 class DefaultDataCIFAR100(DefaultData):
     def __init__(self, dataMetadata):
         super().__init__(dataMetadata=dataMetadata)
 
     def __prepare__(self, dataMetadata):
-        self.__setInputTransform__(dataMetadata)
+        super().__prepare__(dataMetadata)
 
         if(dataMetadata.fromGrayToRGB):
             raise Exception("CIFAR100 does have RGB and does not need transition from gray to RGB. Flag fromGrayToRGB is set to True. Set fromGrayToRGB to False in data-Metadata.")
-
-        #self.trainset = torchvision.datasets.ImageNet(root=sf.StaticData.DATA_PATH, train=True, transform=self.trainTransform)
-        #self.testset = torchvision.datasets.ImageNet(root=sf.StaticData.DATA_PATH, train=False, transform=self.testTransform)
-        self.trainset = torchvision.datasets.CIFAR100(root=sf.StaticData.DATA_PATH, train=True, transform=self.trainTransform, download=dataMetadata.download)
-        self.testset = torchvision.datasets.CIFAR100(root=sf.StaticData.DATA_PATH, train=False, transform=self.testTransform, download=dataMetadata.download)
-
-        self.trainSampler = sf.BaseSampler(len(self.trainset), dataMetadata.batchTrainSize)
-        self.testSampler = sf.BaseSampler(len(self.testset), dataMetadata.batchTestSize)
-
-        self.trainloader = torch.utils.data.DataLoader(self.trainset, batch_size=dataMetadata.batchTrainSize, sampler=self.trainSampler,
-                                          shuffle=False, num_workers=2, pin_memory=dataMetadata.pin_memoryTrain, worker_init_fn=dataMetadata.worker_seed if sf.enabledDeterminism() else None)
-
-        self.testloader = torch.utils.data.DataLoader(self.testset, batch_size=dataMetadata.batchTestSize, sampler=self.testSampler,
-                                         shuffle=False, num_workers=2, pin_memory=dataMetadata.pin_memoryTest, worker_init_fn=dataMetadata.worker_seed if sf.enabledDeterminism() else None)
-
 
 
 ModelMap = {
