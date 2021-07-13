@@ -1540,7 +1540,18 @@ class Data(SaveClass, BaseMainClass, BaseLogicClass):
             self.trainHelper.timer.start()
             
             
-            self.__train__(helperEpoch=helperEpoch, helper=self.trainHelper, model=model, dataMetadata=dataMetadata, modelMetadata=modelMetadata, metadata=metadata, smoothing=smoothing, smoothingMetadata=smoothingMetadata)
+            #self.__train__(helperEpoch=helperEpoch, helper=self.trainHelper, model=model, dataMetadata=dataMetadata, modelMetadata=modelMetadata, metadata=metadata, smoothing=smoothing, smoothingMetadata=smoothingMetadata)
+            inputs = inputs.to("cuda:0")
+            labels = labels.to("cuda:0")
+            outputs = model.getNNModelModule()(inputs)
+            self.trainHelper.loss = model.__getLossFun__()(outputs, labels)
+            #print(torch.cuda.memory_summary())
+            self.trainHelper.loss.backward()
+            #print(torch.cuda.memory_summary())
+            model.__getOptimizer__().step()
+
+            self.trainHelper.outputs = outputs
+
 
             self.trainHelper.timer.end()
             if(helperEpoch.currentLoopTimeAlias is None and warnings()):
@@ -1549,8 +1560,8 @@ class Data(SaveClass, BaseMainClass, BaseLogicClass):
             else:
                 metadata.stream.print(self.trainHelper.timer.getDiff() , alias=helperEpoch.currentLoopTimeAlias)
             self.trainHelper.timer.addToStatistics()
-            weightsSum = sumAllWeights(dict(model.getNNModelModule().named_parameters()))
-            #weightsSum = 1.0
+            #weightsSum = sumAllWeights(dict(model.getNNModelModule().named_parameters()))
+            weightsSum = 1.0
             metadata.stream.print(str(weightsSum), 'weightsSumTrain')
 
             if(self.trainHelper.smoothingSuccess):
@@ -1562,12 +1573,12 @@ class Data(SaveClass, BaseMainClass, BaseLogicClass):
 
             self.__afterTrain__(helperEpoch=helperEpoch, helper=self.trainHelper, model=model, dataMetadata=dataMetadata, modelMetadata=modelMetadata, metadata=metadata, smoothing=smoothing, smoothingMetadata=smoothingMetadata)
 
-            if(self.trainHelper.smoothingSuccess and smoothing.__isSmoothingGoodEnough__(
+            '''if(self.trainHelper.smoothingSuccess and smoothing.__isSmoothingGoodEnough__(
                 helperEpoch=helperEpoch, helper=self.trainHelper, model=model, dataMetadata=dataMetadata, 
                 modelMetadata=modelMetadata, metadata=metadata, smoothingMetadata=smoothingMetadata)
             ):
                 break
-
+            '''
             self.trainHelper.smoothingSuccess = False
 
             total += labels.size(0)
@@ -1619,7 +1630,7 @@ class Data(SaveClass, BaseMainClass, BaseLogicClass):
         helper.testCorrectSum += helper.test_correct
 
     def __afterTestLoop__(self, helperEpoch: 'EpochDataContainer', helper, model: 'Model', dataMetadata: 'Data_Metadata', modelMetadata: 'Model_Metadata', metadata: 'Metadata', smoothing: 'Smoothing', smoothingMetadata: 'Smoothing_Metadata'): 
-        if(helperEpoch.averaged):
+        '''if(helperEpoch.averaged):
             helperEpoch.statistics.smthTestLossSum.append(helper.testLossSum)
             helperEpoch.statistics.smthTestCorrectSum.append(helper.testCorrectSum)
             helperEpoch.statistics.smthPredSizeSum.append(helper.predSizeSum)
@@ -1635,21 +1646,21 @@ class Data(SaveClass, BaseMainClass, BaseLogicClass):
             helperEpoch.statistics.smthAvgTestTimeLoop.append(helper.timer.getAverage())
             helperEpoch.statistics.smthTestTimeUnits.append(helper.timer.getUnits())
 
-        else:
-            helperEpoch.statistics.testLossSum.append(helper.testLossSum)
-            helperEpoch.statistics.testCorrectSum.append(helper.testCorrectSum)
-            helperEpoch.statistics.predSizeSum.append(helper.predSizeSum)
-            
-            helperEpoch.statistics.lossRatio.append(helper.testLossSum / helper.predSizeSum)
-            helperEpoch.statistics.correctRatio.append(helper.testCorrectSum / helper.predSizeSum)
-            
-            metadata.stream.print(f"\nTest summary: \n Accuracy: {(100*helperEpoch.statistics.correctRatio[-1]):>6f}%, Avg loss: {helperEpoch.statistics.lossRatio[-1]:>8f}", ['model:0'])
-            metadata.stream.print(f" Average test execution time in a loop ({helper.timer.getUnits()}): {helper.timer.getAverage():>3f}", ['model:0'])
-            metadata.stream.print(f" Time to complete the entire loop ({helper.timer.getUnits()}): {helper.loopTimer.getTimeSum():>3f}\n", ['model:0'])
+        else:'''
+        helperEpoch.statistics.testLossSum.append(helper.testLossSum)
+        helperEpoch.statistics.testCorrectSum.append(helper.testCorrectSum)
+        helperEpoch.statistics.predSizeSum.append(helper.predSizeSum)
+        
+        helperEpoch.statistics.lossRatio.append(helper.testLossSum / helper.predSizeSum)
+        helperEpoch.statistics.correctRatio.append(helper.testCorrectSum / helper.predSizeSum)
+        
+        metadata.stream.print(f"\nTest summary: \n Accuracy: {(100*(helper.testCorrectSum / helper.predSizeSum)):>6f}%, Avg loss: {helperEpoch.statistics.lossRatio[-1]:>8f}", ['model:0'])
+        metadata.stream.print(f" Average test execution time in a loop ({helper.timer.getUnits()}): {helper.timer.getAverage():>3f}", ['model:0'])
+        metadata.stream.print(f" Time to complete the entire loop ({helper.timer.getUnits()}): {helper.loopTimer.getTimeSum():>3f}\n", ['model:0'])
 
-            helperEpoch.statistics.testTimeLoop.append(helper.loopTimer.getTimeSum())
-            helperEpoch.statistics.avgTestTimeLoop.append(helper.timer.getAverage())
-            helperEpoch.statistics.testTimeUnits.append(helper.timer.getUnits())
+        helperEpoch.statistics.testTimeLoop.append(helper.loopTimer.getTimeSum())
+        helperEpoch.statistics.avgTestTimeLoop.append(helper.timer.getAverage())
+        helperEpoch.statistics.testTimeUnits.append(helper.timer.getUnits())
 
     def __testLoopExit__(self, helperEpoch: 'EpochDataContainer', helper, model: 'Model', dataMetadata: 'Data_Metadata', modelMetadata: 'Model_Metadata', metadata: 'Metadata', smoothing: 'Smoothing', smoothingMetadata: 'Smoothing_Metadata'):
         helperEpoch.loopsState.imprint(numb=helper.batchNumber, isEnd=helper.loopEnded)

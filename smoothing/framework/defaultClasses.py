@@ -929,17 +929,17 @@ class DefaultData(sf.Data):
 
         if(dataMetadata.resizeTo is not None):
             self.trainTransform = transforms.Compose([
-                transforms.Resize(dataMetadata.resizeTo),
+                #transforms.Resize(dataMetadata.resizeTo),
                 transforms.RandomCrop(32, padding=4),
                 transforms.RandomHorizontalFlip(),
                 transforms.ToTensor(),
-                transforms.Lambda(DefaultData.lambdaGrayToRGB if dataMetadata.fromGrayToRGB else DefaultData.NoneTransform),
+                #transforms.Lambda(DefaultData.lambdaGrayToRGB if dataMetadata.fromGrayToRGB else DefaultData.NoneTransform),
                 transforms.Normalize((0.4914, 0.4822, 0.4465), (0.2023, 0.1994, 0.2010)), 
             ])
             self.testTransform = transforms.Compose([
-                transforms.Resize(dataMetadata.resizeTo),
+                #transforms.Resize(dataMetadata.resizeTo),
                 transforms.ToTensor(),
-                transforms.Lambda(DefaultData.lambdaGrayToRGB if dataMetadata.fromGrayToRGB else DefaultData.NoneTransform),
+                #transforms.Lambda(DefaultData.lambdaGrayToRGB if dataMetadata.fromGrayToRGB else DefaultData.NoneTransform),
                 transforms.Normalize((0.4914, 0.4822, 0.4465), (0.2023, 0.1994, 0.2010)),
             ])
         else:
@@ -947,12 +947,12 @@ class DefaultData(sf.Data):
                 transforms.RandomCrop(32, padding=4),
                 transforms.RandomHorizontalFlip(),
                 transforms.ToTensor(),
-                transforms.Lambda(DefaultData.lambdaGrayToRGB if dataMetadata.fromGrayToRGB else DefaultData.NoneTransform),
+                #transforms.Lambda(DefaultData.lambdaGrayToRGB if dataMetadata.fromGrayToRGB else DefaultData.NoneTransform),
                 transforms.Normalize((0.4914, 0.4822, 0.4465), (0.2023, 0.1994, 0.2010)), 
             ])
             self.testTransform = transforms.Compose([
                 transforms.ToTensor(),
-                transforms.Lambda(DefaultData.lambdaGrayToRGB if dataMetadata.fromGrayToRGB else DefaultData.NoneTransform),
+                #transforms.Lambda(DefaultData.lambdaGrayToRGB if dataMetadata.fromGrayToRGB else DefaultData.NoneTransform),
                 transforms.Normalize((0.4914, 0.4822, 0.4465), (0.2023, 0.1994, 0.2010)),
             ])
 
@@ -973,6 +973,7 @@ class DefaultData(sf.Data):
 
     def __beforeTrainLoop__(self, helperEpoch: 'EpochDataContainer', helper, model: 'Model', dataMetadata: 'Data_Metadata', modelMetadata: 'Model_Metadata', metadata: 'Metadata', smoothing: 'Smoothing', smoothingMetadata: 'Smoothing_Metadata'):
         super().__beforeTrainLoop__(helperEpoch=helperEpoch, helper=helper, model=model, dataMetadata=dataMetadata, modelMetadata=modelMetadata, metadata=metadata, smoothing=smoothing, smoothingMetadata=smoothingMetadata)
+        model.getNNModelModule().train()
 
     def __beforeTrain__(self, helperEpoch: 'EpochDataContainer', helper, model: 'Model', dataMetadata: 'Data_Metadata', modelMetadata: 'Model_Metadata', metadata: 'Metadata', smoothing: 'Smoothing', smoothingMetadata: 'Smoothing_Metadata'):
         super().__beforeTrain__(helperEpoch=helperEpoch, helper=helper, model=model, dataMetadata=dataMetadata, modelMetadata=modelMetadata, metadata=metadata, smoothing=smoothing, smoothingMetadata=smoothingMetadata)
@@ -988,7 +989,7 @@ class DefaultData(sf.Data):
 
             self.trainHelper.loopTimer.start()
             self.trainHelper.timer.start()
-            torch.optim.swa_utils.update_bn(loader=self.trainloader, model=smoothing.getSWAModel(), device=modelMetadata.device)
+            #torch.optim.swa_utils.update_bn(loader=self.trainloader, model=smoothing.getSWAModel(), device=modelMetadata.device)
             self.trainHelper.timer.end()
             self.trainHelper.loopTimer.end()
 
@@ -1030,8 +1031,8 @@ class DefaultData(sf.Data):
         if(sf.enabledSaveAndExit()):
             return 
 
-        with torch.no_grad():
-            if(metadata.shouldTest() and (helperEpoch.epochNumber + 1 in dataMetadata.startTestAtEpoch) ):
+        if(metadata.shouldTest() and (helperEpoch.epochNumber + 1 in dataMetadata.startTestAtEpoch) ):
+            with torch.no_grad():
                 helperEpoch.currentLoopTimeAlias = 'loopTestTime_normal'
                 self.testLoop(model=model, helperEpoch=helperEpoch, dataMetadata=dataMetadata, modelMetadata=modelMetadata, metadata=metadata, smoothing=smoothing, smoothingMetadata=smoothingMetadata)
                 smoothing.saveWeights(weights=model.getNNModelModule().state_dict().items(), key='main')
@@ -1114,11 +1115,11 @@ class DefaultDataCIFAR10(DefaultData):
         self.trainSampler = sf.BaseSampler(len(self.trainset), dataMetadata.batchTrainSize)
         self.testSampler = sf.BaseSampler(len(self.testset), dataMetadata.batchTestSize)
 
-        self.trainloader = torch.utils.data.DataLoader(self.trainset, batch_size=dataMetadata.batchTrainSize, sampler=self.trainSampler,
-                                          shuffle=False, num_workers=2, pin_memory=dataMetadata.pin_memoryTrain, worker_init_fn=dataMetadata.worker_seed if sf.enabledDeterminism() else None)
+        self.trainloader = torch.utils.data.DataLoader(self.trainset, batch_size=dataMetadata.batchTrainSize,# sampler=self.trainSampler,
+                                          shuffle=True, num_workers=2, pin_memory=dataMetadata.pin_memoryTrain)#, worker_init_fn=dataMetadata.worker_seed if sf.enabledDeterminism() else None)
 
-        self.testloader = torch.utils.data.DataLoader(self.testset, batch_size=dataMetadata.batchTestSize, sampler=self.testSampler,
-                                         shuffle=False, num_workers=2, pin_memory=dataMetadata.pin_memoryTest, worker_init_fn=dataMetadata.worker_seed if sf.enabledDeterminism() else None)
+        self.testloader = torch.utils.data.DataLoader(self.testset, batch_size=dataMetadata.batchTestSize,# sampler=self.testSampler,
+                                         shuffle=False, num_workers=2, pin_memory=dataMetadata.pin_memoryTest)#, worker_init_fn=dataMetadata.worker_seed if sf.enabledDeterminism() else None)
 
 class DefaultDataCIFAR100(DefaultData):
     def __init__(self, dataMetadata):
@@ -1199,7 +1200,7 @@ def run(data, model, smoothing, metadataObj, modelMetadata, dataMetadata, smooth
     metadataObj.relativeRoot = rootFolder
 
     metadataObj.prepareOutput()
-    smoothing.__setDictionary__(smoothingMetadata=smoothingMetadata, dictionary=model.getNNModelModule().state_dict().items())
+    #smoothing.__setDictionary__(smoothingMetadata=smoothingMetadata, dictionary=model.getNNModelModule().state_dict().items())
 
     metadataObj.printStartNewModel()
 

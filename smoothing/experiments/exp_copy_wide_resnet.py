@@ -21,6 +21,8 @@ from torch.autograd import Variable
 import sys
 import numpy as np
 
+import torch.backends.cudnn as cudnn
+
 def conv3x3(in_planes, out_planes, stride=1):
     return nn.Conv2d(in_planes, out_planes, kernel_size=3, stride=stride, padding=1, bias=True)
 
@@ -105,8 +107,8 @@ if(__name__ == '__main__'):
         modelDevice="cuda:0"
 
     metadata = sf.Metadata(testFlag=True, trainFlag=True, debugInfo=True)
-    dataMetadata = dc.DefaultData_Metadata(pin_memoryTest=False, pin_memoryTrain=False, epoch=200, fromGrayToRGB=False,
-        batchTrainSize=32, batchTestSize=100, startTestAtEpoch=-1)
+    dataMetadata = dc.DefaultData_Metadata(pin_memoryTest=False, pin_memoryTrain=True, epoch=200, fromGrayToRGB=False,
+        batchTrainSize=32, batchTestSize=100, startTestAtEpoch=[199, 200])
     optimizerDataDict={"learning_rate":0.1, "momentum":0.9, "weight_decay":0.0005}
     modelMetadata = dc.DefaultModel_Metadata(device=modelDevice, lossFuncDataDict={}, optimizerDataDict=optimizerDataDict)
     loop = 5
@@ -116,6 +118,8 @@ if(__name__ == '__main__'):
     num_classes = 10
     layers = [2, 2, 2, 2]
     block = modResnet.BasicBlock
+
+    cudnn.benchmark = True
 
 
     types = ('predefModel', 'CIFAR10', 'disabled')
@@ -128,6 +132,7 @@ if(__name__ == '__main__'):
 
             #obj = models.ResNet(block, layers, num_classes=num_classes)
             obj = Wide_ResNet(depth=28, widen_factor=10, dropout_rate=0.3, num_classes=num_classes)
+            obj.apply(conv_init)
 
             data = dc.DefaultDataCIFAR10(dataMetadata)
             model = dc.DefaultModelPredef(obj=obj, modelMetadata=modelMetadata, name=modelName)
@@ -135,12 +140,12 @@ if(__name__ == '__main__'):
 
             optimizer = optim.SGD(model.getNNModelModule().parameters(), lr=optimizerDataDict['learning_rate'], 
                 weight_decay=optimizerDataDict['weight_decay'], momentum=optimizerDataDict['momentum'])
-            scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=15, gamma=0.2)
+            scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=60, gamma=0.2)
             loss_fn = nn.CrossEntropyLoss()     
 
             stat=dc.run(metadataObj=metadata, data=data, model=model, smoothing=smoothing, optimizer=optimizer, lossFunc=loss_fn,
                 modelMetadata=modelMetadata, dataMetadata=dataMetadata, smoothingMetadata=smoothingMetadata, rootFolder=rootFolder,
-                schedulers=[([15, 30, 45, 60, 75, 90, 105, 120, 135, 150, 165, 180, 195], scheduler)])
+                schedulers=[([60, 120, 160], scheduler)])
 
             stat.saveSelf(name="stat")
 
