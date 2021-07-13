@@ -22,6 +22,7 @@ import sys
 import numpy as np
 
 import torch.backends.cudnn as cudnn
+import math
 
 def conv3x3(in_planes, out_planes, stride=1):
     return nn.Conv2d(in_planes, out_planes, kernel_size=3, stride=stride, padding=1, bias=True)
@@ -101,6 +102,70 @@ class Wide_ResNet(nn.Module):
 # wzorowane na pracy https://paperswithcode.com/paper/wide-residual-networks
 # model wzorowany na resnet18 https://github.com/huyvnphan/PyTorch_CIFAR10/blob/master/module.py
 
+if(__name__ == '__main__'):
+    def learning_rate(init, epoch):
+        optim_factor = 0
+        if(epoch > 160):
+            optim_factor = 3
+        elif(epoch > 120):
+            optim_factor = 2
+        elif(epoch > 60):
+            optim_factor = 1
+
+        return init*math.pow(0.2, optim_factor)
+
+    transform_train = transforms.Compose([
+    transforms.RandomCrop(32, padding=4),
+    transforms.RandomHorizontalFlip(),
+    transforms.ToTensor(),
+    transforms.Normalize(mean=(0.4914, 0.4822, 0.4465), std=(0.2023, 0.1994, 0.2010)),
+    ]) # meanstd transformation
+
+    trainset = torchvision.datasets.CIFAR10(root='~/.data', train=True, download=True, transform=transform_train)
+    num_classes = 10
+
+    trainloader = torch.utils.data.DataLoader(trainset, batch_size=32, shuffle=True, num_workers=2)
+
+
+    net = Wide_ResNet(depth=28, widen_factor=10, dropout_rate=0.3, num_classes=num_classes)
+    net.to(device="cuda:0")
+    cudnn.benchmark = True
+
+    criterion = nn.CrossEntropyLoss()
+
+    def train(epoch):
+        net.train()
+        net.training = True
+        train_loss = 0
+        correct = 0
+        total = 0
+        optimizer = optim.SGD(net.parameters(), lr=learning_rate(0.1, epoch), momentum=0.9, weight_decay=5e-4)
+
+        print('\n=> Training Epoch #%d, LR=%.4f' %(epoch, learning_rate(0.1, epoch)))
+        for batch_idx, (inputs, targets) in enumerate(trainloader):
+            inputs, targets = inputs.to(device="cuda:0"), targets.to(device="cuda:0") # GPU settings
+            optimizer.zero_grad()
+            inputs, targets = Variable(inputs), Variable(targets)
+            outputs = net(inputs)               # Forward Propagation
+            loss = criterion(outputs, targets)  # Loss
+            loss.backward()  # Backward Propagation
+            optimizer.step() # Optimizer update
+
+            train_loss += loss.item()
+            _, predicted = torch.max(outputs.data, 1)
+            total += targets.size(0)
+            correct += predicted.eq(targets.data).cpu().sum()
+
+            sys.stdout.write('\r')
+            sys.stdout.write('| Epoch [%3d/%3d] Iter[%3d/%3d]\t\tLoss: %.4f Acc@1: %.3f%%'
+                    %(epoch, 200, batch_idx+1,
+                        (len(trainset)//32)+1, loss.item(), 100.*correct/total))
+            sys.stdout.flush()
+
+    for epoch in range(200):
+        train(epoch)
+            
+    """
 if(__name__ == '__main__'):
     modelDevice = 'cuda:0'
     if(sf.test_mode().isActive()):
@@ -197,3 +262,4 @@ if(__name__ == '__main__'):
         #experiments.printAvgStats(stats, metadata, runningAvgSize=runningAvgSize)
     except Exception as ex:
         experiments.printException(ex, types)
+"""
