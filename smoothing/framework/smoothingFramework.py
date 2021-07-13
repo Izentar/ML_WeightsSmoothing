@@ -141,8 +141,12 @@ class SaveClass:
 
 class BaseSampler:
     """
-    Returns a sequence of the next indices.
-    Supports saving and loading.
+    Zwraca sekwencję kolejnych indeksów.
+    Wspiera zapisywanie oraz wczytywanie.
+
+    Przykład:
+        trainSampler = sf.BaseSampler(len(data.trainset), dataMetadata.batchTrainSize)
+        testSampler = sf.BaseSampler(len(data.testset), dataMetadata.batchTestSize)
     """ 
     def __init__(self, dataSize, batchSize, startIndex = 0, seed = 984):
         self.sequence = list(range(dataSize))[startIndex * batchSize:]
