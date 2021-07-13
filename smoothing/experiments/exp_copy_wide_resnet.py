@@ -106,7 +106,7 @@ if(__name__ == '__main__'):
 
     metadata = sf.Metadata(testFlag=True, trainFlag=True, debugInfo=True)
     dataMetadata = dc.DefaultData_Metadata(pin_memoryTest=False, pin_memoryTrain=False, epoch=200, fromGrayToRGB=False,
-        batchTrainSize=32, batchTestSize=100, startTestAtEpoch=-1)
+        batchTrainSize=200, batchTestSize=100, startTestAtEpoch=[0, 50, 100, 150, 200])
     optimizerDataDict={"learning_rate":0.1, "momentum":0.9, "weight_decay":0.0005}
     modelMetadata = dc.DefaultModel_Metadata(device=modelDevice, lossFuncDataDict={}, optimizerDataDict=optimizerDataDict)
     loop = 5
@@ -114,7 +114,7 @@ if(__name__ == '__main__'):
     prefix = "set_copyOfExper_"
     runningAvgSize = 10
     num_classes = 10
-    layers = [2, 2, 2, 2]
+    layers = [3, 4, 6, 3]
     block = modResnet.BasicBlock
 
 
@@ -126,8 +126,8 @@ if(__name__ == '__main__'):
 
         for r in range(loop):
 
-            #obj = models.ResNet(block, layers, num_classes=num_classes)
-            obj = Wide_ResNet(depth=28, widen_factor=10, dropout_rate=0.3, num_classes=num_classes)
+            obj = models.ResNet(block, layers, num_classes=num_classes)
+            #obj = Wide_ResNet(depth=28, widen_factor=10, dropout_rate=0.3, num_classes=num_classes)
 
             data = dc.DefaultDataCIFAR10(dataMetadata)
             model = dc.DefaultModelPredef(obj=obj, modelMetadata=modelMetadata, name=modelName)
@@ -140,7 +140,7 @@ if(__name__ == '__main__'):
 
             stat=dc.run(metadataObj=metadata, data=data, model=model, smoothing=smoothing, optimizer=optimizer, lossFunc=loss_fn,
                 modelMetadata=modelMetadata, dataMetadata=dataMetadata, smoothingMetadata=smoothingMetadata, rootFolder=rootFolder,
-                schedulers=[([15, 30, 45, 60, 75, 90, 105, 120, 135, 150, 165, 180, 195], scheduler)])
+                schedulers=[([60, 120, 180], scheduler)])
 
             stat.saveSelf(name="stat")
 
