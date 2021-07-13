@@ -143,9 +143,34 @@ if(__name__ == '__main__'):
             scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=60, gamma=0.2)
             loss_fn = nn.CrossEntropyLoss()     
 
-            stat=dc.run(metadataObj=metadata, data=data, model=model, smoothing=smoothing, optimizer=optimizer, lossFunc=loss_fn,
+            '''stat=dc.run(metadataObj=metadata, data=data, model=model, smoothing=smoothing, optimizer=optimizer, lossFunc=loss_fn,
                 modelMetadata=modelMetadata, dataMetadata=dataMetadata, smoothingMetadata=smoothingMetadata, rootFolder=rootFolder,
-                schedulers=[([60, 120, 160], scheduler)])
+                schedulers=[([60, 120, 160], scheduler)])'''
+
+            for epoch in range(200):
+                model.getNNModelModule().train()
+                model.getNNModelModule().training = True
+
+                total = 0.0
+                correct = 0.0
+
+                optimizer = optim.SGD(model.getNNModelModule().parameters(), lr=0.1, 
+                    weight_decay=0.9, momentum=0.0005)
+
+                for batch_idx, (inputs, labels) in enumerate(data.trainloader):
+                    inputs, labels = inputs.to(device="cuda:0"), labels.to(device="cuda:0") 
+                    optimizer.zero_grad()
+                    outputs = model.getNNModelModule()(inputs)
+                    loss = loss_fn(outputs, labels)
+                    loss.backward()
+                    optimizer.step()
+
+                    total += labels.size(0)
+                    correct += torch.argmax(outputs, dim=1).eq(labels.data).cpu().sum().item()
+                    print('| Epoch [%3d/%3d] Iter[%3d/%3d]\t\tLoss: %.4f Acc@1: %.3f%%'
+                        %(epoch, 200, batch_idx+1,
+                        (len(data.trainset)//32)+1, loss.item(), 100.*correct/total))
+                    sys.stdout.flush()
 
             stat.saveSelf(name="stat")
 
