@@ -2613,6 +2613,10 @@ def plot(filePath: list, name = None, plotInputRoot = None, plotOutputRoot = Non
         ybottom.append(ybottom2)
         ytop.append(ytop2)
 
+    if(not xleft or not xright or not ybottom or not ytop):
+        Output.printBash("Cannot plot any file.", 'warn')
+        return 
+
     xleft = min(xleft)
     xright = max(xright)
     ybottom = min(ybottom)
