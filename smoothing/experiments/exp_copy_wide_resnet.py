@@ -115,7 +115,7 @@ if(__name__ == '__main__'):
     modelName = "wide_resnet"
     prefix = "set_copyOfExper_"
     runningAvgSize = 10
-    num_classes = 10
+    #num_classes = 10
     layers = [2, 2, 2, 2]
     block = modResnet.BasicBlock
 
@@ -130,13 +130,26 @@ if(__name__ == '__main__'):
 
         for r in range(loop):
 
+            transform_train = transforms.Compose([
+                transforms.RandomCrop(32, padding=4),
+                transforms.RandomHorizontalFlip(),
+                transforms.ToTensor(),
+                transforms.Normalize((0.4914, 0.4822, 0.4465), (0.2023, 0.1994, 0.2010)),
+            ]) # meanstd transformation
+
+            trainset = torchvision.datasets.CIFAR10(root='~/.data', train=True, download=True, transform=transform_train)
+            num_classes = 10
+            trainloader = torch.utils.data.DataLoader(trainset, batch_size=32, shuffle=True, num_workers=2)
+
+            #########################################################################3
             #obj = models.ResNet(block, layers, num_classes=num_classes)
             obj = Wide_ResNet(depth=28, widen_factor=10, dropout_rate=0.3, num_classes=num_classes)
             obj.apply(conv_init)
 
-            data = dc.DefaultDataCIFAR10(dataMetadata)
+            #data = dc.DefaultDataCIFAR10(dataMetadata)
             model = dc.DefaultModelPredef(obj=obj, modelMetadata=modelMetadata, name=modelName)
-            smoothing = dc.DisabledSmoothing(smoothingMetadata)
+            #smoothing = dc.DisabledSmoothing(smoothingMetadata)
+            model.getNNModelModule().to(device="cuda:0")
 
             optimizer = optim.SGD(model.getNNModelModule().parameters(), lr=optimizerDataDict['learning_rate'], 
                 weight_decay=optimizerDataDict['weight_decay'], momentum=optimizerDataDict['momentum'])
@@ -159,7 +172,7 @@ if(__name__ == '__main__'):
                 optimizer = optim.SGD(model.getNNModelModule().parameters(), lr=0.1, momentum=0.9, weight_decay=5e-4)
 
                 print('\n=> Training Epoch #%d, LR=%.4f' %(epoch, 0.1))
-                for batch_idx, (inputs, targets) in enumerate(data.trainloader):
+                for batch_idx, (inputs, targets) in enumerate(trainloader):
                     inputs, targets = inputs.to(device="cuda:0"), targets.to(device="cuda:0") # GPU settings
                     optimizer.zero_grad()
                     outputs = model.getNNModelModule()(inputs)               # Forward Propagation
@@ -172,10 +185,10 @@ if(__name__ == '__main__'):
                     total += targets.size(0)
                     correct += predicted.eq(targets.data).cpu().sum()
 
-                    sys.stdout.write('\r')
-                    sys.stdout.write('| Epoch [%3d/%3d] Iter[%3d/%3d]\t\tLoss: %.4f Acc@1: %.3f%%'
+                    print('\r')
+                    print('| Epoch [%3d/%3d] Iter[%3d/%3d]\t\tLoss: %.4f Acc@1: %.3f%%'
                             %(epoch, 200, batch_idx+1,
-                                (len(data.trainset)//32)+1, loss.item(), 100.*correct/total))
+                                (len(trainset)//32)+1, loss.item(), 100.*correct/total))
                     sys.stdout.flush()
 
             #stat.saveSelf(name="stat")
