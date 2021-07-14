@@ -136,7 +136,8 @@ if(__name__ == '__main__'):
 
         for r in range(loop):
 
-            obj = models.ResNet(block, layers, num_classes=num_classes)
+            obj = models.wide_resnet50_2(pretrained=False, progress=False, num_classes=num_classes)
+            #obj = models.ResNet(block, layers, num_classes=num_classes)
             #obj = Wide_ResNet(depth=28, widen_factor=10, dropout_rate=0.3, num_classes=num_classes)
 
             data = dc.DefaultDataCIFAR10(dataMetadata)
