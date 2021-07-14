@@ -105,8 +105,18 @@ if(__name__ == '__main__'):
         modelDevice="cuda:0"
 
     metadata = sf.Metadata(testFlag=True, trainFlag=True, debugInfo=True)
-    dataMetadata = dc.DefaultData_Metadata(pin_memoryTest=False, pin_memoryTrain=False, epoch=200, fromGrayToRGB=False,
-        batchTrainSize=200, batchTestSize=100, startTestAtEpoch=[0, 50, 100, 150, 200])
+    dataMetadata = dc.DefaultData_Metadata(pin_memoryTest=False, pin_memoryTrain=False, epoch=200,
+        batchTrainSize=200, batchTestSize=100, startTestAtEpoch=[0, 50, 100, 150, 200], 
+        transformTrain=transforms.Compose([
+            transforms.RandomCrop(32, padding=4),
+            transforms.RandomHorizontalFlip(),
+            transforms.ToTensor(),
+            transforms.Normalize((0.4914, 0.4822, 0.4465), (0.2023, 0.1994, 0.2010)),
+        ]),
+        transformTest=transforms.Compose([
+            transforms.ToTensor(),
+            transforms.Normalize((0.4914, 0.4822, 0.4465), (0.2023, 0.1994, 0.2010)),
+        ]))
     optimizerDataDict={"learning_rate":0.1, "momentum":0.9, "weight_decay":0.0005}
     modelMetadata = dc.DefaultModel_Metadata(device=modelDevice, lossFuncDataDict={}, optimizerDataDict=optimizerDataDict)
     loop = 5
@@ -148,3 +158,34 @@ if(__name__ == '__main__'):
         experiments.printAvgStats(stats, metadata, runningAvgSize=runningAvgSize)
     except Exception as ex:
         experiments.printException(ex, types)
+
+'''
+        if(dataMetadata.resizeTo is not None):
+            self.trainTransform = transforms.Compose([
+                transforms.Resize(dataMetadata.resizeTo),
+                transforms.RandomCrop(dataMetadata.randomCropSize, padding=4),
+                transforms.RandomHorizontalFlip(),
+                transforms.ToTensor(),
+                transforms.Lambda(DefaultData.lambdaGrayToRGB if dataMetadata.fromGrayToRGB else DefaultData.NoneTransform),
+                transforms.Normalize((0.4914, 0.4822, 0.4465), (0.2023, 0.1994, 0.2010)), 
+            ])
+            self.testTransform = transforms.Compose([
+                transforms.Resize(dataMetadata.resizeTo),
+                transforms.ToTensor(),
+                transforms.Lambda(DefaultData.lambdaGrayToRGB if dataMetadata.fromGrayToRGB else DefaultData.NoneTransform),
+                transforms.Normalize((0.4914, 0.4822, 0.4465), (0.2023, 0.1994, 0.2010)),
+            ])
+        else:
+            self.trainTransform = transforms.Compose([
+                transforms.RandomCrop(dataMetadata.randomCropSize, padding=4),
+                transforms.RandomHorizontalFlip(),
+                transforms.ToTensor(),
+                transforms.Lambda(DefaultData.lambdaGrayToRGB if dataMetadata.fromGrayToRGB else DefaultData.NoneTransform),
+                transforms.Normalize((0.4914, 0.4822, 0.4465), (0.2023, 0.1994, 0.2010)), 
+            ])
+            self.testTransform = transforms.Compose([
+                transforms.ToTensor(),
+                transforms.Lambda(DefaultData.lambdaGrayToRGB if dataMetadata.fromGrayToRGB else DefaultData.NoneTransform),
+                transforms.Normalize((0.4914, 0.4822, 0.4465), (0.2023, 0.1994, 0.2010)),
+            ])
+            '''
