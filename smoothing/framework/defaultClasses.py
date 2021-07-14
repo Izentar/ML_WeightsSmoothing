@@ -871,15 +871,35 @@ class DefaultData_Metadata(sf.Data_Metadata):
             startTestAtEpoch = -1 # inaczej [*range(epoch)]
     """
     def __init__(self, worker_seed = 8418748, download = True, pin_memoryTrain = False, pin_memoryTest = False,
-        epoch = 1, batchTrainSize = 16, batchTestSize = 16, fromGrayToRGB = True, startTestAtEpoch=-1, 
-        test_howOftenPrintTrain = 200, howOftenPrintTrain = 2000, resizeTo=None, testShuffle=True, trainShuffle=True, 
-        trainSampler=None, testSampler=None, trainLoaderWorkers=2, testLoaderWorkers=2):
+        epoch = 1, batchTrainSize = 16, batchTestSize = 16, startTestAtEpoch=-1, 
+        test_howOftenPrintTrain = 200, howOftenPrintTrain = 2000, testShuffle=True, trainShuffle=True, 
+        trainSampler=None, testSampler=None, trainLoaderWorkers=2, testLoaderWorkers=2,
+        transformTrain=None, transformTest=None):
 
         super().__init__(worker_seed = worker_seed, train = True, download = download, pin_memoryTrain = pin_memoryTrain, pin_memoryTest = pin_memoryTest,
             epoch = epoch, batchTrainSize = batchTrainSize, batchTestSize = batchTestSize, howOftenPrintTrain = howOftenPrintTrain)
 
-        self.fromGrayToRGB = fromGrayToRGB
-        self.resizeTo = resizeTo
+        self.trainSampler = trainSampler
+        self.testSampler = testSampler
+        self.testShuffle = testShuffle
+        self.trainShuffle = trainShuffle
+        self.trainLoaderWorkers = trainLoaderWorkers
+        self.testLoaderWorkers = testLoaderWorkers
+
+
+        # default values
+        self.transformTrain = transformTrain if transformTrain is not None else transforms.Compose([
+                transforms.RandomCrop(32, padding=4),
+                transforms.RandomHorizontalFlip(),
+                transforms.ToTensor(),
+                transforms.Normalize((0.4914, 0.4822, 0.4465), (0.2023, 0.1994, 0.2010)), 
+            ])
+
+        self.transformTest = transformTest if transformTest is not None else transforms.Compose([
+                transforms.ToTensor(),
+                transforms.Normalize((0.4914, 0.4822, 0.4465), (0.2023, 0.1994, 0.2010)),
+            ])
+
         if(startTestAtEpoch == -1):
             self.startTestAtEpoch = [*range(epoch + 1)]
         else:
@@ -893,8 +913,14 @@ class DefaultData_Metadata(sf.Data_Metadata):
 
     def __strAppend__(self):
         tmp_str = super().__strAppend__()
-        tmp_str += ('Resize data from Gray to RGB:\t{}\n'.format(self.fromGrayToRGB))
-        tmp_str += ('Resize data to size:\t{}\n'.format(self.resizeTo))
+        tmp_str += ('Test shuffle:\t{}\n'.format(self.testShuffle))
+        tmp_str += ('Train shuffle:\t{}\n'.format(self.trainShuffle))
+        tmp_str += ('Train sampler:\t{}\n'.format(str(self.trainSampler)))
+        tmp_str += ('Test sampler:\t{}\n'.format(str(self.testSampler)))
+        tmp_str += ('Train workers:\t{}\n'.format(self.trainLoaderWorkers))
+        tmp_str += ('Test workers:\t{}\n'.format(self.testLoaderWorkers))
+        tmp_str += ('Train transform:\t{}\n'.format(str(self.transformTrain)))
+        tmp_str += ('Test transform:\t{}\n'.format(str(self.transformTest)))
         return tmp_str
 
 class DefaultData(sf.Data):
@@ -920,51 +946,8 @@ class DefaultData(sf.Data):
         return obj
 
     def __setInputTransform__(self, dataMetadata):
-        """ self.trainTransform = transforms.Compose(
-            [transforms.ToTensor(),
-            transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))]
-
-            self.testTransform = ...
-        )
-        """
-
-        if(dataMetadata.resizeTo is not None):
-            self.trainTransform = transforms.Compose([
-                transforms.Resize(dataMetadata.resizeTo),
-                transforms.RandomCrop(32, padding=4),
-                transforms.RandomHorizontalFlip(),
-                transforms.ToTensor(),
-                transforms.Lambda(DefaultData.lambdaGrayToRGB if dataMetadata.fromGrayToRGB else DefaultData.NoneTransform),
-                transforms.Normalize((0.4914, 0.4822, 0.4465), (0.2023, 0.1994, 0.2010)), 
-            ])
-            self.testTransform = transforms.Compose([
-                transforms.Resize(dataMetadata.resizeTo),
-                transforms.ToTensor(),
-                transforms.Lambda(DefaultData.lambdaGrayToRGB if dataMetadata.fromGrayToRGB else DefaultData.NoneTransform),
-                transforms.Normalize((0.4914, 0.4822, 0.4465), (0.2023, 0.1994, 0.2010)),
-            ])
-        else:
-            self.trainTransform = transforms.Compose([
-                transforms.RandomCrop(32, padding=4),
-                transforms.RandomHorizontalFlip(),
-                transforms.ToTensor(),
-                transforms.Lambda(DefaultData.lambdaGrayToRGB if dataMetadata.fromGrayToRGB else DefaultData.NoneTransform),
-                transforms.Normalize((0.4914, 0.4822, 0.4465), (0.2023, 0.1994, 0.2010)), 
-            ])
-            self.testTransform = transforms.Compose([
-                transforms.ToTensor(),
-                transforms.Lambda(DefaultData.lambdaGrayToRGB if dataMetadata.fromGrayToRGB else DefaultData.NoneTransform),
-                transforms.Normalize((0.4914, 0.4822, 0.4465), (0.2023, 0.1994, 0.2010)),
-            ])
-
-        '''
-        self.trainTransform = transforms.Compose(
-        [transforms.ToTensor(),
-        transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))])
-
-        self.testTransform = transforms.Compose(
-        [transforms.ToTensor(),
-        transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))])'''
+        self.transformTrain = dataMetadata.transformTrain
+        self.transformTest = dataMetadata.transformTest
 
     def __update__(self, dataMetadata):
         self.__prepare__(dataMetadata)
@@ -1051,23 +1034,21 @@ class DefaultData(sf.Data):
     def __prepare__(self, dataMetadata):
         self.__setInputTransform__(dataMetadata)
 
-        self.trainset = torchvision.datasets.MNIST(root=sf.StaticData.DATA_PATH, train=True, transform=self.trainTransform, download=dataMetadata.download)
-        self.testset = torchvision.datasets.MNIST(root=sf.StaticData.DATA_PATH, train=False, transform=self.testTransform, download=dataMetadata.download)
-
-        self.trainloader = torch.utils.data.DataLoader(self.trainset, batch_size=dataMetadata.batchTrainSize, sampler=dataMetadata.trainSampler,
-                                          shuffle=dataMetadata.trainShuffle, num_workers=dataMetadata.trainLoaderWorkers, pin_memory=dataMetadata.pin_memoryTrain, worker_init_fn=dataMetadata.worker_seed if sf.enabledDeterminism() else None)
-
-        self.testloader = torch.utils.data.DataLoader(self.testset, batch_size=dataMetadata.batchTestSize, sampler=dataMetadata.testSampler,
-                                         shuffle=dataMetadata.testShuffle, num_workers=dataMetadata.testLoaderWorkers, pin_memory=dataMetadata.pin_memoryTest, worker_init_fn=dataMetadata.worker_seed if sf.enabledDeterminism() else None)
-
 class DefaultDataMNIST(DefaultData):
     def __init__(self, dataMetadata):
         super().__init__(dataMetadata=dataMetadata)
 
     def __prepare__(self, dataMetadata):
         super().__prepare__(dataMetadata)
-        if(not dataMetadata.fromGrayToRGB):
-            raise Exception("MNIST does not have RGB and require transition from gray to RGB. Flag fromGrayToRGB is set to False. Set fromGrayToRGB to True in data-Metadata.")
+
+        self.trainset = torchvision.datasets.MNIST(root=sf.StaticData.DATA_PATH, train=True, transform=self.transformTrain, download=dataMetadata.download)
+        self.testset = torchvision.datasets.MNIST(root=sf.StaticData.DATA_PATH, train=False, transform=self.transformTest, download=dataMetadata.download)
+
+        self.trainloader = torch.utils.data.DataLoader(self.trainset, batch_size=dataMetadata.batchTrainSize, sampler=dataMetadata.trainSampler,
+                                          shuffle=dataMetadata.trainShuffle, num_workers=dataMetadata.trainLoaderWorkers, pin_memory=dataMetadata.pin_memoryTrain, worker_init_fn=dataMetadata.worker_seed if sf.enabledDeterminism() else None)
+
+        self.testloader = torch.utils.data.DataLoader(self.testset, batch_size=dataMetadata.batchTestSize, sampler=dataMetadata.testSampler,
+                                         shuffle=dataMetadata.testShuffle, num_workers=dataMetadata.testLoaderWorkers, pin_memory=dataMetadata.pin_memoryTest, worker_init_fn=dataMetadata.worker_seed if sf.enabledDeterminism() else None)
 
 class DefaultDataEMNIST(DefaultData):
     def __init__(self, dataMetadata):
@@ -1076,6 +1057,15 @@ class DefaultDataEMNIST(DefaultData):
     def __prepare__(self, dataMetadata):
         super().__prepare__(dataMetadata)
 
+        self.trainset = torchvision.datasets.EMNIST(root=sf.StaticData.DATA_PATH, train=True, transform=self.transformTrain, download=dataMetadata.download)
+        self.testset = torchvision.datasets.EMNIST(root=sf.StaticData.DATA_PATH, train=False, transform=self.transformTest, download=dataMetadata.download)
+
+        self.trainloader = torch.utils.data.DataLoader(self.trainset, batch_size=dataMetadata.batchTrainSize, sampler=dataMetadata.trainSampler,
+                                          shuffle=dataMetadata.trainShuffle, num_workers=dataMetadata.trainLoaderWorkers, pin_memory=dataMetadata.pin_memoryTrain, worker_init_fn=dataMetadata.worker_seed if sf.enabledDeterminism() else None)
+
+        self.testloader = torch.utils.data.DataLoader(self.testset, batch_size=dataMetadata.batchTestSize, sampler=dataMetadata.testSampler,
+                                         shuffle=dataMetadata.testShuffle, num_workers=dataMetadata.testLoaderWorkers, pin_memory=dataMetadata.pin_memoryTest, worker_init_fn=dataMetadata.worker_seed if sf.enabledDeterminism() else None)
+
 class DefaultDataCIFAR10(DefaultData):
     def __init__(self, dataMetadata):
         super().__init__(dataMetadata=dataMetadata)
@@ -1083,8 +1073,14 @@ class DefaultDataCIFAR10(DefaultData):
     def __prepare__(self, dataMetadata):
         super().__prepare__(dataMetadata)
 
-        if(dataMetadata.fromGrayToRGB):
-            raise Exception("CIFAR10 does have RGB and does not need transition from gray to RGB. Flag fromGrayToRGB is set to True. Set fromGrayToRGB to False in data-Metadata.")
+        self.trainset = torchvision.datasets.CIFAR10(root=sf.StaticData.DATA_PATH, train=True, transform=self.transformTrain, download=dataMetadata.download)
+        self.testset = torchvision.datasets.CIFAR10(root=sf.StaticData.DATA_PATH, train=False, transform=self.transformTest, download=dataMetadata.download)
+
+        self.trainloader = torch.utils.data.DataLoader(self.trainset, batch_size=dataMetadata.batchTrainSize, sampler=dataMetadata.trainSampler,
+                                          shuffle=dataMetadata.trainShuffle, num_workers=dataMetadata.trainLoaderWorkers, pin_memory=dataMetadata.pin_memoryTrain, worker_init_fn=dataMetadata.worker_seed if sf.enabledDeterminism() else None)
+
+        self.testloader = torch.utils.data.DataLoader(self.testset, batch_size=dataMetadata.batchTestSize, sampler=dataMetadata.testSampler,
+                                         shuffle=dataMetadata.testShuffle, num_workers=dataMetadata.testLoaderWorkers, pin_memory=dataMetadata.pin_memoryTest, worker_init_fn=dataMetadata.worker_seed if sf.enabledDeterminism() else None)
 
 class DefaultDataCIFAR100(DefaultData):
     def __init__(self, dataMetadata):
@@ -1093,8 +1089,14 @@ class DefaultDataCIFAR100(DefaultData):
     def __prepare__(self, dataMetadata):
         super().__prepare__(dataMetadata)
 
-        if(dataMetadata.fromGrayToRGB):
-            raise Exception("CIFAR100 does have RGB and does not need transition from gray to RGB. Flag fromGrayToRGB is set to True. Set fromGrayToRGB to False in data-Metadata.")
+        self.trainset = torchvision.datasets.CIFAR100(root=sf.StaticData.DATA_PATH, train=True, transform=self.transformTrain, download=dataMetadata.download)
+        self.testset = torchvision.datasets.CIFAR100(root=sf.StaticData.DATA_PATH, train=False, transform=self.transformTest, download=dataMetadata.download)
+
+        self.trainloader = torch.utils.data.DataLoader(self.trainset, batch_size=dataMetadata.batchTrainSize, sampler=dataMetadata.trainSampler,
+                                          shuffle=dataMetadata.trainShuffle, num_workers=dataMetadata.trainLoaderWorkers, pin_memory=dataMetadata.pin_memoryTrain, worker_init_fn=dataMetadata.worker_seed if sf.enabledDeterminism() else None)
+
+        self.testloader = torch.utils.data.DataLoader(self.testset, batch_size=dataMetadata.batchTestSize, sampler=dataMetadata.testSampler,
+                                         shuffle=dataMetadata.testShuffle, num_workers=dataMetadata.testLoaderWorkers, pin_memory=dataMetadata.pin_memoryTest, worker_init_fn=dataMetadata.worker_seed if sf.enabledDeterminism() else None)
 
 
 ModelMap = {
