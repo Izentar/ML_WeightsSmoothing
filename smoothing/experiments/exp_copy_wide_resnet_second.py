@@ -206,7 +206,7 @@ if(__name__ == '__main__'):
         "prefix":"set_copyOfExper_",
         "runningAvgSize":10,
         "num_classes":10,
-        "schedulerEpoches":[60, 90, 120, 150, 180],
+        "schedulerEpoches":[50, 100, 140],
         "lr_sched_gamma":0.2
     }
 
