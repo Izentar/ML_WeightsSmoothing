@@ -1132,7 +1132,7 @@ def __checkClassExistence(checkedMap, obj):
 
 
 def run(data, model, smoothing, metadataObj, modelMetadata, dataMetadata, smoothingMetadata, optimizer, lossFunc, schedulers: list=None,
-    rootFolder = None, startPrintAt = -10, runningAvgSize=1):
+    rootFolder = None, startPrintAt = -10, runningAvgSize=1, logData=None):
     """
         Funckja przygotowuje do wywołania eksperymentu. Na końcu działania funkcja tworzy wykresy.
     """
@@ -1158,7 +1158,7 @@ def run(data, model, smoothing, metadataObj, modelMetadata, dataMetadata, smooth
 
     statistics = sf.runObjs(metadataObj=metadataObj, dataMetadataObj=dataMetadata, modelMetadataObj=modelMetadata, 
             smoothingMetadataObj=smoothingMetadata, smoothingObj=smoothing, dataObj=data, modelObj=model, 
-            folderLogNameSuffix=logFolderSuffix, folderRelativeRoot=rootFolder)
+            folderLogNameSuffix=logFolderSuffix, folderRelativeRoot=rootFolder, logData=logData)
 
     metadataObj.printEndModel()
 

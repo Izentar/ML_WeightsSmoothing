@@ -21,7 +21,15 @@ import matplotlib.pyplot as plt
 import numpy
 
 SAVE_AND_EXIT_FLAG = False
+CURRENT_STAT = None
 
+def registerStat(stat):
+    global CURRENT_STAT
+    CURRENT_STAT = stat
+
+def clearStat():
+    global CURRENT_STAT
+    CURRENT_STAT = None
 
 def saveWorkAndExit(signumb, frame):
     global SAVE_AND_EXIT_FLAG
@@ -30,7 +38,11 @@ def saveWorkAndExit(signumb, frame):
     return
 
 def terminate(signumb, frame):
+    global CURRENT_STAT
     Output.printBash('Catched signal: ' + str(signumb) + ". Terminating program.", 'info')
+    if(CURRENT_STAT is not None):
+        Output.printBash('Saving statistics', 'info')
+        CURRENT_STAT.saveSelf(name="stat_exit")
     exit(2)
 
 def enabledDeterminism():
@@ -84,6 +96,7 @@ class StaticData:
     DETERMINISTIC = False
     PRINT_WARNINGS = True
     FORCE_PRINT_WARNINGS = False
+    AT_EXIT_SAVE_STAT = True
     MAX_DEBUG_LOOPS = 71
     MAX_EPOCH_DEBUG_LOOPS = 2
 
@@ -1126,6 +1139,7 @@ class EpochDataContainer():
         self.currentLoopTimeAlias = None
         self.loopsState = LoopsState()
         self.statistics = Statistics()
+        registerStat(self.statistics)
 
         self.firstSmoothingSuccess = False # flaga zostaje zapalona, gdy po raz pierwszy wygładzanie zostało włączone
         self.averaged = False # flaga powinna zostać zapalona, gdy model posiada wygładzone wagi i wyłączona w przeciwnym wypadku
@@ -1278,7 +1292,10 @@ class Statistics():
 
     def saveSelf(self, name, path=None):
         if(path is None):
-            torch.save({"stat" : self}, os.path.join(self.logFolder, name))
+            if(self.logFolder is not None):
+                torch.save({"stat" : self}, os.path.join(self.logFolder, name))
+            else:
+                torch.save({"stat" : self}, os.path.join(Output.getTimeStr() + name))
         else:
             torch.save({"stat" : self}, os.path.join(path, name))
 
@@ -2423,10 +2440,11 @@ def printClassToLog(metadata, *obj):
     where = ['debug:0', 'model:0']
     metadata.stream.print(str(metadata), where)
     for o in obj:
-        metadata.stream.print(str(o), where)
+        if(o is not None):
+            metadata.stream.print(str(o), where)
 
 def runObjs(metadataObj, dataMetadataObj, modelMetadataObj, smoothingMetadataObj, smoothingObj, dataObj, modelObj, folderLogNameSuffix = None, 
-    folderRelativeRoot = None):
+    folderRelativeRoot = None, logData: dict=None):
     metadataObj.prepareOutput()
 
     if(folderLogNameSuffix is not None):
@@ -2435,7 +2453,7 @@ def runObjs(metadataObj, dataMetadataObj, modelMetadataObj, smoothingMetadataObj
     metadataObj.relativeRoot = folderRelativeRoot
 
     printClassToLog(metadataObj, modelMetadataObj, dataObj,
-        dataMetadataObj,  modelObj, smoothingObj, smoothingMetadataObj)
+        dataMetadataObj,  modelObj, smoothingObj, smoothingMetadataObj, "Other data:\n" + str(logData))
 
 
     stats = dataObj.epochLoop(
@@ -2506,6 +2524,7 @@ def modelRun(Metadata_Class, Data_Metadata_Class, Model_Metadata_Class, Smoothin
 
     trySave(dictObjs=dictObjs)
 
+    clearStat()
     return stat
 
 #########################################
