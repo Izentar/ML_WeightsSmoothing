@@ -3,7 +3,7 @@
 # -*- coding: utf-8 -*- 
 
 declare -a commands=(
-    "python3 smoothing/experiments/exp_copy_wide_resnet.py"
+    "python3 smoothing/experiments/exp_pytorch.py"
 )
 
 declare -a names=(
@@ -117,10 +117,10 @@ fi
 
 startLoop=$counter
 
-for command in "${commands[@]:$startLoop} $@"
+for command in "${commands[@]:$startLoop}"
 do
     printf "executing: $command\nFrom index: $counter starting at: $startLoop\n"
-    $command &>> $bashLogFile &
+    eval "$command" "$@" "&>> $bashLogFile &"
     child=$!
     wait $child
     if [[ "$exitOnly" -eq 1 ]]; then
