@@ -12,7 +12,7 @@ import torchvision.models.resnet as modResnet
 
 from framework import smoothingFramework as sf
 from framework import defaultClasses as dc
-from framework import Cutout
+from framework.utils import Cutout
 
 import numpy as np
 import math
