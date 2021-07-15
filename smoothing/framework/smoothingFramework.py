@@ -1925,6 +1925,9 @@ class Smoothing(SaveClass, BaseMainClass, BaseLogicClass):
         raise Exception("Not implemented.")
 
     def getWeights(self, key, toDevice=None, copy = False):
+        """
+            Zwróć wcześniej zapisane wagi.
+        """
         if(key in self.savedWeightsState.keys()):
             if(copy):
                 return cloneTorchDict(self.savedWeightsState[key], toDevice)
@@ -1941,6 +1944,9 @@ class Smoothing(SaveClass, BaseMainClass, BaseLogicClass):
         self.enabled = True
 
     def saveWeights(self, weights, key, canOverride = True, toDevice = None):
+        """
+            Zapisz wagi modelu.
+        """
         with torch.no_grad():
             if(canOverride):
                 self.savedWeightsState[key] = cloneTorchDict(weights, toDevice)
@@ -2138,6 +2144,12 @@ class PredefinedModel(__BaseModel):
 
 
 def tryLoad(tupleClasses: list, metadata, temporaryLocation = False):
+    """
+        Wczytuje podane w klasie metadata dane do odczytania klas zawartych w tupleClasses. Zwraca słownik z wczytanymi obiektami.
+        tupleClasses - posiada dwie zmienne: klasa metadanych oraz klasa implementująca logikę, korzystająca z podanej klasy metadanych.
+        metadata - ogólna klasa metadanych
+
+    """
     dictObjs = {}
     dictObjs[type(metadata).__name__] = metadata
     if(dictObjs['Metadata'] is None):
@@ -2160,6 +2172,10 @@ def tryLoad(tupleClasses: list, metadata, temporaryLocation = False):
     return dictObjs
 
 def trySave(dictObjs: dict, onlyKeyIngredients = False, temporaryLocation = False):
+    """
+        Zapisuje podane w słowniku obiekty. Miejsce do zapisu znajduje się w obiekcie Metadata, 
+        który również musi zostać podany.
+    """
     dictObjs['Metadata'].trySave(onlyKeyIngredients=onlyKeyIngredients, temporaryLocation=temporaryLocation)
     md = dictObjs['Metadata']
     
@@ -2168,6 +2184,9 @@ def trySave(dictObjs: dict, onlyKeyIngredients = False, temporaryLocation = Fals
             obj.trySave(metadata=md, onlyKeyIngredients=onlyKeyIngredients, temporaryLocation=temporaryLocation)
 
 def commandLineArg(metadata, dataMetadata, modelMetadata, argv, enableLoad = True, enableSave = True):
+    """
+        Deprecated.
+    """
     help = 'Help:\n'
     help += os.path.basename(__file__) + ' -h <help> [-s,--save] <file name to save> [-l,--load] <file name to load>'
 
@@ -2253,13 +2272,16 @@ def commandLineArg(metadata, dataMetadata, modelMetadata, argv, enableLoad = Tru
 
     return metadata, False
 
-def _Private_createNewStat(statistics: list, filePaths: dict):
-    pass
-
 def averageStatistics(statistics: list, filePaths: dict=None, 
     relativeRootFolder = None,
     fileFormat = '.svg', dpi = 900, widthTickFreq = 0.08, aspectRatio = 0.3, startAt = None, resolutionInches = 11.5, outputFolderNameSuffix = None):
     """
+        Funkcja dla podanych logów w formacie csv uśrednia je. Logi muszą być w odpowiednim formacie, czyli:
+            - jeden plik jest przeznaczony dla jednego rodzaju danych w formacie liczby, zapisywanych kolejnych
+                liniach
+            - plik nie może zawierać innych danych oprócz liczby, która zostanie przedstawiona w formacie
+                zmiennoprzecinkowym
+
         filePaths - wartość domyślna dla None - dict = {
             'loopTestTime' : ['loopTestTime_normal.csv', 'loopTestTime_smooothing.csv'], 
             'loopTrainTime' : ['loopTrainTime.csv'], 
@@ -2461,6 +2483,9 @@ def averageStatistics(statistics: list, filePaths: dict=None,
     return newStats
 
 def printClassToLog(metadata, *obj):
+    """
+        Zapisuje do ['debug:0', 'model:0'] całą klasę. Klasa ta musi przeciążać metodę __str__().
+    """
     where = ['debug:0', 'model:0']
     metadata.stream.print(str(metadata), where)
     for o in obj:
@@ -2469,6 +2494,9 @@ def printClassToLog(metadata, *obj):
 
 def runObjs(metadataObj, dataMetadataObj, modelMetadataObj, smoothingMetadataObj, smoothingObj, dataObj, modelObj, folderLogNameSuffix = None, 
     folderRelativeRoot = None, logData: dict=None):
+    """
+        Przygotowuje logi, zapisuje do logów metadane klas oraz uruchamia pętlę epochy. 
+    """
     metadataObj.prepareOutput()
 
     if(folderLogNameSuffix is not None):
@@ -2489,6 +2517,9 @@ def runObjs(metadataObj, dataMetadataObj, modelMetadataObj, smoothingMetadataObj
 
 def modelRun(Metadata_Class, Data_Metadata_Class, Model_Metadata_Class, Smoothing_Metadata_Class, Data_Class, Model_Class, Smoothing_Class, 
     modelObj = None, load = True, save = True, folderLogNameSuffix = None, folderRelativeRoot = None):
+    """
+        Deprecated.
+    """
     dictObjs = {}
     dictObjs[Metadata_Class.__name__] = Metadata_Class()
     loadedSuccessful = False
@@ -2554,6 +2585,9 @@ def modelRun(Metadata_Class, Data_Metadata_Class, Model_Metadata_Class, Smoothin
 #########################################
 # other functions
 def cloneTorchDict(weights: dict, toDevice = None):
+    """
+        Kopiuje podane tensory oraz je zwraca. Jednocześnie można sprecyzować docelowe urządzenie.
+    """
     newDict = dict()
     if(isinstance(weights, dict)):
         for key, val in weights.items():
@@ -2565,6 +2599,9 @@ def cloneTorchDict(weights: dict, toDevice = None):
         return newDict
 
 def moveToDevice(weights: dict, toDevice):
+    """
+        Przenosi wszystkie podane wagi do danego urządzenia.
+    """ 
     if(isinstance(weights, dict)):
         for key, val in weights.items():
             weights[key] = val.to(toDevice)
@@ -2586,9 +2623,15 @@ def sumAllWeights(weights):
         return absSum
 
 def checkStrCUDA(string):
-        return string.startswith('cuda')
+    """
+        Sprawdza, czy podany napis zaczyna się od 'cuda'.
+    """
+    return string.startswith('cuda')
 
 def trySelectCUDA(device, metadata):
+    """
+        Zwraca 'cuda', jeżeli system je wspiera. W przeciwnym wypadku zwraca 'cpu'.
+    """
     device = 'cuda' if torch.cuda.is_available() else 'cpu'
     if(metadata.debugInfo):
         Output.printBash('Using {} torch CUDA device version\nCUDA avaliable: {}\nCUDA selected: {}'.format(torch.version.cuda, torch.cuda.is_available(), self.device == 'cuda'),
@@ -2603,6 +2646,9 @@ def selectCPU(device, metadata):
     return device
 
 def checkForEmptyFile(filePath):
+    """
+        Sprawdza, czy dla podanej ścieżki plik istnieje i czy nie jest on pusty.
+    """
     return os.path.isfile(filePath) and os.path.getsize(filePath) > 0
 
 def plot(filePath: list, name = None, plotInputRoot = None, plotOutputRoot = None, fileFormat = '.svg', dpi = 900, widthTickFreq = 0.08, 
@@ -2697,8 +2743,10 @@ def plot(filePath: list, name = None, plotInputRoot = None, plotOutputRoot = Non
 
 def modelDetermTest(Metadata_Class, Data_Metadata_Class, Model_Metadata_Class, Data_Class, Model_Class, Smoothing_Class, modelObj = None):
     """
-    Można użyć do przetestowania, czy dany model jest deterministyczny.
-    Zmiana z CPU na GPU nadal zachowuje determinizm.
+        Deprecated.
+        
+        Można użyć do przetestowania, czy dany model jest deterministyczny.
+        Zmiana z CPU na GPU nadal zachowuje determinizm.
     """
     stat = []
     for i in range(2):

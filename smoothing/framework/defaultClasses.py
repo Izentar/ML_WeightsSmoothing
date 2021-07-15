@@ -27,7 +27,9 @@ class DefaultWeightDecay():
         return x
 
     def __str__(self):
-        tmp_str = ('Weight decay:\t{}\n'.format(self.weightDecay))
+        tmp_str = ('\nStart inner {} class\n+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++\n'.format(type(self).__name__))
+        tmp_str += ('Weight decay:\t{}\n'.format(self.weightDecay))
+        tmp_str += ('+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++\nEnd inner {} class\n'.format(type(self).__name__))
         return tmp_str
 
 # model classes
@@ -53,7 +55,7 @@ class DefaultModel_Metadata(sf.Model_Metadata):
         tmp_str += ('Loss function name:\t{}\n'.format(str(type(self.loss_fn))))
         tmp_str += ('Loss function values:\n{}\n'.format(self.lossFuncDataDict))
         tmp_str += ('Optimizer name:\t{}\n'.format(str(type(self.optimizer))))
-        tmp_str += ('Optimizer values:\n{}\n'.format((self.optimizer.defaults)))
+        tmp_str += ('Optimizer values:\n{}\n'.format((self.optimizer.param_groups)))
         tmp_str += ('Optimizer provided data:\n{}\n'.format((self.optimizerDataDict)))
         return tmp_str
 
@@ -111,19 +113,13 @@ class DefaultModelSimpleConv(sf.Model):
 class DefaultModelPredef(sf.PredefinedModel):
     def __init__(self, obj, modelMetadata, name):
         super().__init__(obj=obj, modelMetadata=modelMetadata, name=name)
-
-        #self.loss_fn = nn.CrossEntropyLoss()
-        #self.optimizer = optim.SGD(self.getNNModelModule().parameters(), lr=modelMetadata.learning_rate, momentum=modelMetadata.momentum)
-        #self.optimizer = optim.AdamW(self.parameters(), lr=modelMetadata.learning_rate)
-
         self.getNNModelModule().to(modelMetadata.device)
 
     def __update__(self, modelMetadata):
         self.getNNModelModule().to(modelMetadata.device)
-        #self.optimizer = optim.SGD(self.getNNModelModule().parameters(), lr=modelMetadata.learning_rate, momentum=modelMetadata.momentum)
 
     def createDefaultMetadataObj(self):
-        return None
+        return DefaultModel_Metadata()
 
 # disabled smoothing
 class DisabledSmoothing_Metadata(sf.Smoothing_Metadata):
@@ -257,11 +253,11 @@ class _SmoothingOscilationBase(sf.Smoothing):
         if(not isinstance(smoothingMetadata, _SmoothingOscilationBase_Metadata)):
             raise Exception("Metadata class '{}' is not the type of '{}'".format(type(smoothingMetadata), _SmoothingOscilationBase_Metadata.__name__))
         
-        self.countWeights = 0
+        self.countWeights = 0 # liczba wywołań calcMean()
         self.tensorPrevSum = sf.CircularList(int(smoothingMetadata.weightSumContainerSize))
         self.divisionCounter = 0
         self.goodEnoughCounter = 0
-        self.alwaysOn = False 
+        self.alwaysOn = False # gdy osiągnie warunek twardego epsilona
         self.weightsComputed = False
 
         self.lossContainer = sf.CircularList(smoothingMetadata.lossContainerSize)
@@ -275,21 +271,27 @@ class _SmoothingOscilationBase(sf.Smoothing):
         avg_1 = self.lossContainer.getAverage()
         avg_2 = self.lossContainer.getAverage(smoothingMetadata.lossContainerDelayedStartAt)
         metadata.stream.print("Loss average: {} : {}".format(avg_1, avg_2), 'debug:0')
-        absAvgDiff = abs(avg_1 - avg_2)
-        minStart = smoothingMetadata.batchPercentMinStart * helperEpoch.maxTrainTotalNumber
 
-        # czy spelniono waruek na twardy epsilon
+        # oblicz bezwzględną różnicę dwóch średnich strat
+        absAvgDiff = abs(avg_1 - avg_2)
+
+        # czy spełniono waruek na twardy epsilon
+        minStart = smoothingMetadata.batchPercentMinStart * helperEpoch.maxTrainTotalNumber
         if(absAvgDiff < smoothingMetadata.hardEpsilon and helperEpoch.trainTotalNumber > minStart):
             self.alwaysOn = True
-            metadata.stream.print("Reached hard epsilon.", 'debug:0')
+            metadata.stream.print("Reached hard epsilon. Average losses are: {}; {}".format(avg_1, avg_2), ['debug:0', 'model:0'])
 
-        # wykonano maksymalną liczbę pętli przed włączeniem wygładzania
+        # czy wykonano maksymalną liczbę pętli przed włączeniem wygładzania
         return bool(
-            (
+                # jeżeli osiągnięto twardy epsilon
+                (self.alwaysOn)
+            or (
                 # jeżeli osiągnięto dostatecznie małą różnicę średnich strat oraz wykonano minimalną liczbę pętli
                 absAvgDiff < smoothingMetadata.epsilon and helperEpoch.trainTotalNumber >= minStart
             )
             or (
+                # jeżeli ilość wykonanych pętli treningowych przekracza maksymalną wartość, po której wygładzanie powinno zostać
+                # włączone niezależnie od innych czynników
                 helperEpoch.trainTotalNumber > (smoothingMetadata.batchPercentMaxStart * helperEpoch.maxTrainTotalNumber)
             )
         )
@@ -301,10 +303,11 @@ class _SmoothingOscilationBase(sf.Smoothing):
     def _smoothingGoodEnoughCheck(self, val, smoothingMetadata):
         ret = bool(val < smoothingMetadata.weightsEpsilon)
         if(ret):
+            # jeżeli dotknięto soft margin, to zwróć True w przypadku jego przekroczenia. Inaczej False oraz zwiększ licznik.
             if(smoothingMetadata.softMarginAdditionalLoops >= self.goodEnoughCounter):
                 self.goodEnoughCounter += 1
                 return False
-            return ret
+            return True
         return False
 
     def __isSmoothingGoodEnough__(self, helperEpoch, helper, model, dataMetadata, modelMetadata, metadata, smoothingMetadata):
@@ -329,18 +332,23 @@ class _SmoothingOscilationBase(sf.Smoothing):
             metadata.stream.print("Sum debug:" + str(absSum), 'debug:0')
             metadata.stream.print("Weight avg diff: " + str(abs(avg_1 - avg_2)), 'debug:0')
             metadata.stream.print("Weight avg diff bool: " + str(bool(abs(avg_1 - avg_2) < smoothingMetadata.weightsEpsilon)), 'debug:0')
+            
             return self._smoothingGoodEnoughCheck(val=abs(avg_1 - avg_2), smoothingMetadata=smoothingMetadata)
         return False
 
+    def calcMean(self, model, smoothingMetadata):
+        self.countWeights += 1
+
     def __call__(self, helperEpoch, helper, model, dataMetadata, modelMetadata, metadata, smoothingMetadata):
         super().__call__(helperEpoch=helperEpoch, helper=helper, model=model, dataMetadata=dataMetadata, modelMetadata=modelMetadata, metadata=metadata, smoothingMetadata=smoothingMetadata)
+        # dodaj stratę do listy cyklicznej
         self.lossContainer.pushBack(helper.loss.item())
+
         metadata.stream.print("Loss avg diff : " + 
             str(abs(self.lossContainer.getAverage() - self.lossContainer.getAverage(smoothingMetadata.lossContainerDelayedStartAt))), 'debug:0')
 
         self.weightsComputed = self.canComputeWeights(helperEpoch=helperEpoch, helper=helper, dataMetadata=dataMetadata, smoothingMetadata=smoothingMetadata, metadata=metadata)
-        if(self.alwaysOn or self.weightsComputed):                
-            self.countWeights += 1
+        if(self.weightsComputed):                
             self.calcMean(model=model, smoothingMetadata=smoothingMetadata)
             return True
 
@@ -352,16 +360,16 @@ class _SmoothingOscilationBase(sf.Smoothing):
 # borderline smoothing
 class DefaultSmoothingBorderline_Metadata(sf.Smoothing_Metadata):
     def __init__(self, device = 'cpu',
-        numbOfBatchAfterSwitchOn = 3000):
+        smoothingStartIter = 3000):
         super().__init__()
 
         self.device = device
-        self.numbOfBatchAfterSwitchOn = numbOfBatchAfterSwitchOn # dla 50000 / 32 ~= 1500, 50000 / 16 ~= 3000
+        self.smoothingStartIter = smoothingStartIter # dla 50000 / 32 ~= 1500, 50000 / 16 ~= 3000
 
     def __strAppend__(self):
         tmp_str = super().__strAppend__()
         tmp_str += ('Device:\t{}\n'.format(self.device))
-        tmp_str += ('Number of batches after smoothing on:\t{}\n'.format(self.numbOfBatchAfterSwitchOn))
+        tmp_str += ('Number of batches after smoothing on:\t{}\n'.format(self.smoothingStartIter))
         return tmp_str
 
 class Test_DefaultSmoothingBorderline_Metadata(DefaultSmoothingBorderline_Metadata):
@@ -369,7 +377,7 @@ class Test_DefaultSmoothingBorderline_Metadata(DefaultSmoothingBorderline_Metada
         """
             Klasa z domyślnymi testowymi parametrami.
         """
-        super().__init__(device=test_device, numbOfBatchAfterSwitchOn=test_numbOfBatchAfterSwitchOn)
+        super().__init__(device=test_device, smoothingStartIter=test_numbOfBatchAfterSwitchOn)
 
 class DefaultSmoothingBorderline(sf.Smoothing):
     """
@@ -385,7 +393,6 @@ class DefaultSmoothingBorderline(sf.Smoothing):
             raise Exception("Metadata class '{}' is not the type of '{}'".format(type(smoothingMetadata), DefaultSmoothingBorderline_Metadata.__name__))
 
         self.sumWeights = {}
-        self.previousWeights = {}
         self.countWeights = 0
 
     def __isSmoothingGoodEnough__(self, helperEpoch, helper, model, dataMetadata, modelMetadata, metadata, smoothingMetadata):
@@ -393,30 +400,26 @@ class DefaultSmoothingBorderline(sf.Smoothing):
 
     def __call__(self, helperEpoch, helper, model, dataMetadata, modelMetadata, metadata, smoothingMetadata):
         super().__call__(helperEpoch=helperEpoch, helper=helper, model=model, dataMetadata=dataMetadata, modelMetadata=modelMetadata, metadata=metadata, smoothingMetadata=smoothingMetadata)
-        if(helperEpoch.trainTotalNumber > smoothingMetadata.numbOfBatchAfterSwitchOn):
+        if(helperEpoch.trainTotalNumber > smoothingMetadata.smoothingStartIter):
             self.countWeights += 1
-            if(hasattr(helper, 'substract')):
-                del helper.substract
-            helper.substract = {}
             with torch.no_grad():
                 for key, arg in model.getNNModelModule().state_dict().items():
-                    cpuArg = arg.to(smoothingMetadata.device)
-                    self.sumWeights[key].to(smoothingMetadata.device).add_(cpuArg)
-                    #helper.substract[key] = arg.sub(self.previousWeights[key])
-                    helper.substract[key] = self.previousWeights[key].sub_(cpuArg).multiply_(-1)
-                    self.previousWeights[key].detach().copy_(cpuArg.detach())
+                    deviceArg = arg.to(smoothingMetadata.device)
+                    self.sumWeights[key].to(smoothingMetadata.device).add_(deviceArg)
             return True
         return False
 
     def __getSmoothedWeights__(self, smoothingMetadata, metadata):
-        average = super().__getSmoothedWeights__(smoothingMetadata=smoothingMetadata, metadata=metadata)
-        if(average is not None):
-            return average
+        tmpCheck = super().__getSmoothedWeights__(smoothingMetadata=smoothingMetadata, metadata=metadata)
+        if(tmpCheck is not None):
+            return tmpCheck
+
+
         average = {}
         if(self.countWeights == 0):
             return average
         for key, arg in self.sumWeights.items():
-            average[key] = self.sumWeights[key].to(smoothingMetadata.device) / self.countWeights
+            average[key] = self.sumWeights[key].to(smoothingMetadata.device).div(self.countWeights)
         return average
 
     def __setDictionary__(self, smoothingMetadata, dictionary):
@@ -427,14 +430,11 @@ class DefaultSmoothingBorderline(sf.Smoothing):
         with torch.no_grad():
             for key, values in dictionary:
                 self.sumWeights[key] = torch.zeros_like(values, requires_grad=False, device=smoothingMetadata.device)
-                self.previousWeights[key] = torch.zeros_like(values, requires_grad=False, device=smoothingMetadata.device)
 
     def __getstate__(self):
         state = self.__dict__.copy()
         if(self.only_Key_Ingredients):
-            del state['previousWeights']
             del state['countWeights']
-            del state['counter']
             del state['sumWeights']
             del state['enabled']
         return state
@@ -442,7 +442,6 @@ class DefaultSmoothingBorderline(sf.Smoothing):
     def __setstate__(self, state):
         self.__dict__.update(state)
         if(self.only_Key_Ingredients):
-            self.previousWeights = {}
             self.countWeights = 0
             self.sumWeights = {}
             self.enabled = False
@@ -504,12 +503,13 @@ class DefaultSmoothingOscilationGeneralizedMean(_SmoothingOscilationBase):
         self.mean = None
 
     def calcMean(self, model, smoothingMetadata):
+        super().calcMean(model=model, smoothingMetadata=smoothingMetadata)
         self.mean.addWeights(model.getNNModelModule().state_dict())
 
     def __getSmoothedWeights__(self, smoothingMetadata, metadata):
-        average = super().__getSmoothedWeights__(smoothingMetadata=smoothingMetadata, metadata=metadata)
-        if(average is not None):
-            return average
+        tmpCheck = super().__getSmoothedWeights__(smoothingMetadata=smoothingMetadata, metadata=metadata)
+        if(tmpCheck is not None):
+            return tmpCheck
         return self.mean.getWeights()
 
     def __setDictionary__(self, smoothingMetadata, dictionary):
@@ -568,33 +568,43 @@ class Test_DefaultSmoothingOscilationEWMA_Metadata(DefaultSmoothingOscilationEWM
 class DefaultSmoothingOscilationEWMA(_SmoothingOscilationBase):
     """
         Liczy średnią EWMA względem wag.
+        Wzór to S = ax + (1-a)S, gdzie 
+            a - współczynnik z przedziału [0;1]; movingAvgParam
+            x - nowe wartości
+            S - suma poprzednich wartości
     """
-    def __init__(self, smoothingMetadata):
+    def __init__(self, smoothingMetadata, dataType=torch.float32):
         super().__init__(smoothingMetadata=smoothingMetadata)
 
         self.weightsSum = {}
+        self.dataType = dataType
         self.__setMovingAvgParam(value=smoothingMetadata.movingAvgParam, smoothingMetadata=smoothingMetadata)
 
     def __setMovingAvgParam(self, value, smoothingMetadata):
         if(value >= 1.0 or value <= 0.0):
             raise Exception("Value of {}.movingAvgParam can only be in the range [0; 1]".format(self.__name__))
-
-        self.movingAvgTensorLow = torch.tensor(value).to(smoothingMetadata.device).type(torch.float32)
-        self.movingAvgTensorHigh = torch.tensor(1 - value).to(smoothingMetadata.device).type(torch.float32)
+        
+        # a
+        self.movingAvgTensorLow = torch.tensor(value).to(smoothingMetadata.device).type(self.dataType)
+        # 1 - a
+        self.movingAvgTensorHigh = torch.tensor(1 - value).to(smoothingMetadata.device).type(self.dataType)
 
     def calcMean(self, model, smoothingMetadata):
+        super().calcMean(model=model, smoothingMetadata=smoothingMetadata)
         with torch.no_grad():
             for key, val in model.getNNModelModule().state_dict().items():
                 valDevice = val.device
                 # S = ax + (1-a)S
                 self.weightsSum[key] = self.weightsSum[key].mul_(self.movingAvgTensorHigh).add_(
-                    (val.type(torch.float32).mul(self.movingAvgTensorLow)).to(smoothingMetadata.device)
-                    ).type(torch.float32)
+                    (val.type(self.dataType).mul(self.movingAvgTensorLow)).to(smoothingMetadata.device)
+                    ).type(self.dataType)
 
     def __getSmoothedWeights__(self, smoothingMetadata, metadata):
-        average = super().__getSmoothedWeights__(smoothingMetadata=smoothingMetadata, metadata=metadata)
-        if(average is not None):
-            return average # {}
+        tmpCheck = super().__getSmoothedWeights__(smoothingMetadata=smoothingMetadata, metadata=metadata)
+        if(tmpCheck is not None):
+            return tmpCheck # {}
+
+
         average = {}
         if(self.countWeights == 0):
             return average # {}
@@ -610,13 +620,12 @@ class DefaultSmoothingOscilationEWMA(_SmoothingOscilationBase):
             for key, values in dictionary:
                 # ważne jest, aby skopiować początkowe wagi, a nie stworzyć tensor zeros_like
                 # w przeciwnym wypadku średnia będzie dawała bardzo złe wyniki
-                self.weightsSum[key] = torch.clone(values).to(smoothingMetadata.device, dtype=torch.float32).requires_grad_(False)
+                self.weightsSum[key] = torch.clone(values).to(smoothingMetadata.device, dtype=self.dataType).requires_grad_(False)
 
     def __getstate__(self):
         state = self.__dict__.copy()
         if(self.only_Key_Ingredients):
             del state['countWeights']
-            del state['counter']
             del state['enabled']
         return state
 
@@ -625,11 +634,6 @@ class DefaultSmoothingOscilationEWMA(_SmoothingOscilationBase):
         if(self.only_Key_Ingredients):
             self.countWeights = 0
             self.enabled = False
-            self.divisionCounter = 0
-
-            self.lossContainer.reset()
-            self.tensorPrevSum_1.reset()
-            self.tensorPrevSum_2.reset()
 
     def createDefaultMetadataObj(self):
         return DefaultSmoothingOscilationEWMA_Metadata()
@@ -670,10 +674,9 @@ class DefaultSmoothingOscilationWeightedMean_Metadata(_SmoothingOscilationBase_M
 
     def __strAppend__(self):
         tmp_str = super().__strAppend__()
-        tmp_str += ('\nStart inner {} class\n+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++\n'.format(type(self.weightIter).__name__))
         tmp_str += str(self.weightIter)
         tmp_str += ('Weight array size:\t{}\n'.format(self.weightsArraySize))
-        tmp_str += ('+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++\nEnd inner {} class\n'.format(type(self.weightIter).__name__))
+        tmp_str += ('Smoothing end type:\t{}\n'.format(self.smoothingEndCheckType))
         return tmp_str
 
 class Test_DefaultSmoothingOscilationWeightedMean_Metadata(DefaultSmoothingOscilationWeightedMean_Metadata):
@@ -697,14 +700,27 @@ class Test_DefaultSmoothingOscilationWeightedMean_Metadata(DefaultSmoothingOscil
 
 class DefaultSmoothingOscilationWeightedMean(_SmoothingOscilationBase):
     """
-    Włącza wygładzanie gdy zostaną spełnione określone warunki:
-    - po przekroczeniu pewnej minimalnej ilości iteracji pętli oraz 
-        gdy różnica pomiędzy średnią N ostatnich strat treningowych modelu, 
-        a średnią średnich N ostatnich strat treningowych modelu jest mniejsza niż epsilon.
-    - po przekroczeniu pewnej maksymalnej ilości iteracji pętli.
+        Włącza wygładzanie, gdy zostaną spełnione określone warunki:
+        - po przekroczeniu pewnej minimalnej ilości iteracji pętli oraz 
+            gdy różnica pomiędzy średnią N ostatnich strat treningowych modelu, 
+            a średnią średnich N ostatnich strat treningowych modelu jest mniejsza niż epsilon.
+        - po przekroczeniu pewnej maksymalnej ilości iteracji pętli.
 
-    Liczy średnią ważoną dla wag. Wagi są nadawane względem starości zapamiętanej wagi. Im starsza tym ma mniejszą wagę.
-    Podana implementacja zużywa proporcjonalnie tyle pamięci, ile wynosi dla niej parametr weightsArraySize.
+        Liczy średnią ważoną dla wag. Wagi są nadawane względem kolejności ich zapamiętywania. 
+        Domyślnie, im starsza, tym posiada mniejszą wagę, jednak można podać swoją własną implementację.
+        Podana implementacja zużywa proporcjonalnie tyle pamięci, ile wynosi dla niej parametr weightsArraySize.
+        Wymaga to trzymania w buforze zapamiętanych wag modelu.
+
+        Implementacja, ze względu na zapamiętywanie wag, dostarcza innej metody sprawdzenia, czy wygładzanie osiągnęło dostatecznie
+        dobry wynik. Porównujemy w niej uśrednione wagi z zapisanymi w buforze wagami, licząc jak bardzo się od siebie różnią.
+        Pseudokod:
+            diff = []
+            for weights in savedWeights:
+                diffsum = 0
+                for weight in weights:
+                    diffsum += sum(abs(weight - avgWeight))
+                diff.append(diffsum)
+            torch.std(diffsum)
     """
     def __init__(self, smoothingMetadata):
         super().__init__(smoothingMetadata=smoothingMetadata)
@@ -719,6 +735,7 @@ class DefaultSmoothingOscilationWeightedMean(_SmoothingOscilationBase):
             raise Exception("Unknown type of smoothingEndCheckType: {}".format(smoothingMetadata.smoothingEndCheckType))
         
     def calcMean(self, model, smoothingMetadata):
+        super().calcMean(model=model, smoothingMetadata=smoothingMetadata)
         with torch.no_grad():
             tmpDict = {}
             for key, val in model.getNNModelModule().state_dict().items():
@@ -726,18 +743,21 @@ class DefaultSmoothingOscilationWeightedMean(_SmoothingOscilationBase):
             self.weightsArray.pushBack(tmpDict)
 
     def __getSmoothedWeights__(self, smoothingMetadata, metadata):
-        average = super().__getSmoothedWeights__(smoothingMetadata=smoothingMetadata, metadata=metadata)
-        if(average is not None):
-            return average # {}
+        tmpCheck = super().__getSmoothedWeights__(smoothingMetadata=smoothingMetadata, metadata=metadata)
+        if(tmpCheck is not None):
+            return tmpCheck # {}
+
         average = {}
         if(self.countWeights == 0):
             return average # {}
 
+        # przygotuj słownik dla wag
         for wg in self.weightsArray:
             for key, val in wg.items():
                 average[key] = torch.zeros_like(val, requires_grad=False, device=smoothingMetadata.device)
             break
 
+        # sumuj wagi względem współczynnika
         iterWg = iter(smoothingMetadata.weightIter)
         wgSum = 0.0
         for wg in self.weightsArray:
@@ -746,6 +766,7 @@ class DefaultSmoothingOscilationWeightedMean(_SmoothingOscilationBase):
                 average[key] += val.mul(weight)
             wgSum += weight 
 
+        # podziel otrzymaną sumę przez całkowitą sumę wag średniej ważonej
         for key, val in average.items():
             val.div_(wgSum)
         return average
@@ -760,7 +781,6 @@ class DefaultSmoothingOscilationWeightedMean(_SmoothingOscilationBase):
         state = self.__dict__.copy()
         if(self.only_Key_Ingredients):
             del state['countWeights']
-            del state['counter']
             del state['weightsArray']
             del state['enabled']
         return state
@@ -771,11 +791,6 @@ class DefaultSmoothingOscilationWeightedMean(_SmoothingOscilationBase):
             self.countWeights = 0
             self.weightsArray.reset()
             self.enabled = False
-            self.divisionCounter = 0
-
-            self.lossContainer.reset()
-            self.tensorPrevSum_1.reset()
-            self.tensorPrevSum_2.reset()
 
     def createDefaultMetadataObj(self):
         return DefaultSmoothingOscilationWeightedMean_Metadata()
@@ -784,17 +799,15 @@ class DefaultSmoothingOscilationWeightedMean(_SmoothingOscilationBase):
         return self.isSmoothingGoodEnoughMethod(self, helperEpoch=helperEpoch, helper=helper, model=model, 
             dataMetadata=dataMetadata, modelMetadata=modelMetadata, metadata=metadata, smoothingMetadata=smoothingMetadata)
 
-    def _sumWeightsToArrayStd(self, smWg):
+    def _sumWeightsToArrayStd(self, smoothedWeights):
         sumOfDiff = []
-        for wg in self.weightsArray:
+        for weights in self.weightsArray:
             diffSumDict = 0.0
-            for key, tens in wg.items():
-                diffSumDict += torch.sum(torch.abs(tens.sub(smWg[key])))
+            for key, weightTens in weights.items():
+                diffSumDict += torch.sum(torch.abs(weightTens.sub(smoothedWeights[key])))
             sumOfDiff.append(diffSumDict)
         
-        sumOfDiff = torch.Tensor(sumOfDiff)
-        std = torch.std(sumOfDiff)
-        torch.cuda.empty_cache()
+        std = torch.std(torch.Tensor(sumOfDiff))
         if(std.isnan()):
             return torch.tensor(ConfigClass.STD_NAN)
         return std
@@ -823,10 +836,8 @@ class DefaultPytorchAveragedSmoothing_Metadata(sf.Smoothing_Metadata):
 
     def __strAppend__(self):
         tmp_str = super().__strAppend__()
-        tmp_str += ('\nStart inner {} class\n+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++\n'.format(type(self.smoothingStartPercent).__name__))
         tmp_str += ('Device:\t{}\n'.format(str(self.device)))
         tmp_str += ('Smoothing start percent:\t{}\n'.format(str(self.smoothingStartPercent)))
-        tmp_str += ('+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++\nEnd inner {} class\n'.format(type(self.smoothingStartPercent).__name__))
         return tmp_str
 
 class Test_DefaultPytorchAveragedSmoothing_Metadata(DefaultPytorchAveragedSmoothing_Metadata):
@@ -834,12 +845,16 @@ class Test_DefaultPytorchAveragedSmoothing_Metadata(DefaultPytorchAveragedSmooth
         super().__init__(device=test_device, smoothingStartPercent=test_smoothingStartPercent)
 
 class DefaultPytorchAveragedSmoothing(sf.Smoothing):
+    """
+        Algorytm SWA. Korzysta z implementacji pytorcha torch.optim.swa_utils.AveragedModel.
+        Wygładzanie jest włączane po określonej liczbie iteracji pętli treningowej.
+    """
     def __init__(self, smoothingMetadata, model):
         super().__init__(smoothingMetadata)
         self.swaModel = torch.optim.swa_utils.AveragedModel(model.getNNModelModule())
     
     def __call__(self, helperEpoch, helper, model, dataMetadata, modelMetadata, smoothingMetadata, metadata):
-        #super().__call__(helperEpoch=helperEpoch, helper=helper, model=model, dataMetadata=dataMetadata, modelMetadata=modelMetadata, metadata=metadata, smoothingMetadata=smoothingMetadata)
+        super().__call__(helperEpoch=helperEpoch, helper=helper, model=model, dataMetadata=dataMetadata, modelMetadata=modelMetadata, metadata=metadata, smoothingMetadata=smoothingMetadata)
 
         if(helperEpoch.trainTotalNumber > (smoothingMetadata.smoothingStartPercent * helperEpoch.maxTrainTotalNumber)):
             self.swaModel.update_parameters(model.getNNModelModule())
@@ -856,10 +871,11 @@ class DefaultPytorchAveragedSmoothing(sf.Smoothing):
         return self.swaModel
 
     def __getSmoothedWeights__(self, smoothingMetadata, metadata):
-        average = super().__getSmoothedWeights__(smoothingMetadata=smoothingMetadata, metadata=metadata)
-        if(average is not None):
-            return average
-        return self.swaModel.module.state_dict()
+        tmpCheck = super().__getSmoothedWeights__(smoothingMetadata=smoothingMetadata, metadata=metadata)
+        if(tmpCheck is not None):
+            return tmpCheck
+
+        return sf.cloneTorchDict(self.swaModel.module.state_dict())
 
 
 # data classes
@@ -889,7 +905,7 @@ class DefaultData_Metadata(sf.Data_Metadata):
 
         # default values
         self.transformTrain = transformTrain if transformTrain is not None else transforms.Compose([
-                transforms.RandomCrop(32, padding=4),
+                transforms.RandomCrop(32),
                 transforms.RandomHorizontalFlip(),
                 transforms.ToTensor(),
                 transforms.Normalize((0.4914, 0.4822, 0.4465), (0.2023, 0.1994, 0.2010)), 
@@ -1012,7 +1028,7 @@ class DefaultData(sf.Data):
             return 
 
         with torch.no_grad():
-            if(metadata.shouldTest() and (helperEpoch.epochNumber + 1 in dataMetadata.startTestAtEpoch) ):
+            if(metadata.shouldTest() and (helperEpoch.epochNumber + 1 in dataMetadata.startTestAtEpoch or helperEpoch.epochNumber + 1 == dataMetadata.epoch) ):
                 helperEpoch.currentLoopTimeAlias = 'loopTestTime_normal'
                 self.testLoop(model=model, helperEpoch=helperEpoch, dataMetadata=dataMetadata, modelMetadata=modelMetadata, metadata=metadata, smoothing=smoothing, smoothingMetadata=smoothingMetadata)
                 smoothing.saveWeights(weights=model.getNNModelModule().state_dict().items(), key='main')
