@@ -55,7 +55,11 @@ class DefaultModel_Metadata(sf.Model_Metadata):
         tmp_str += ('Loss function name:\t{}\n'.format(str(type(self.loss_fn))))
         tmp_str += ('Loss function values:\n{}\n'.format(self.lossFuncDataDict))
         tmp_str += ('Optimizer name:\t{}\n'.format(str(type(self.optimizer))))
-        tmp_str += ('Optimizer values:\n{}\n'.format((self.optimizer.param_groups)))
+        tmp_str += ('Optimizer values:\n')
+        if(hasattr(self.optimizer, "defaults")):
+            tmp_str += ('{}\n'.format((self.optimizer.defaults)))
+        else:
+            tmp_str += ('Not found\n')
         tmp_str += ('Optimizer provided data:\n{}\n'.format((self.optimizerDataDict)))
         return tmp_str
 
