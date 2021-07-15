@@ -32,7 +32,7 @@ if(__name__ == '__main__'):
         "prefix":"set_copyOfExper_",
         "runningAvgSize":10,
         "num_classes":10,
-        "schedulerEpoches":[35, 50, 65, 80, 95],
+        "schedulerEpoches":[35, 90, 155],
         "lr_sched_gamma":0.2,
         "block":"torchvision.models.resnet.BasicBlock"
     }
@@ -42,7 +42,7 @@ if(__name__ == '__main__'):
 
     metadata = sf.Metadata(testFlag=True, trainFlag=True, debugInfo=True)
     dataMetadata = dc.DefaultData_Metadata(pin_memoryTest=False, pin_memoryTrain=False, epoch=100,
-        batchTrainSize=128, batchTestSize=100, startTestAtEpoch=[0, 10, 20, 30, 40, 50, 60, 70, 80, 90, 100], 
+        batchTrainSize=128, batchTestSize=100, startTestAtEpoch=list(range(stop=170, step=10)) + [1], 
         transformTrain=transforms.Compose([
             transforms.RandomCrop(32),
             transforms.ColorJitter(),
