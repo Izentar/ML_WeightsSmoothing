@@ -32,9 +32,8 @@ if(__name__ == '__main__'):
         "prefix":"set_copyOfExper_",
         "runningAvgSize":10,
         "num_classes":10,
-        "schedulerEpoches":[35, 90, 155],
+        "schedulerEpoches":[50, 110, 160],
         "lr_sched_gamma":0.2,
-        "layers":[3, 4, 6, 3],
         "block":"torchvision.models.resnet.BasicBlock"
     }
 
@@ -52,7 +51,7 @@ if(__name__ == '__main__'):
             torchvision.transforms.GaussianBlur(5),
             transforms.ToTensor(),
             normalize,
-            Cutout(n_holes=1, length=5)
+            Cutout(n_holes=2, length=5)
         ]),
         transformTest=transforms.Compose([
             transforms.ToTensor(),
@@ -62,14 +61,14 @@ if(__name__ == '__main__'):
     modelMetadata = dc.DefaultModel_Metadata(device=modelDevice, lossFuncDataDict={}, optimizerDataDict=optimizerDataDict)
 
 
-    types = ('predefModel', 'CIFAR10', 'disabled')
+    types = ('wide_resnet_50_2', 'predefModel', 'CIFAR10', 'disabled', 'SGD')
     try:
         stats = []
         rootFolder = otherData["prefix"] + sf.Output.getTimeStr() + ''.join(x + "_" for x in types)
         smoothingMetadata = dc.DisabledSmoothing_Metadata()
 
         for r in range(otherData["loop"]):
-            obj = models.ResNet(block, otherData["layers"], num_classes=otherData["num_classes"])
+            obj = models.wide_resnet50_2(num_classes=otherData["num_classes"])
 
             data = dc.DefaultDataCIFAR10(dataMetadata)
             model = dc.DefaultModelPredef(obj=obj, modelMetadata=modelMetadata, name=otherData["modelName"])

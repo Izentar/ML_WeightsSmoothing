@@ -43,3 +43,9 @@ class Cutout(object):
         img = img * mask
 
         return img
+
+    def __str__(self):
+        return "{} number of holes: {}; Length of strip {}".format(type(self), self.n_holes, self.length)
+
+    def __repr__(self):
+        return str(self)

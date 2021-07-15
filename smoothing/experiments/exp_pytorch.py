@@ -35,9 +35,7 @@ def getParser():
 
 if(__name__ == '__main__'):
     args = getParser().parse_args()
-    print(args)
-
-    print(args.optim)
+    print("Arguments passed:\n{}".format(args))
 
     modelDevice = 'cuda:0'
     if(sf.test_mode().isActive()):

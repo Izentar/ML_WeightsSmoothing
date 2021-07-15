@@ -149,7 +149,9 @@ Cutout implementation by Machine Learning Research Group at the University of Gu
 https://github.com/uoguelph-mlrg/Cutout
 """
 
-
+"""
+    Źródło: https://github.com/uoguelph-mlrg/Cutout/blob/287f934ea5fa00d4345c2cccecf3552e2b1c33e3/util/cutout.py#L5
+"""
 class Cutout(object):
     """Randomly mask out one or more patches from an image.
     Args:

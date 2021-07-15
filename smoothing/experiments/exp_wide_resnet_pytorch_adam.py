@@ -21,6 +21,8 @@ if(__name__ == '__main__'):
     modelDevice = 'cuda:0'
     if(sf.test_mode().isActive()):
         modelDevice="cuda:0"
+        
+    block = modResnet.BasicBlock
 
     otherData = {
         "IMG_MEAN":[125.3, 123.0, 113.9],
@@ -31,14 +33,15 @@ if(__name__ == '__main__'):
         "runningAvgSize":10,
         "num_classes":10,
         "schedulerEpoches":[50, 110, 160],
-        "lr_sched_gamma":0.2
+        "lr_sched_gamma":0.2,
+        "block":"torchvision.models.resnet.BasicBlock"
     }
 
     normalize = transforms.Normalize(mean=[x / 255.0 for x in otherData["IMG_MEAN"]],
                                      std=[x / 255.0 for x in otherData["IMG_STD"]])
 
     metadata = sf.Metadata(testFlag=True, trainFlag=True, debugInfo=True)
-    dataMetadata = dc.DefaultData_Metadata(pin_memoryTest=False, pin_memoryTrain=False, epoch=100,
+    dataMetadata = dc.DefaultData_Metadata(pin_memoryTest=False, pin_memoryTrain=False, epoch=170,
         batchTrainSize=128, batchTestSize=100, startTestAtEpoch=list(range(0, 171, 10)) + [1], 
         transformTrain=transforms.Compose([
             transforms.RandomCrop(32),
@@ -54,29 +57,25 @@ if(__name__ == '__main__'):
             transforms.ToTensor(),
             normalize
         ]))
-    optimizerDataDict={
-        "learning_rate":0.1,
-        "momentum":0.9, 
-        "weight_decay":0.0005, 
-        "nesterov":True}
+    optimizerDataDict={"learning_rate":0.1, "momentum":0.9, "weight_decay":0.0005, "nesterov":True}
     modelMetadata = dc.DefaultModel_Metadata(device=modelDevice, lossFuncDataDict={}, optimizerDataDict=optimizerDataDict)
 
 
-    types = ('VGG19', 'predefModel', 'CIFAR10', 'disabled', 'SGD')
+    types = ('wide_resnet_50_2', 'predefModel', 'CIFAR10', 'disabled', 'SGD')
     try:
         stats = []
         rootFolder = otherData["prefix"] + sf.Output.getTimeStr() + ''.join(x + "_" for x in types)
         smoothingMetadata = dc.DisabledSmoothing_Metadata()
 
         for r in range(otherData["loop"]):
-            obj = models.vgg19_bn(num_classes=otherData["num_classes"])
+            obj = models.wide_resnet50_2(num_classes=otherData["num_classes"])
 
             data = dc.DefaultDataCIFAR10(dataMetadata)
             model = dc.DefaultModelPredef(obj=obj, modelMetadata=modelMetadata, name=otherData["modelName"])
             smoothing = dc.DisabledSmoothing(smoothingMetadata)
 
-            optimizer = optim.SGD(model.getNNModelModule().parameters(), lr=optimizerDataDict['learning_rate'], 
-                weight_decay=optimizerDataDict['weight_decay'], momentum=optimizerDataDict['momentum'], nesterov=optimizerDataDict['nesterov'])
+            optimizer = optim.Adam(model.getNNModelModule().parameters(), lr=optimizerDataDict['learning_rate'], 
+                weight_decay=optimizerDataDict['weight_decay'])
             scheduler = sf.MultiplicativeLR(optimizer, gamma=otherData["lr_sched_gamma"])
             loss_fn = nn.CrossEntropyLoss()     
 

@@ -106,7 +106,7 @@ if(__name__ == '__main__'):
 
     metadata = sf.Metadata(testFlag=True, trainFlag=True, debugInfo=True)
     dataMetadata = dc.DefaultData_Metadata(pin_memoryTest=False, pin_memoryTrain=False, epoch=200,
-        batchTrainSize=200, batchTestSize=100, startTestAtEpoch=[0, 50, 100, 150, 200], 
+        batchTrainSize=128, batchTestSize=100, startTestAtEpoch=[0, 50, 100, 150, 200], 
         transformTrain=transforms.Compose([
             transforms.RandomCrop(32, padding=4),
             transforms.RandomHorizontalFlip(),
@@ -151,7 +151,7 @@ if(__name__ == '__main__'):
 
             stat=dc.run(metadataObj=metadata, data=data, model=model, smoothing=smoothing, optimizer=optimizer, lossFunc=loss_fn,
                 modelMetadata=modelMetadata, dataMetadata=dataMetadata, smoothingMetadata=smoothingMetadata, rootFolder=rootFolder,
-                schedulers=[([60, 120, 180], scheduler)])
+                schedulers=[([60, 90, 120, 150, 180], scheduler)])
 
             stat.saveSelf(name="stat")
 

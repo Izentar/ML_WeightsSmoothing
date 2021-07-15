@@ -7,7 +7,7 @@ from framework import smoothingFramework as sf
 import traceback
 
 for i, arg in enumerate(sys.argv):
-    if(arg == "debug" or arg == "test"):
+    if(arg == "--debug" or arg == "--test"):
         sf.StaticData.TEST_MODE = True
 
 ##############################################################
