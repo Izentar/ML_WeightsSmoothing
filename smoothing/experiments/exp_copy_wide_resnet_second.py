@@ -249,7 +249,7 @@ if(__name__ == '__main__'):
 
             optimizer = optim.SGD(model.getNNModelModule().parameters(), lr=optimizerDataDict['learning_rate'], 
                 weight_decay=optimizerDataDict['weight_decay'], momentum=optimizerDataDict['momentum'], nesterov=optimizerDataDict['nesterov'])
-            scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=15, gamma=otherData["lr_sched_gamma"])
+            scheduler = sf.MultiplicativeLR(optimizer, gamma=otherData["lr_sched_gamma"])
             loss_fn = nn.CrossEntropyLoss()     
 
             stat=dc.run(metadataObj=metadata, data=data, model=model, smoothing=smoothing, optimizer=optimizer, lossFunc=loss_fn,

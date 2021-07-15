@@ -358,7 +358,30 @@ class CircularList():
     def __len__(self):
         return len(self.array)
 
+class MultiplicativeLR():
+    """ 
+        startAt - wykonuje step() podaną ilość razy
+    """
+    def __init__(self, optimizer, gamma, startAt=0):
+        self.optimizer = optimizer
+        self.gamma = gamma
+        self.stepCount = 0 # liczba wykonanych wywołań step()
 
+        if startAt < 0:
+            raise Exception("Bad argument startAt {}.".format(startAt))
+        for i in range(startAt):
+            self.step()
+
+    def get_lr(self):
+        ret = []
+        for gr in self.optimizer.param_groups:
+            ret.append(gr['lr'])
+        return ret
+
+    def step(self):
+        for gr in self.optimizer.param_groups:
+            gr['lr'] *= self.gamma
+        self.stepCount += 1
 
 
 class Metadata(SaveClass, BaseMainClass):
@@ -1791,6 +1814,7 @@ class Data(SaveClass, BaseMainClass, BaseLogicClass):
             metadata.stream.flushAll()
             
             self.__epoch__(helperEpoch=self.epochHelper, model=model, dataMetadata=dataMetadata, modelMetadata=modelMetadata, metadata=metadata, smoothing=smoothing, smoothingMetadata=smoothingMetadata)
+            metadata.stream.print(f"\nEpoch End\n-------------------------------")
             model.schedulerStep(epochNumb=ep, metadata=metadata)
 
             if(SAVE_AND_EXIT_FLAG):
@@ -1957,7 +1981,7 @@ class __BaseModel(nn.Module, SaveClass, BaseMainClass, BaseLogicClass):
             for epochStep, scheduler in self.schedulers:
                 if(epochStep is None or epochNumb + 1 in epochStep):
                     scheduler.step()
-                    metadata.stream.print("Used scheduler {}".format(type(scheduler)), ['model:0'])
+                    metadata.stream.print("Set learning rate to {}".format(scheduler.get_lr()), ['model:0'])
 
     def canUpdate(self = None):
         return True
