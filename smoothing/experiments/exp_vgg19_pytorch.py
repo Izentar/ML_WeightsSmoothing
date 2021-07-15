@@ -33,7 +33,6 @@ if(__name__ == '__main__'):
         "num_classes":10,
         "schedulerEpoches":[35, 50, 65, 80, 95],
         "lr_sched_gamma":0.2,
-        "layers":[3, 4, 6, 3],
         "block":"torchvision.models.resnet.BasicBlock"
     }
 
@@ -66,7 +65,7 @@ if(__name__ == '__main__'):
         smoothingMetadata = dc.DisabledSmoothing_Metadata()
 
         for r in range(otherData["loop"]):
-            obj = models.ResNet(block, otherData["layers"], num_classes=otherData["num_classes"])
+            obj = models.vgg19_bn(num_classes=otherData["num_classes"])
 
             data = dc.DefaultDataCIFAR10(dataMetadata)
             model = dc.DefaultModelPredef(obj=obj, modelMetadata=modelMetadata, name=otherData["modelName"])
