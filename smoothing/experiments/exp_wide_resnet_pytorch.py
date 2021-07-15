@@ -43,7 +43,7 @@ if(__name__ == '__main__'):
 
     metadata = sf.Metadata(testFlag=True, trainFlag=True, debugInfo=True)
     dataMetadata = dc.DefaultData_Metadata(pin_memoryTest=False, pin_memoryTrain=False, epoch=170,
-        batchTrainSize=128, batchTestSize=100, startTestAtEpoch=list(range(stop=170, step=10)) + [1], 
+        batchTrainSize=128, batchTestSize=100, startTestAtEpoch=list(range(0, 171, 10)) + [1], 
         transformTrain=transforms.Compose([
             transforms.RandomCrop(32),
             transforms.ColorJitter(),
