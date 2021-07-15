@@ -68,7 +68,7 @@ if(__name__ == '__main__'):
         smoothingMetadata = dc.DisabledSmoothing_Metadata()
 
         for r in range(otherData["loop"]):
-            obj = models.vgg19_bn(num_classes=otherData["num_classes"])
+            obj = models.densenet169(num_classes=otherData["num_classes"])
 
             data = dc.DefaultDataCIFAR10(dataMetadata)
             model = dc.DefaultModelPredef(obj=obj, modelMetadata=modelMetadata, name=otherData["modelName"])

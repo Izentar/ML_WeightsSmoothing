@@ -12,6 +12,7 @@ import torchvision.models.resnet as modResnet
 
 from framework import smoothingFramework as sf
 from framework import defaultClasses as dc
+from framework import Cutout
 
 import numpy as np
 import math
@@ -47,9 +48,11 @@ if(__name__ == '__main__'):
             transforms.RandomCrop(32),
             transforms.ColorJitter(),
             transforms.RandomHorizontalFlip(),
+            transforms.RandomVerticalFlip(),
             torchvision.transforms.GaussianBlur(5),
             transforms.ToTensor(),
-            normalize
+            normalize,
+            Cutout(n_holes=1, length=5)
         ]),
         transformTest=transforms.Compose([
             transforms.ToTensor(),
