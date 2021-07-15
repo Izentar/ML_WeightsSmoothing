@@ -206,7 +206,7 @@ if(__name__ == '__main__'):
         "prefix":"set_copyOfExper_",
         "runningAvgSize":10,
         "num_classes":10,
-        "schedulerEpoches":[50, 100, 140],
+        "schedulerEpoches":[35, 50, 65, 80, 95],
         "lr_sched_gamma":0.2
     }
 
@@ -214,8 +214,8 @@ if(__name__ == '__main__'):
                                      std=[x / 255.0 for x in otherData["IMG_STD"]])
 
     metadata = sf.Metadata(testFlag=True, trainFlag=True, debugInfo=True)
-    dataMetadata = dc.DefaultData_Metadata(pin_memoryTest=False, pin_memoryTrain=False, epoch=170,
-        batchTrainSize=128, batchTestSize=100, startTestAtEpoch=[0, 50, 100, 150, 170], 
+    dataMetadata = dc.DefaultData_Metadata(pin_memoryTest=False, pin_memoryTrain=False, epoch=100,
+        batchTrainSize=128, batchTestSize=100, startTestAtEpoch=[0, 25, 50, 75, 100], 
         transformTrain=transforms.Compose([
             #transforms.Lambda(lambda x: F.pad(x.unsqueeze(0), (4,4,4,4), mode="reflect").squeeze()),
             #transforms.ToPILImage(),
