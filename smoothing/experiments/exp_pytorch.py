@@ -118,7 +118,7 @@ if(__name__ == '__main__'):
         for r in range(args.loops):
             obj = None
             if(args.model == VGG):
-                obj = vgg16_bn(num_classes=otherData["num_classes"])
+                obj = vgg19_bn(num_classes=otherData["num_classes"])
             elif(args.model == WRESNET):
                 obj = WideResNet(
                     depth=args.depth, 
