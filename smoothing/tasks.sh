@@ -5,6 +5,23 @@
 # pole do modyfikacji
 declare -a commands=(
     "python3 smoothing/experiments/exp_pytorch.py --model vgg19_bn --dataset CIFAR10 --optim SGD --loops 1      --epochs 164 --schedule 81 122 --gamma 0.1"
+    "python3 smoothing/experiments/exp_pytorch.py --model vgg19_bn --dataset CIFAR10 --optim Adam --loops 1     --epochs 164 --schedule 81 122 --gamma 0.1"
+
+    "python3 smoothing/experiments/exp_pytorch.py --model wide_resnet --dataset CIFAR10 --optim SGD --loops 1   --depth 28 --depth 28 --widen-factor 10 --drop 0.3 --epochs 200 --schedule 60 120 160 --wd 5e-4 --gamma 0.2"
+    "python3 smoothing/experiments/exp_pytorch.py --model wide_resnet --dataset CIFAR10 --optim Adam --loops 1  --depth 28 --depth 28 --widen-factor 10 --drop 0.3 --epochs 200 --schedule 60 120 160 --wd 5e-4 --gamma 0.2"
+
+    "python3 smoothing/experiments/exp_pytorch.py --model densenet --dataset CIFAR10 --optim SGD --loops 1      --depth 100 --growthRate 12 --epochs 300 --schedule 150 225 --wd 1e-4 --gamma 0.1"
+    "python3 smoothing/experiments/exp_pytorch.py --model densenet --dataset CIFAR10 --optim Adam --loops 1     --depth 100 --growthRate 12 --epochs 300 --schedule 150 225 --wd 1e-4 --gamma 0.1"
+
+
+    "python3 smoothing/experiments/exp_pytorch.py --model vgg19_bn --dataset CIFAR100 --optim SGD --loops 1      --epochs 164 --schedule 81 122 --gamma 0.1"
+    "python3 smoothing/experiments/exp_pytorch.py --model vgg19_bn --dataset CIFAR100 --optim Adam --loops 1     --epochs 164 --schedule 81 122 --gamma 0.1"
+
+    "python3 smoothing/experiments/exp_pytorch.py --model wide_resnet --dataset CIFAR100 --optim SGD --loops 1   --depth 28 --widen-factor 10 --drop 0.3 --epochs 200 --schedule 60 120 160 --wd 5e-4 --gamma 0.2"
+    "python3 smoothing/experiments/exp_pytorch.py --model wide_resnet --dataset CIFAR100 --optim Adam --loops 1  --depth 28 --widen-factor 10 --drop 0.3 --epochs 200 --schedule 60 120 160 --wd 5e-4 --gamma 0.2"
+
+    "python3 smoothing/experiments/exp_pytorch.py --model densenet --dataset CIFAR100 --optim SGD --loops 1      --depth 100 --growthRate 12 --epochs 300 --schedule 150 225 --wd 1e-4 --gamma 0.1"
+    "python3 smoothing/experiments/exp_pytorch.py --model densenet --dataset CIFAR100 --optim Adam --loops 1     --depth 100 --growthRate 12 --epochs 300 --schedule 150 225 --wd 1e-4 --gamma 0.1"
 )
 
 declare -a names=(
@@ -30,8 +47,8 @@ declare -a names=(
 "python3 smoothing/experiments/exp_pytorch.py --model wide_resnet --dataset CIFAR100 --optim SGD --loops 1   --depth 28 --widen-factor 10 --drop 0.3 --epochs 200 --schedule 60 120 160 --wd 5e-4 --gamma 0.2"
 "python3 smoothing/experiments/exp_pytorch.py --model wide_resnet --dataset CIFAR100 --optim Adam --loops 1  --depth 28 --widen-factor 10 --drop 0.3 --epochs 200 --schedule 60 120 160 --wd 5e-4 --gamma 0.2"
 
-"python3 smoothing/experiments/exp_pytorch.py --model densenet --dataset CIFAR100 --optim SGD --loops 1      --depth 100 --growthRate 12 --epochs 300 --schedule 150 225 --wd 1e-4 --gamma 0.1
-"python3 smoothing/experiments/exp_pytorch.py --model densenet --dataset CIFAR100 --optim Adam --loops 1     --depth 100 --growthRate 12 --epochs 300 --schedule 150 225 --wd 1e-4 --gamma 0.1
+"python3 smoothing/experiments/exp_pytorch.py --model densenet --dataset CIFAR100 --optim SGD --loops 1      --depth 100 --growthRate 12 --epochs 300 --schedule 150 225 --wd 1e-4 --gamma 0.1"
+"python3 smoothing/experiments/exp_pytorch.py --model densenet --dataset CIFAR100 --optim Adam --loops 1     --depth 100 --growthRate 12 --epochs 300 --schedule 150 225 --wd 1e-4 --gamma 0.1"
 '
 
 fileBashStateName="savedBash"
