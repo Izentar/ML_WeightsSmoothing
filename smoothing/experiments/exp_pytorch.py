@@ -91,11 +91,11 @@ if(__name__ == '__main__'):
             transforms.RandomCrop(32, padding=4),
             #transforms.ColorJitter(),
             transforms.RandomHorizontalFlip(),
-            transforms.RandomVerticalFlip(),
-            torchvision.transforms.GaussianBlur(5),
+            #transforms.RandomVerticalFlip(),
+            #torchvision.transforms.GaussianBlur(5),
             transforms.ToTensor(),
             normalize,
-            Cutout(n_holes=1, length=5)
+            #Cutout(n_holes=1, length=5)
         ]),
         transformTest=transforms.Compose([
             transforms.ToTensor(),
