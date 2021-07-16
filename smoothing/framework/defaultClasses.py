@@ -1046,7 +1046,7 @@ class DefaultData(sf.Data):
                     self.testLoop(model=model, helperEpoch=helperEpoch, dataMetadata=dataMetadata, modelMetadata=modelMetadata, metadata=metadata, smoothing=smoothing, smoothingMetadata=smoothingMetadata)
                     self.setModelNormalWeights(model=model, helperEpoch=helperEpoch, weights=smoothing.getWeights(key='main'), metadata=metadata)
                 else:
-                    sf.Output.printBash('Smoothing is not enabled at epoch {}. Test did not executed.'.format(helperEpoch.epochNumber), 'info')
+                    sf.Output.printBash('Smoothing is not enabled at epoch {}. Normal test executed. Smoothing test did not executed.'.format(helperEpoch.epochNumber), 'info')
 
     def createDefaultMetadataObj(self):
         return DefaultData_Metadata()
