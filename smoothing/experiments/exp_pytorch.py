@@ -13,7 +13,9 @@ import torchvision.models.resnet as modResnet
 from framework import smoothingFramework as sf
 from framework import defaultClasses as dc
 from framework.utils import Cutout
-import framework.models as fmodels
+from framework.models.densenet import DenseNet
+from framework.models.vgg import vgg19_bn
+from framework.models.wideResNet import WideResNet
 
 import numpy as np
 import math
@@ -84,9 +86,9 @@ if(__name__ == '__main__'):
 
     metadata = sf.Metadata(testFlag=True, trainFlag=True, debugInfo=True)
     dataMetadata = dc.DefaultData_Metadata(pin_memoryTest=False, pin_memoryTrain=False, epoch=args.epochs,
-        batchTrainSize=128, batchTestSize=100, startTestAtEpoch=list(range(0, 171, 10)) + [1], 
+        batchTrainSize=32, batchTestSize=100, startTestAtEpoch=list(range(0, 171, 10)) + [1], 
         transformTrain=transforms.Compose([
-            transforms.RandomCrop(32),
+            transforms.RandomCrop(32, padding=4),
             #transforms.ColorJitter(),
             transforms.RandomHorizontalFlip(),
             transforms.RandomVerticalFlip(),
@@ -116,16 +118,16 @@ if(__name__ == '__main__'):
         for r in range(args.loops):
             obj = None
             if(args.model == VGG):
-                obj = fmodels.vgg16_bn(num_classes=otherData["num_classes"])
+                obj = vgg16_bn(num_classes=otherData["num_classes"])
             elif(args.model == WRESNET):
-                obj = fmodels.WideResNet(
+                obj = WideResNet(
                     depth=args.depth, 
                     widen_factor=args.widen_factor, 
                     dropRate=args.drop, 
                     num_classes=otherData["num_classes"]
                     )
             elif(args.model == DENSENET):
-                obj = fmodels.densenet(
+                obj = DenseNet(
                     num_classes=otherData["num_classes"],
                     depth=args.depth,
                     growthRate=args.growthRate,

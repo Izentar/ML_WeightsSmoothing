@@ -126,7 +126,7 @@ startLoop=$counter
 
 for command in "${commands[@]:$startLoop}"
 do
-    printf "executing: $command\nFrom index: $counter starting at: $startLoop\n"
+    printf "executing: $command $@\nFrom index: $counter starting at: $startLoop\n"
     eval "$command" "$@" "&>> $bashLogFile &"
     child=$!
     wait $child
