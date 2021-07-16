@@ -1182,8 +1182,8 @@ class Statistics():
             smthLossRatio = None, smthCorrectRatio = None, smthTestLossSum = None, smthTestCorrectSum = None, smthPredSizeSum = None):
         """
             logFolder - folder wyjściowy dla zapisywanych logów
-            plotBatches - słownik {nazwa_nowego_pliku: [lista_nazw_plików_do_przeczytania]}. Domyślnie {} dla None.
-            avgPlotBatches - słownik uśrednionych plików csv {nazwa_nowego_pliku: [lista_nazw_plików_do_przeczytania]}. Domyślnie {} dla None.
+            plotBatches - słownik {(nazwa_nowego_pliku, nazwa_osi_X, nazwa_osi_Y): [lista_nazw_plików_do_przeczytania]}. Domyślnie {} dla None.
+            avgPlotBatches - słownik uśrednionych plików csv {(nazwa_nowego_pliku, nazwa_osi_X, nazwa_osi_Y): [lista_nazw_plików_do_przeczytania]}. Domyślnie {} dla None.
             rootInputFolder - folder wejściowy dla plików. Może być None.
 
             trainLoopTimerSum - Domyślnie [] dla None.
@@ -1277,7 +1277,7 @@ class Statistics():
 
     def printPlots(self, fileFormat = '.svg', dpi = 900, widthTickFreq = 0.08, aspectRatio = 0.3,
     startAt = None, resolutionInches = 11.5, runningAvgSize=1):
-        for name, val in self.plotBatches.items():
+        for (name, xlabel, ylabel), val in self.plotBatches.items():
             if(val is None):
                 Output.printBash("Some of the files to plot were not properly created. Instance ignored. Method Statistics.printPlots", 'warn')
             
@@ -1298,11 +1298,14 @@ class Statistics():
                             fileAvgH.write(str(circularList.getAverage()) + '\n')
                     self.avgPlotBatches[avgName].append(avgFileName)
                 
-                plot(filePath=self.avgPlotBatches[avgName], name=avgName, plotInputRoot=self.rootInputFolder, plotOutputRoot=self.logFolder, fileFormat=fileFormat, dpi=dpi, widthTickFreq=widthTickFreq,
+                plot(filePath=self.avgPlotBatches[avgName], xlabel=xlabel, ylabel=ylabel, name=avgName, 
+                    plotInputRoot=self.rootInputFolder, plotOutputRoot=self.logFolder, 
+                    fileFormat=fileFormat, dpi=dpi, widthTickFreq=widthTickFreq,
                     aspectRatio=aspectRatio, startAt=startAt, resolutionInches=resolutionInches)
             
             elif(runningAvgSize > 0):
-                plot(filePath=val, name=name, plotInputRoot=self.rootInputFolder, plotOutputRoot=self.logFolder, fileFormat=fileFormat, dpi=dpi, widthTickFreq=widthTickFreq,
+                plot(filePath=val, xlabel=xlabel, ylabel=ylabel, name=name, plotInputRoot=self.rootInputFolder, 
+                    plotOutputRoot=self.logFolder, fileFormat=fileFormat, dpi=dpi, widthTickFreq=widthTickFreq,
                     aspectRatio=aspectRatio, startAt=startAt, resolutionInches=resolutionInches)
             else:
                 raise Exception("Wrong parametr. Running average size must be greater than 0. Get: {}".format(runningAvgSize))
@@ -1828,17 +1831,17 @@ class Data(SaveClass, BaseMainClass, BaseLogicClass):
         a = metadata.stream.getRelativeFilePath('loopTrainTime')
         b = metadata.stream.getRelativeFilePath('loopTestTime_normal')
         c = metadata.stream.getRelativeFilePath('loopTestTime_smooothing')
-        self.epochHelper.statistics.plotBatches['loopTimeTrain'] = [a]
-        self.epochHelper.statistics.plotBatches['loopTimeTest'] = [b, c]
+        self.epochHelper.statistics.plotBatches[('loopTimeTrain', 'liczba iteracji pętli treningowej', 'czas (s)')] = [a]
+        self.epochHelper.statistics.plotBatches[('loopTimeTest', 'liczba iteracji pętli treningowej', 'czas (s)')] = [b, c]
 
         a = metadata.stream.getRelativeFilePath('statLossTrain')
         b = metadata.stream.getRelativeFilePath('statLossTest_normal')
         c = metadata.stream.getRelativeFilePath('statLossTest_smooothing')
-        self.epochHelper.statistics.plotBatches['lossTrain'] = [a]
-        self.epochHelper.statistics.plotBatches['lossTest'] = [b, c]
+        self.epochHelper.statistics.plotBatches[('lossTrain', 'liczba iteracji pętli treningowej', 'strata modelu')] = [a]
+        self.epochHelper.statistics.plotBatches[('lossTest', 'liczba iteracji pętli treningowej', 'strata modelu')] = [b, c]
 
         a = metadata.stream.getRelativeFilePath('weightsSumTrain')
-        self.epochHelper.statistics.plotBatches['weightsSumTrain'] = [a]
+        self.epochHelper.statistics.plotBatches[('weightsSumTrain', 'liczba iteracji pętli treningowej', 'suma wag modelu')] = [a]
 
         self.resetEpochState()
         metadata.stream.flushAll()
@@ -2282,22 +2285,29 @@ def averageStatistics(statistics: list, filePaths: dict=None,
             - plik nie może zawierać innych danych oprócz liczby, która zostanie przedstawiona w formacie
                 zmiennoprzecinkowym
 
+        statistics - lista obiektów typu Statistics. To z nich będą pobierane 
+
         filePaths - wartość domyślna dla None - dict = {
-            'loopTestTime' : ['loopTestTime_normal.csv', 'loopTestTime_smooothing.csv'], 
-            'loopTrainTime' : ['loopTrainTime.csv'], 
-            'lossTest' : ['statLossTest_normal.csv', 'statLossTest_smooothing.csv'], 
-            'lossTrain' : ['statLossTrain.csv'], 
-            'weightsSumTrain' : ['weightsSumTrain.csv']}
+            ('loopTestTime', 'liczba iteracji pętli treningowej', 'czas (s)') : ['loopTestTime_normal.csv', 'loopTestTime_smooothing.csv'], 
+            ('loopTrainTime', 'liczba iteracji pętli treningowej', 'czas (s)') : ['loopTrainTime.csv'], 
+            ('lossTest', 'liczba iteracji pętli treningowej', 'strata modelu') : ['statLossTest_normal.csv', 'statLossTest_smooothing.csv'], 
+            ('lossTrain', 'liczba iteracji pętli treningowej', 'strata modelu') : ['statLossTrain.csv'], 
+            ('weightsSumTrain', 'liczba iteracji pętli treningowej', 'suma wag modelu') : ['weightsSumTrain.csv']}
+
+            Zmienna służy do grupowania kilku plików do jednego wykresu. 
+            Przykładowo, domyślnie wykres loopTestTime będzie zawierał dane z loopTestTime_normal.csv oraz loopTestTime_smooothing.csv.
+            Klucz - nazwa nowego plik oraz nazwy jego osi.
+            Wartości - nazwy plików, które znajdą się na podanym w kluczu wykresie.
     """
     if(outputFolderNameSuffix is None):
         outputFolderNameSuffix = "averaging_files"
 
     filePaths = filePaths if filePaths is not None else {
-            'loopTestTime' : ['loopTestTime_normal.csv', 'loopTestTime_smooothing.csv'], 
-            'loopTrainTime' : ['loopTrainTime.csv'], 
-            'lossTest' : ['statLossTest_normal.csv', 'statLossTest_smooothing.csv'], 
-            'lossTrain' : ['statLossTrain.csv'], 
-            'weightsSumTrain' : ['weightsSumTrain.csv']}
+            ('loopTestTime', 'liczba iteracji pętli treningowej', 'czas (s)') : ['loopTestTime_normal.csv', 'loopTestTime_smooothing.csv'], 
+            ('loopTrainTime', 'liczba iteracji pętli treningowej', 'czas (s)') : ['loopTrainTime.csv'], 
+            ('lossTest', 'liczba iteracji pętli treningowej', 'strata modelu') : ['statLossTest_normal.csv', 'statLossTest_smooothing.csv'], 
+            ('lossTrain', 'liczba iteracji pętli treningowej', 'strata modelu') : ['statLossTrain.csv'], 
+            ('weightsSumTrain', 'liczba iteracji pętli treningowej', 'suma wag modelu') : ['weightsSumTrain.csv']}
 
     def addLast(to, fromObj, mayBeEmpty=False):
         if(fromObj):
@@ -2327,7 +2337,6 @@ def averageStatistics(statistics: list, filePaths: dict=None,
         return va / toDiv
 
     flattedNewVals = []
-    fileNames = list(iter(filePaths.values()))
     config = []
     flattedFilePaths = []
     tmp_testLossSum = []
@@ -2651,7 +2660,7 @@ def checkForEmptyFile(filePath):
     """
     return os.path.isfile(filePath) and os.path.getsize(filePath) > 0
 
-def plot(filePath: list, name = None, plotInputRoot = None, plotOutputRoot = None, fileFormat = '.svg', dpi = 900, widthTickFreq = 0.08, 
+def plot(filePath: list, xlabel, ylabel, name = None, plotInputRoot = None, plotOutputRoot = None, fileFormat = '.svg', dpi = 900, widthTickFreq = 0.08, 
     aspectRatio = 0.3, startAt = None, resolutionInches = 11.5):
     """
     Rozmiar wyjściowej grafiki jest podana wzorem [resolutionInches; resolutionInches / aspectRatio]
@@ -2725,6 +2734,8 @@ def plot(filePath: list, name = None, plotInputRoot = None, plotOutputRoot = Non
     ax.xaxis.set_ticks(numpy.arange(startAt, xright, (sampleMaxSize*widthTickFreq)*aspectRatio))
     ax.set_xlim(xmin=startAt)
     plt.legend()
+    plt.xlabel(xlabel=xlabel)
+    plt.ylabel(ylabel=ylabel)
     plt.grid()
 
 
