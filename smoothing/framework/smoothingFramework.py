@@ -372,7 +372,7 @@ class MultiplicativeLR():
         for i in range(startAt):
             self.step()
 
-    def get_lr(self):
+    def get_last_lr(self):
         ret = []
         for gr in self.optimizer.param_groups:
             ret.append(gr['lr'])
@@ -1990,7 +1990,7 @@ class __BaseModel(nn.Module, SaveClass, BaseMainClass, BaseLogicClass):
             for epochStep, scheduler in self.schedulers:
                 if(epochStep is None or epochNumb + 1 in epochStep):
                     scheduler.step()
-                    metadata.stream.print("Set learning rate to {}".format(scheduler.get_lr()), ['model:0'])
+                    metadata.stream.print("Set learning rate to {}".format(scheduler.get_last_lr()), ['model:0'])
 
     def canUpdate(self = None):
         return True
