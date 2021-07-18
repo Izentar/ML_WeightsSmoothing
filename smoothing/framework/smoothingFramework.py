@@ -2516,6 +2516,8 @@ def runObjs(metadataObj, dataMetadataObj, modelMetadataObj, smoothingMetadataObj
     printClassToLog(metadataObj, modelMetadataObj, dataObj,
         dataMetadataObj,  modelObj, smoothingObj, smoothingMetadataObj, "Other data:\n" + str(logData))
 
+    modelTotalParams = sum(p.numel() for p in modelObj.parameters())
+    metadataObj.stream.print("\nNumber of parameters of the model: {}\n".format(modelTotalParams), 'model:0')
 
     stats = dataObj.epochLoop(
         model=modelObj, dataMetadata=dataMetadataObj, modelMetadata=modelMetadataObj, 
