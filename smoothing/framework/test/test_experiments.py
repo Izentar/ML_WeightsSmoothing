@@ -25,12 +25,12 @@ class Test_RunExperiment(unittest.TestCase):
 
             metadata = sf.Metadata(testFlag=True, trainFlag=True, debugInfo=True)
             dataMetadata = dc.DefaultData_Metadata(pin_memoryTest=True, pin_memoryTrain=True, epoch=1, 
-                test_howOftenPrintTrain=2, howOftenPrintTrain=3, resizeTo=Test_RunExperiment.MNIST_RESIZE)
+                howOftenPrintTrain=2, resizeTo=Test_RunExperiment.MNIST_RESIZE)
             optimizerDataDict={"learning_rate":1e-3, "momentum":0.9}
 
             obj = models.alexnet()
-            smoothingMetadata = dc.Test_DefaultSmoothingOscilationEWMA_Metadata(test_movingAvgParam=0.1, test_device='cuda:0',
-                test_weightSumContainerSize=3, test_weightSumContainerSizeStartAt=1, test_lossContainer=20, test_lossContainerDelayedStartAt=10)
+            smoothingMetadata = dc.Test_DefaultSmoothingOscilationEWMA_Metadata(movingAvgParam=0.1, device='cuda:0',
+                weightSumContainerSize=3, weightSumContainerSizeStartAt=1, lossContainer=20, lossContainerDelayedStartAt=10)
             modelMetadata = dc.DefaultModel_Metadata(lossFuncDataDict={}, optimizerDataDict=optimizerDataDict, device='cuda:0')
 
             data = dc.DefaultDataMNIST(dataMetadata)
@@ -51,13 +51,13 @@ class Test_RunExperiment(unittest.TestCase):
 
             metadata = sf.Metadata(testFlag=True, trainFlag=True, debugInfo=True)
             dataMetadata = dc.DefaultData_Metadata(pin_memoryTest=True, pin_memoryTrain=True, epoch=1, 
-                test_howOftenPrintTrain=2, howOftenPrintTrain=3, resizeTo=Test_RunExperiment.MNIST_RESIZE)
+                howOftenPrintTrain=2, resizeTo=Test_RunExperiment.MNIST_RESIZE)
             optimizerDataDict={"learning_rate":1e-3, "momentum":0.9}
 
             obj = models.alexnet()
-            smoothingMetadata = dc.Test_DefaultSmoothingOscilationWeightedMean_Metadata(test_weightIter=dc.DefaultWeightDecay(1.05), test_device='cpu', 
-                test_epsilon=1e-5, test_hardEpsilon=1e-7, test_weightsEpsilon=1e-6, test_weightSumContainerSize=3, test_weightSumContainerSizeStartAt=1, 
-                test_lossContainer=20, test_lossContainerDelayedStartAt=10)
+            smoothingMetadata = dc.Test_DefaultSmoothingOscilationWeightedMean_Metadata(weightIter=dc.DefaultWeightDecay(1.05), device='cpu', 
+                epsilon=1e-5, hardEpsilon=1e-7, weightsEpsilon=1e-6, weightSumContainerSize=3, weightSumContainerSizeStartAt=1, 
+                lossContainer=20, lossContainerDelayedStartAt=10)
             modelMetadata = dc.DefaultModel_Metadata(lossFuncDataDict={}, optimizerDataDict=optimizerDataDict, device='cuda:0')
 
             data = dc.DefaultDataMNIST(dataMetadata)
@@ -77,15 +77,15 @@ class Test_RunExperiment(unittest.TestCase):
 
             metadata = sf.Metadata(testFlag=True, trainFlag=True, debugInfo=True)
             dataMetadata = dc.DefaultData_Metadata(pin_memoryTest=True, pin_memoryTrain=True, epoch=1, 
-                test_howOftenPrintTrain=2, howOftenPrintTrain=3, resizeTo=Test_RunExperiment.MNIST_RESIZE)
+                howOftenPrintTrain=2, resizeTo=Test_RunExperiment.MNIST_RESIZE)
             optimizerDataDict={"learning_rate":1e-3, "momentum":0.9}
 
             obj = models.alexnet()
-            smoothingMetadata = dc.Test_DefaultSmoothingBorderline_Metadata(test_numbOfBatchAfterSwitchOn=5, test_device='cuda:0')
+            smoothingMetadata = dc.Test_DefaultSmoothingSimpleMean_Metadata(numbOfBatchAfterSwitchOn=5, device='cuda:0')
             modelMetadata = dc.DefaultModel_Metadata(lossFuncDataDict={}, optimizerDataDict=optimizerDataDict, device='cuda:0')
 
             data = dc.DefaultDataMNIST(dataMetadata)
-            smoothing = dc.DefaultSmoothingBorderline(smoothingMetadata)
+            smoothing = dc.DefaultSmoothingSimpleMean(smoothingMetadata)
             model = dc.DefaultModelPredef(obj=obj, modelMetadata=modelMetadata, name=modelName)
 
             optimizer = optim.SGD(model.getNNModelModule().parameters(), lr=optimizerDataDict['learning_rate'], 
@@ -101,15 +101,15 @@ class Test_RunExperiment(unittest.TestCase):
 
             metadata = sf.Metadata(testFlag=True, trainFlag=True, debugInfo=True)
             dataMetadata = dc.DefaultData_Metadata(pin_memoryTest=True, pin_memoryTrain=True, epoch=1, 
-                test_howOftenPrintTrain=2, howOftenPrintTrain=3, resizeTo=Test_RunExperiment.MNIST_RESIZE)
+                howOftenPrintTrain=2, resizeTo=Test_RunExperiment.MNIST_RESIZE)
             optimizerDataDict={"learning_rate":1e-3, "momentum":0.9}
 
             obj = models.wide_resnet50_2()
-            smoothingMetadata = dc.Test_DefaultSmoothingBorderline_Metadata(test_numbOfBatchAfterSwitchOn=5, test_device='cuda:0')
+            smoothingMetadata = dc.Test_DefaultSmoothingSimpleMean_Metadata(numbOfBatchAfterSwitchOn=5, device='cuda:0')
             modelMetadata = dc.DefaultModel_Metadata(lossFuncDataDict={}, optimizerDataDict=optimizerDataDict, device='cuda:0')
 
             data = dc.DefaultDataMNIST(dataMetadata)
-            smoothing = dc.DefaultSmoothingBorderline(smoothingMetadata)
+            smoothing = dc.DefaultSmoothingSimpleMean(smoothingMetadata)
             model = dc.DefaultModelPredef(obj=obj, modelMetadata=modelMetadata, name=modelName)
 
             optimizer = optim.SGD(model.getNNModelModule().parameters(), lr=optimizerDataDict['learning_rate'], 
@@ -125,12 +125,12 @@ class Test_RunExperiment(unittest.TestCase):
 
             metadata = sf.Metadata(testFlag=True, trainFlag=True, debugInfo=True)
             dataMetadata = dc.DefaultData_Metadata(pin_memoryTest=True, pin_memoryTrain=True, epoch=1, 
-                test_howOftenPrintTrain=2, howOftenPrintTrain=3, resizeTo=Test_RunExperiment.MNIST_RESIZE)
+                howOftenPrintTrain=2, resizeTo=Test_RunExperiment.MNIST_RESIZE)
             optimizerDataDict={"learning_rate":1e-3, "momentum":0.9}
 
             obj = models.alexnet()
-            smoothingMetadata = dc.Test_DefaultSmoothingOscilationGeneralizedMean_Metadata(test_epsilon=1e-5, test_hardEpsilon=1e-6, test_weightsEpsilon=1e-5,
-                test_weightSumContainerSize=3, test_weightSumContainerSizeStartAt=1, test_lossContainer=20, test_lossContainerDelayedStartAt=10, test_device='cuda:0')
+            smoothingMetadata = dc.Test_DefaultSmoothingOscilationGeneralizedMean_Metadata(epsilon=1e-5, hardEpsilon=1e-6, weightsEpsilon=1e-5,
+                weightSumContainerSize=3, weightSumContainerSizeStartAt=1, lossContainer=20, lossContainerDelayedStartAt=10, device='cuda:0')
             modelMetadata = dc.DefaultModel_Metadata(lossFuncDataDict={}, optimizerDataDict=optimizerDataDict, device='cuda:0')
 
             data = dc.DefaultDataMNIST(dataMetadata)
@@ -150,12 +150,12 @@ class Test_RunExperiment(unittest.TestCase):
 
             metadata = sf.Metadata(testFlag=True, trainFlag=True, debugInfo=True)
             dataMetadata = dc.DefaultData_Metadata(pin_memoryTest=True, pin_memoryTrain=True, epoch=1, fromGrayToRGB=False,
-                test_howOftenPrintTrain=2, howOftenPrintTrain=3, resizeTo=(64, 64))
+                howOftenPrintTrain=2, resizeTo=(64, 64))
             optimizerDataDict={"learning_rate":1e-3, "momentum":0.9}
 
             obj = models.alexnet()
-            smoothingMetadata = dc.Test_DefaultSmoothingOscilationGeneralizedMean_Metadata(test_epsilon=1e-5, test_hardEpsilon=1e-6, test_weightsEpsilon=1e-5,
-                test_weightSumContainerSize=3, test_weightSumContainerSizeStartAt=1, test_lossContainer=20, test_lossContainerDelayedStartAt=10, test_device='cuda:0')
+            smoothingMetadata = dc.Test_DefaultSmoothingOscilationGeneralizedMean_Metadata(epsilon=1e-5, hardEpsilon=1e-6, weightsEpsilon=1e-5,
+                weightSumContainerSize=3, weightSumContainerSizeStartAt=1, lossContainer=20, lossContainerDelayedStartAt=10, device='cuda:0')
             modelMetadata = dc.DefaultModel_Metadata(lossFuncDataDict={}, optimizerDataDict=optimizerDataDict, device='cuda:0')
 
             data = dc.DefaultDataCIFAR10(dataMetadata)
@@ -175,12 +175,12 @@ class Test_RunExperiment(unittest.TestCase):
 
             metadata = sf.Metadata(testFlag=True, trainFlag=True, debugInfo=True)
             dataMetadata = dc.DefaultData_Metadata(pin_memoryTest=True, pin_memoryTrain=True, epoch=1, fromGrayToRGB=False,
-                test_howOftenPrintTrain=2, howOftenPrintTrain=3, resizeTo=Test_RunExperiment.MNIST_RESIZE)
+                howOftenPrintTrain=2, resizeTo=Test_RunExperiment.MNIST_RESIZE)
             optimizerDataDict={"learning_rate":1e-3, "momentum":0.9}
 
             obj = models.alexnet()
-            smoothingMetadata = dc.Test_DefaultSmoothingOscilationGeneralizedMean_Metadata(test_epsilon=1e-5, test_hardEpsilon=1e-6, test_weightsEpsilon=1e-5,
-                test_weightSumContainerSize=3, test_weightSumContainerSizeStartAt=1, test_lossContainer=20, test_lossContainerDelayedStartAt=10, test_device='cuda:0')
+            smoothingMetadata = dc.Test_DefaultSmoothingOscilationGeneralizedMean_Metadata(epsilon=1e-5, hardEpsilon=1e-6, weightsEpsilon=1e-5,
+                weightSumContainerSize=3, weightSumContainerSizeStartAt=1, lossContainer=20, lossContainerDelayedStartAt=10, device='cuda:0')
             modelMetadata = dc.DefaultModel_Metadata(lossFuncDataDict={}, optimizerDataDict=optimizerDataDict, device='cuda:0')
 
             data = dc.DefaultDataCIFAR100(dataMetadata)
@@ -200,12 +200,12 @@ class Test_RunExperiment(unittest.TestCase):
 
             metadata = sf.Metadata(testFlag=True, trainFlag=True, debugInfo=True)
             dataMetadata = dc.DefaultData_Metadata(pin_memoryTest=True, pin_memoryTrain=True, epoch=1, 
-                test_howOftenPrintTrain=2, howOftenPrintTrain=3, resizeTo=Test_RunExperiment.MNIST_RESIZE)
+                howOftenPrintTrain=2, resizeTo=Test_RunExperiment.MNIST_RESIZE)
             optimizerDataDict={"learning_rate":1e-3, "momentum":0.9}
 
             obj = models.alexnet()
-            smoothingMetadata = dc.Test_DefaultSmoothingOscilationGeneralizedMean_Metadata(test_epsilon=1e-5, test_hardEpsilon=1e-6, test_weightsEpsilon=1e-5,
-                test_weightSumContainerSize=3, test_weightSumContainerSizeStartAt=1, test_lossContainer=20, test_lossContainerDelayedStartAt=10, test_device='cuda:0')
+            smoothingMetadata = dc.Test_DefaultSmoothingOscilationGeneralizedMean_Metadata(epsilon=1e-5, hardEpsilon=1e-6, weightsEpsilon=1e-5,
+                weightSumContainerSize=3, weightSumContainerSizeStartAt=1, lossContainer=20, lossContainerDelayedStartAt=10, device='cuda:0')
             modelMetadata = dc.DefaultModel_Metadata(lossFuncDataDict={}, optimizerDataDict=optimizerDataDict, device='cuda:0')
 
             data = dc.DefaultDataEMNIST(dataMetadata)
@@ -225,11 +225,11 @@ class Test_RunExperiment(unittest.TestCase):
 
             metadata = sf.Metadata(testFlag=True, trainFlag=True, debugInfo=True)
             dataMetadata = dc.DefaultData_Metadata(pin_memoryTest=True, pin_memoryTrain=True, epoch=1, 
-                test_howOftenPrintTrain=2, howOftenPrintTrain=3)
+                howOftenPrintTrain=2)
             optimizerDataDict={"learning_rate":1e-3, "momentum":0.9}
 
-            smoothingMetadata = dc.Test_DefaultSmoothingOscilationGeneralizedMean_Metadata(test_epsilon=1e-5, test_hardEpsilon=1e-6, test_weightsEpsilon=1e-5,
-                test_weightSumContainerSize=3, test_weightSumContainerSizeStartAt=1, test_lossContainer=20, test_lossContainerDelayedStartAt=10, test_device='cuda:0')
+            smoothingMetadata = dc.Test_DefaultSmoothingOscilationGeneralizedMean_Metadata(epsilon=1e-5, hardEpsilon=1e-6, weightsEpsilon=1e-5,
+                weightSumContainerSize=3, weightSumContainerSizeStartAt=1, lossContainer=20, lossContainerDelayedStartAt=10, device='cuda:0')
             modelMetadata = dc.DefaultModel_Metadata(lossFuncDataDict={}, optimizerDataDict=optimizerDataDict, device='cuda:0')
 
             data = dc.DefaultDataMNIST(dataMetadata)
@@ -250,7 +250,7 @@ class Test_RunExperiment(unittest.TestCase):
 
             metadata = sf.Metadata(testFlag=True, trainFlag=True, debugInfo=True)
             dataMetadata = dc.DefaultData_Metadata(pin_memoryTest=True, pin_memoryTrain=True, epoch=1, 
-                test_howOftenPrintTrain=2, howOftenPrintTrain=3)
+                howOftenPrintTrain=2)
             optimizerDataDict={"learning_rate":1e-3, "momentum":0.9}
 
             smoothingMetadata = dc.Test_DefaultPytorchAveragedSmoothing_Metadata(test_device='cuda:0')

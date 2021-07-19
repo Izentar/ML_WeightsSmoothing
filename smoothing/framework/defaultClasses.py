@@ -182,9 +182,6 @@ class _SmoothingOscilationBase_Metadata(sf.Smoothing_Metadata):
                 jak epsilon.
             weightsEpsilon - kiedy można uznać, że wygładzanie powinno zostać zakończone wraz z zakończeniem pętli treningowej. Jest to
                 różnica uśrednionych wag z listy cyklicznej
-
-            Wartości z dopiskiem test_ są uzywane tylko, gdy włączony jest tryb testowy. 
-            Stworzone jest to po to, aby w łatwy sposób móc przetestować klasę, bez wcześniejszego definiowania od nowa wartości.
         """
 
         super().__init__()
@@ -226,20 +223,20 @@ class _SmoothingOscilationBase_Metadata(sf.Smoothing_Metadata):
 
 class _Test_SmoothingOscilationBase_Metadata(_SmoothingOscilationBase_Metadata):
     def __init__(self,
-        test_device = 'cpu',
-        test_weightSumContainerSize = 10, test_weightSumContainerSizeStartAt=5, test_softMarginAdditionalLoops = 3, 
-        test_batchPercentMaxStart = 0.85, test_batchPercentMinStart = 0.1, 
-        test_epsilon = 1e-4, test_hardEpsilon=1e-9, test_weightsEpsilon = 1e-5,
-        test_lossContainer=5, test_lossContainerDelayedStartAt = 2):
+        device = 'cpu',
+        weightSumContainerSize = 10, weightSumContainerSizeStartAt=5, softMarginAdditionalLoops = 3, 
+        batchPercentMaxStart = 0.85, batchPercentMinStart = 0.1, 
+        epsilon = 1e-4, hardEpsilon=1e-9, weightsEpsilon = 1e-5,
+        lossContainer=5, lossContainerDelayedStartAt = 2):
         """
             Klasa z domyślnymi testowymi parametrami.
         """
 
         super().__init__(device=device,
-        weightSumContainerSize=test_weightSumContainerSize, weightSumContainerSizeStartAt=test_weightSumContainerSizeStartAt, 
-        softMarginAdditionalLoops=test_softMarginAdditionalLoops, batchPercentMaxStart=test_batchPercentMaxStart,
-        batchPercentMinStart=test_batchPercentMinStart, epsilon=test_epsilon, hardEpsilon=test_hardEpsilon, weightsEpsilon=test_weightsEpsilon,
-        lossContainer=test_lossContainer, lossContainerDelayedStartAt=test_lossContainerDelayedStartAt)
+        weightSumContainerSize=weightSumContainerSize, weightSumContainerSizeStartAt=weightSumContainerSizeStartAt, 
+        softMarginAdditionalLoops=softMarginAdditionalLoops, batchPercentMaxStart=batchPercentMaxStart,
+        batchPercentMinStart=batchPercentMinStart, epsilon=epsilon, hardEpsilon=hardEpsilon, weightsEpsilon=weightsEpsilon,
+        lossContainer=lossContainer, lossContainerDelayedStartAt=lossContainerDelayedStartAt)
 
 class _SmoothingOscilationBase(sf.Smoothing):
     """
@@ -379,11 +376,11 @@ class DefaultSmoothingSimpleMean_Metadata(sf.Smoothing_Metadata):
         return tmp_str
 
 class Test_DefaultSmoothingSimpleMean_Metadata(DefaultSmoothingSimpleMean_Metadata):
-    def __init__(self, test_device = 'cpu', test_numbOfBatchAfterSwitchOn = 0.5):
+    def __init__(self, device = 'cpu', numbOfBatchAfterSwitchOn = 0.5):
         """
             Klasa z domyślnymi testowymi parametrami.
         """
-        super().__init__(device=test_device, batchPercentStart=test_numbOfBatchAfterSwitchOn)
+        super().__init__(device=device, batchPercentStart=numbOfBatchAfterSwitchOn)
 
 class DefaultSmoothingSimpleMean(sf.Smoothing):
     """
@@ -478,20 +475,20 @@ class DefaultSmoothingOscilationGeneralizedMean_Metadata(_SmoothingOscilationBas
         return tmp_str
 
 class Test_DefaultSmoothingOscilationGeneralizedMean_Metadata(DefaultSmoothingOscilationGeneralizedMean_Metadata):
-    def __init__(self, test_generalizedMeanPower = 1.0,
-        test_device = 'cpu',
-        test_weightSumContainerSize = 10, test_weightSumContainerSizeStartAt=5, test_softMarginAdditionalLoops = 3, 
-        test_batchPercentMaxStart = 0.85, test_batchPercentMinStart = 0.1, 
-        test_epsilon = 1e-4, test_hardEpsilon=1e-9, test_weightsEpsilon = 1e-5,
-        test_lossContainer=5, test_lossContainerDelayedStartAt = 2):
+    def __init__(self, generalizedMeanPower = 1.0,
+        device = 'cpu',
+        weightSumContainerSize = 10, weightSumContainerSizeStartAt=5, softMarginAdditionalLoops = 3, 
+        batchPercentMaxStart = 0.85, batchPercentMinStart = 0.1, 
+        epsilon = 1e-4, hardEpsilon=1e-9, weightsEpsilon = 1e-5,
+        lossContainer=5, lossContainerDelayedStartAt = 2):
 
         super().__init__(
-            generalizedMeanPower=test_generalizedMeanPower,
-            device=test_device,
-            weightSumContainerSize=test_weightSumContainerSize, weightSumContainerSizeStartAt=test_weightSumContainerSizeStartAt, 
-            softMarginAdditionalLoops=test_softMarginAdditionalLoops, batchPercentMaxStart=test_batchPercentMaxStart,
-            batchPercentMinStart=test_batchPercentMinStart, epsilon=test_epsilon, hardEpsilon=test_hardEpsilon, weightsEpsilon=test_weightsEpsilon,
-            lossContainer=test_lossContainer, lossContainerDelayedStartAt=test_lossContainerDelayedStartAt
+            generalizedMeanPower=generalizedMeanPower,
+            device=device,
+            weightSumContainerSize=weightSumContainerSize, weightSumContainerSizeStartAt=weightSumContainerSizeStartAt, 
+            softMarginAdditionalLoops=softMarginAdditionalLoops, batchPercentMaxStart=batchPercentMaxStart,
+            batchPercentMinStart=batchPercentMinStart, epsilon=epsilon, hardEpsilon=hardEpsilon, weightsEpsilon=weightsEpsilon,
+            lossContainer=lossContainer, lossContainerDelayedStartAt=lossContainerDelayedStartAt
         )
 
 class DefaultSmoothingOscilationGeneralizedMean(_SmoothingOscilationBase):
@@ -558,18 +555,18 @@ class DefaultSmoothingOscilationEWMA_Metadata(_SmoothingOscilationBase_Metadata)
         return tmp_str
 
 class Test_DefaultSmoothingOscilationEWMA_Metadata(DefaultSmoothingOscilationEWMA_Metadata):
-    def __init__(self, test_movingAvgParam = 0.27,
-        test_device = 'cpu',
-        test_weightSumContainerSize = 10, test_weightSumContainerSizeStartAt=5, test_softMarginAdditionalLoops = 3, 
-        test_batchPercentMaxStart = 0.85, test_batchPercentMinStart = 0.1, 
-        test_epsilon = 1e-4, test_hardEpsilon=1e-9, test_weightsEpsilon = 1e-5,
-        test_lossContainer=5, test_lossContainerDelayedStartAt = 2):
+    def __init__(self, movingAvgParam = 0.27,
+        device = 'cpu',
+        weightSumContainerSize = 10, weightSumContainerSizeStartAt=5, softMarginAdditionalLoops = 3, 
+        batchPercentMaxStart = 0.85, batchPercentMinStart = 0.1, 
+        epsilon = 1e-4, hardEpsilon=1e-9, weightsEpsilon = 1e-5,
+        lossContainer=5, lossContainerDelayedStartAt = 2):
 
-        super().__init__(movingAvgParam=test_movingAvgParam, device=test_device,
-        weightSumContainerSize=test_weightSumContainerSize, weightSumContainerSizeStartAt=test_weightSumContainerSizeStartAt, 
-        softMarginAdditionalLoops=test_softMarginAdditionalLoops, batchPercentMaxStart=test_batchPercentMaxStart,
-        batchPercentMinStart=test_batchPercentMinStart, epsilon=test_epsilon, hardEpsilon=test_hardEpsilon, weightsEpsilon=test_weightsEpsilon,
-        lossContainer=test_lossContainer, lossContainerDelayedStartAt=test_lossContainerDelayedStartAt)
+        super().__init__(movingAvgParam=movingAvgParam, device=device,
+        weightSumContainerSize=weightSumContainerSize, weightSumContainerSizeStartAt=weightSumContainerSizeStartAt, 
+        softMarginAdditionalLoops=softMarginAdditionalLoops, batchPercentMaxStart=batchPercentMaxStart,
+        batchPercentMinStart=batchPercentMinStart, epsilon=epsilon, hardEpsilon=hardEpsilon, weightsEpsilon=weightsEpsilon,
+        lossContainer=lossContainer, lossContainerDelayedStartAt=lossContainerDelayedStartAt)
 
 class DefaultSmoothingOscilationEWMA(_SmoothingOscilationBase):
     """
@@ -686,23 +683,23 @@ class DefaultSmoothingOscilationWeightedMean_Metadata(_SmoothingOscilationBase_M
         return tmp_str
 
 class Test_DefaultSmoothingOscilationWeightedMean_Metadata(DefaultSmoothingOscilationWeightedMean_Metadata):
-    def __init__(self, test_weightIter = None, test_weightsArraySize=20, test_smoothingEndCheckType='std',
-        test_device = 'cpu',
-        test_weightSumContainerSize = 10, test_weightSumContainerSizeStartAt=5, test_softMarginAdditionalLoops = 3, 
-        test_batchPercentMaxStart = 0.85, test_batchPercentMinStart = 0.1, 
-        test_epsilon = 1e-4, test_hardEpsilon=1e-9, test_weightsEpsilon = 1e-5,
-        test_lossContainer=5, test_lossContainerDelayedStartAt = 2
+    def __init__(self, weightIter = None, weightsArraySize=20, smoothingEndCheckType='std',
+        device = 'cpu',
+        weightSumContainerSize = 10, weightSumContainerSizeStartAt=5, softMarginAdditionalLoops = 3, 
+        batchPercentMaxStart = 0.85, batchPercentMinStart = 0.1, 
+        epsilon = 1e-4, hardEpsilon=1e-9, weightsEpsilon = 1e-5,
+        lossContainer=5, lossContainerDelayedStartAt = 2
     ):
         """
             weightIter - domyślna wartość DefaultWeightDecay() przy None
         """
 
-        super().__init__(weightIter=test_weightIter, weightsArraySize=test_weightsArraySize, smoothingEndCheckType=test_smoothingEndCheckType,
-        device=test_device,
-        weightSumContainerSize=test_weightSumContainerSize, weightSumContainerSizeStartAt=test_weightSumContainerSizeStartAt, 
-        softMarginAdditionalLoops=test_softMarginAdditionalLoops, batchPercentMaxStart=test_batchPercentMaxStart,
-        batchPercentMinStart=test_batchPercentMinStart, epsilon=test_epsilon, hardEpsilon=test_hardEpsilon, weightsEpsilon=test_weightsEpsilon,
-        lossContainer=test_lossContainer, lossContainerDelayedStartAt=test_lossContainerDelayedStartAt)
+        super().__init__(weightIter=weightIter, weightsArraySize=weightsArraySize, smoothingEndCheckType=smoothingEndCheckType,
+        device=device,
+        weightSumContainerSize=weightSumContainerSize, weightSumContainerSizeStartAt=weightSumContainerSizeStartAt, 
+        softMarginAdditionalLoops=softMarginAdditionalLoops, batchPercentMaxStart=batchPercentMaxStart,
+        batchPercentMinStart=batchPercentMinStart, epsilon=epsilon, hardEpsilon=hardEpsilon, weightsEpsilon=weightsEpsilon,
+        lossContainer=lossContainer, lossContainerDelayedStartAt=lossContainerDelayedStartAt)
 
 class DefaultSmoothingOscilationWeightedMean(_SmoothingOscilationBase):
     """
@@ -847,8 +844,8 @@ class DefaultPytorchAveragedSmoothing_Metadata(sf.Smoothing_Metadata):
         return tmp_str
 
 class Test_DefaultPytorchAveragedSmoothing_Metadata(DefaultPytorchAveragedSmoothing_Metadata):
-    def __init__(self, test_device = 'cpu', test_smoothingStartPercent = 0.8):
-        super().__init__(device=test_device, smoothingStartPercent=test_smoothingStartPercent)
+    def __init__(self, device = 'cpu', smoothingStartPercent = 0.8):
+        super().__init__(device=device, smoothingStartPercent=smoothingStartPercent)
 
 class DefaultPytorchAveragedSmoothing(sf.Smoothing):
     """
@@ -894,7 +891,7 @@ class DefaultData_Metadata(sf.Data_Metadata):
     """
     def __init__(self, worker_seed = 8418748, download = True, pin_memoryTrain = False, pin_memoryTest = False,
         epoch = 1, batchTrainSize = 16, batchTestSize = 16, startTestAtEpoch=-1, 
-        test_howOftenPrintTrain = 200, howOftenPrintTrain = 2000, testShuffle=True, trainShuffle=True, 
+        howOftenPrintTrain = 2000, testShuffle=True, trainShuffle=True, 
         trainSampler=None, testSampler=None, trainLoaderWorkers=2, testLoaderWorkers=2,
         transformTrain=None, transformTest=None):
 
@@ -928,10 +925,7 @@ class DefaultData_Metadata(sf.Data_Metadata):
             self.startTestAtEpoch = startTestAtEpoch # list of epoches where the test should be called
 
         # batch size * howOftenPrintTrain
-        if(sf.test_mode.isActive()):
-            self.howOftenPrintTrain = test_howOftenPrintTrain
-        else:
-            self.howOftenPrintTrain = howOftenPrintTrain
+        self.howOftenPrintTrain = howOftenPrintTrain
 
     def __strAppend__(self):
         tmp_str = super().__strAppend__()
