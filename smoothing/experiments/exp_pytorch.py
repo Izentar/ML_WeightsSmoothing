@@ -54,7 +54,104 @@ def getParser():
     parser.add_argument('--growthRate', type=int, default=12, help='Growth rate for DenseNet.')
     parser.add_argument('--compressionRate', type=int, default=2, help='Compression Rate (theta) for DenseNet.')    
 
+    parser.add_argument('--smoothing', default='disabled', choices=["disabled", "pytorch", "ewma", "generMean", "simplemean"], help='choose smoothing mode')
+    parser.add_argument('--smstart', default=0.8, type=float, help='when to start smoothing, exact location ([0;1])')
+    parser.add_argument('--smsoftstart', default=0.02, type=float, help='when to enable smoothing, it does not mean it will start calculating average weights ([0;1])')
+    parser.add_argument('--smhardend', default=0.99, type=float, help='when to end smoothing and training definitely ([0;1])')
+    parser.add_argument('--smsoftloops', default=20, type=int, help='the number of positive calls of the mean calculation in a row to start checking if smoothing is good enough to end training')
+    parser.add_argument('--smepsilon', default=1e-6, type=float, help='')
+    parser.add_argument('--smlosscontainer', default=50, type=int, help='')
+    parser.add_argument('--smlosscontainerdelayedstart', default=25, type=int, help='')
+    parser.add_argument('--smweightsumcontsize', default=10, type=int, help='')
+    parser.add_argument('--smweightsumcontsizestartat', default=5, type=int, help='')
+    parser.add_argument('--smmovingparam', default=0.27, type=float, help='')
+    parser.add_argument('--smgeneralmeanpow', default=1.0, type=float, help='')
+
+
     return parser
+
+smmetadata = [
+    (dc.DisabledSmoothing_Metadata, None),
+    (dc.DefaultPytorchAveragedSmoothing_Metadata, dc.Test_DefaultPytorchAveragedSmoothing_Metadata),
+    (dc.DefaultSmoothingOscilationEWMA_Metadata, dc.Test_DefaultSmoothingOscilationEWMA_Metadata),
+    (dc.DefaultSmoothingOscilationGeneralizedMean_Metadata, dc.Test_DefaultSmoothingOscilationGeneralizedMean_Metadata),
+    (dc.DefaultSmoothingSimpleMean_Metadata, dc.Test_DefaultSmoothingSimpleMean_Metadata)
+]
+
+def createSmoothing(args, model):
+    smoothing = None
+    smoothingMetadata = None
+
+    index = 0
+    if(sf.test_mode.isActive()):
+        index = 1
+
+    if(args.smoothing == "disabled"):
+        smoothingMetadata = smmetadata[0][index]()
+        smoothing = dc.DisabledSmoothing(smoothingMetadata)
+
+    elif(args.smoothing == "pytorch"):
+        smoothingMetadata = smmetadata[1][index](device="cuda:0", smoothingStartPercent=args.smstart)
+        smoothing = dc.DefaultPytorchAveragedSmoothing(smoothingMetadata=smoothingMetadata, model=model)
+
+    elif(args.smoothing == "ewma"):
+        smoothingMetadata = smmetadata[2][index](device="cuda:0",
+            batchPercentMaxStart=args.smhardend, batchPercentMinStart=args.smsoftstart, softMarginAdditionalLoops=args.smsoftloops,
+            epsilon=args.smepsilon, hardEpsilon=args.smhardepsilon, weightsEpsilon=args.smweightepsilon, lossContainer=args.smlosscontainer,
+            lossContainerDelayedStartAt=args.smlosscontainerdelayedstart, weightSumContainerSize=args.smweightsumcontsize,
+            weightSumContainerSizeStartAt=args.smweightsumcontsizestartat, movingAvgParam=args.smmovingparam)
+        smoothing = dc.DefaultSmoothingOscilationEWMA(smoothingMetadata)
+
+    elif(args.smoothing == "generMean"):
+        smoothingMetadata = smmetadata[3][index](device="cuda:0",
+            batchPercentMaxStart=args.smhardend, batchPercentMinStart=args.smsoftstart, softMarginAdditionalLoops=args.smsoftloops,
+            epsilon=args.smepsilon, hardEpsilon=args.smhardepsilon, weightsEpsilon=args.smweightepsilon, lossContainer=args.smlosscontainer,
+            lossContainerDelayedStartAt=args.smlosscontainerdelayedstart, weightSumContainerSize=args.smweightsumcontsize,
+            weightSumContainerSizeStartAt=args.smweightsumcontsizestartat, generalizedMeanPower=args.smgeneralmeanpow)
+        smoothing = dc.DefaultSmoothingOscilationGeneralizedMean(smoothingMetadata)
+
+    elif(args.smoothing == "simplemean"):
+        smoothingMetadata = smmetadata[4][index](device="cuda:0", batchPercentStart=args.smstart)
+        smoothing = dc.DefaultSmoothingSimpleMean(smoothingMetadata)
+    else:
+        raise Exception()
+
+    return smoothing, smoothingMetadata
+
+def createData(args, dataMetadata):
+    data = None
+    if(args.dataset == "CIFAR10"):
+        data = dc.DefaultDataCIFAR10(dataMetadata)
+    elif(args.dataset == "CIFAR100"):
+        data = dc.DefaultDataCIFAR100(dataMetadata)
+    else:
+        raise Exception()
+    return data
+
+def createModel(args, modelMetadata):
+    obj = None
+    if(args.model == VGG):
+        obj = vgg19_bn(num_classes=otherData["num_classes"])
+    elif(args.model == WRESNET):
+        obj = WideResNet(
+            depth=args.depth, 
+            widen_factor=args.widen_factor, 
+            dropRate=args.drop, 
+            num_classes=otherData["num_classes"]
+            )
+    elif(args.model == DENSENET):
+        obj = DenseNet(
+            num_classes=otherData["num_classes"],
+            depth=args.depth,
+            growthRate=args.growthRate,
+            compressionRate=args.compressionRate,
+            dropRate=args.drop)
+    else:
+        raise Exception()
+
+    model = dc.DefaultModelPredef(obj=obj, modelMetadata=modelMetadata, name=otherData["model"])
+
+    return obj, model
 
 if(__name__ == '__main__'):
     args = getParser().parse_args()
@@ -86,7 +183,7 @@ if(__name__ == '__main__'):
 
     metadata = sf.Metadata(testFlag=True, trainFlag=True, debugInfo=True)
     dataMetadata = dc.DefaultData_Metadata(pin_memoryTest=False, pin_memoryTrain=False, epoch=args.epochs,
-        batchTrainSize=128, batchTestSize=100, startTestAtEpoch=list(range(0, args.epochs+2, 10)) + [1], 
+        batchTrainSize=128, batchTestSize=100, startTestAtEpoch=list(range(0, args.epochs+11, 10)) + [1], 
         transformTrain=transforms.Compose([
             transforms.RandomCrop(32, padding=4),
             #transforms.ColorJitter(),
@@ -113,39 +210,11 @@ if(__name__ == '__main__'):
     try:
         stats = []
         rootFolder = otherData["prefix"] + sf.Output.getTimeStr() + ''.join(x + "_" for x in types)
-        smoothingMetadata = dc.DisabledSmoothing_Metadata()
 
         for r in range(args.loops):
-            obj = None
-            if(args.model == VGG):
-                obj = vgg19_bn(num_classes=otherData["num_classes"])
-            elif(args.model == WRESNET):
-                obj = WideResNet(
-                    depth=args.depth, 
-                    widen_factor=args.widen_factor, 
-                    dropRate=args.drop, 
-                    num_classes=otherData["num_classes"]
-                    )
-            elif(args.model == DENSENET):
-                obj = DenseNet(
-                    num_classes=otherData["num_classes"],
-                    depth=args.depth,
-                    growthRate=args.growthRate,
-                    compressionRate=args.compressionRate,
-                    dropRate=args.drop)
-            else:
-                raise Exception()
-
-            data = None
-            if(args.dataset == "CIFAR10"):
-                data = dc.DefaultDataCIFAR10(dataMetadata)
-            elif(args.dataset == "CIFAR100"):
-                data = dc.DefaultDataCIFAR100(dataMetadata)
-            else:
-                raise Exception()
-
-            model = dc.DefaultModelPredef(obj=obj, modelMetadata=modelMetadata, name=otherData["model"])
-            smoothing = dc.DisabledSmoothing(smoothingMetadata)
+            obj, model = createModel(args, modelMetadata)
+            data = createData(args, dataMetadata)
+            smoothing, smoothingMetadata = createSmoothing(args=args, model=model)
 
             optimizer = None
             if(args.optim == "SGD"):
