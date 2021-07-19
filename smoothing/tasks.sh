@@ -4,9 +4,13 @@
 
 # pole do modyfikacji
 declare -a commands=(
-    "python3 smoothing/experiments/exp_pytorch.py --model vgg19_bn --dataset CIFAR10 --optim SGD --loops 1 \
+    "python3 smoothing/experiments/exp_pytorch.py --model vgg19_bn --dataset CIFAR10 --optim SGD --loops 5 \
     --smoothing pytorch \
     --epochs 164 --schedule 81 122 --gamma 0.1"
+
+    "python3 smoothing/experiments/exp_pytorch.py --model vgg19_bn --dataset CIFAR10 --optim Adam --loops 5 \
+    --smoothing pytorch \
+    --epochs 164 --schedule 81 122 --gamma 0.1 --lr 0.001"
 )
 
 declare -a names=(
