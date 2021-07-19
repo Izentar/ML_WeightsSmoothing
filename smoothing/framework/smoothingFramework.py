@@ -219,7 +219,7 @@ class RunningGeneralMeanWeights():
             typ wag nie zostanie zmieniony względem initWeights.
         power - potęga dla której będzie obliczana średnia. Domyślnie ma wartość 1, co jest równoważne ze średnią arytmetyczną.
     """
-    def __init__(self, initWeights: dict, device: str=None, setToZeros: bool=False, dtype: str=torch.float32, power: int=1):
+    def __init__(self, initWeights: dict, device: str=None, setToZeros: bool=False, dtype: str=torch.float32, power: float=1.0):
         self.weightsDictAvg = {}
         self.N = None
         self.power = power
@@ -239,10 +239,10 @@ class RunningGeneralMeanWeights():
                     self.weightsDictAvg[key] = torch.clone(values).to(device, dtype=dtype).requires_grad_(False)
             self.N = 1
 
-        if(power > 1):
+        if(power > 1.0):
             self.pow = self.__methodPow_
             self.div = self.__methodDivGet_
-        elif(power > 0):
+        elif(power > 0.0):
             self.pow = self.__methodPow_1
             self.div = self.__methodDivGet_1
         else:
@@ -1166,6 +1166,9 @@ class EpochDataContainer():
 
         self.firstSmoothingSuccess = False # flaga zostaje zapalona, gdy po raz pierwszy wygładzanie zostało włączone
         self.averaged = False # flaga powinna zostać zapalona, gdy model posiada wygładzone wagi i wyłączona w przeciwnym wypadku
+        
+        self.endEpoches = False # flaga zostanie zapalona, gdy faza treningowa zostanie całkowicie zakończona i modelowi pozostało
+                                # wykonać tylko fazę walidacyjną 
 
 
 
@@ -1613,6 +1616,7 @@ class Data(SaveClass, BaseMainClass, BaseLogicClass):
                 helperEpoch=helperEpoch, helper=self.trainHelper, model=model, dataMetadata=dataMetadata, 
                 modelMetadata=modelMetadata, metadata=metadata, smoothingMetadata=smoothingMetadata)
             ):
+                helperEpoch.endEpoches = True
                 break
 
             self.trainHelper.smoothingSuccess = False
@@ -1819,6 +1823,10 @@ class Data(SaveClass, BaseMainClass, BaseLogicClass):
             self.__epoch__(helperEpoch=self.epochHelper, model=model, dataMetadata=dataMetadata, modelMetadata=modelMetadata, metadata=metadata, smoothing=smoothing, smoothingMetadata=smoothingMetadata)
             metadata.stream.print(f"\nEpoch End\n-------------------------------")
             model.schedulerStep(epochNumb=ep, metadata=metadata)
+
+            if(self.epochHelper.endEpoches):
+                metadata.stream.print("\nEnding epoch loop at epoch {}\n-------------------------------".format(ep + 1))
+                break
 
             if(SAVE_AND_EXIT_FLAG):
                 self.__epochLoopExit__(helperEpoch=self.epochHelper, model=model, dataMetadata=dataMetadata, modelMetadata=modelMetadata, metadata=metadata, smoothing=smoothing, smoothingMetadata=smoothingMetadata)

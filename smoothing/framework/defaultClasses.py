@@ -258,6 +258,7 @@ class _SmoothingOscilationBase(sf.Smoothing):
             raise Exception("Metadata class '{}' is not the type of '{}'".format(type(smoothingMetadata), _SmoothingOscilationBase_Metadata.__name__))
         
         self.countWeights = 0 # liczba wywołań calcMean()
+        self.countWeightsInaRow = 0 # liczba wywołań calcMean() z rzędu. Resetowana do 0 gdy nie zostanie wywołana
         self.tensorPrevSum = sf.CircularList(int(smoothingMetadata.weightSumContainerSize))
         self.divisionCounter = 0
         self.goodEnoughCounter = 0
@@ -326,7 +327,7 @@ class _SmoothingOscilationBase(sf.Smoothing):
         - obliczenie drugiej średniej z bufora cyklicznego, dla którgo obliczanie średniej zaczyna się począwszy od K ostatniej wagi
         - podanie obliczonej bezwzględnej różnicy do ewaluacji
         """
-        if(self.countWeights > smoothingMetadata.softMarginAdditionalLoops): 
+        if(self.countWeightsInaRow > smoothingMetadata.softMarginAdditionalLoops): 
             self.divisionCounter += 1
             absSum = self._sumAllWeights(smoothingMetadata=smoothingMetadata, metadata=metadata)
 
@@ -342,6 +343,7 @@ class _SmoothingOscilationBase(sf.Smoothing):
 
     def calcMean(self, model, smoothingMetadata):
         self.countWeights += 1
+        self.countWeightsInaRow += 1
 
     def __call__(self, helperEpoch, helper, model, dataMetadata, modelMetadata, metadata, smoothingMetadata):
         super().__call__(helperEpoch=helperEpoch, helper=helper, model=model, dataMetadata=dataMetadata, modelMetadata=modelMetadata, metadata=metadata, smoothingMetadata=smoothingMetadata)
@@ -355,35 +357,35 @@ class _SmoothingOscilationBase(sf.Smoothing):
         if(self.weightsComputed):                
             self.calcMean(model=model, smoothingMetadata=smoothingMetadata)
             return True
-
+        self.countWeightsInaRow = 0
         return False
 
     def createDefaultMetadataObj(self):
         return _SmoothingOscilationBase_Metadata()
 
-# borderline smoothing
-class DefaultSmoothingBorderline_Metadata(sf.Smoothing_Metadata):
+# simple mean smoothing
+class DefaultSmoothingSimpleMean_Metadata(sf.Smoothing_Metadata):
     def __init__(self, device = 'cpu',
-        smoothingStartIter = 3000):
+        batchPercentStart = 0.8):
         super().__init__()
 
         self.device = device
-        self.smoothingStartIter = smoothingStartIter # dla 50000 / 32 ~= 1500, 50000 / 16 ~= 3000
+        self.batchPercentStart = batchPercentStart # dla 50000 / 32 ~= 1500, 50000 / 16 ~= 3000
 
     def __strAppend__(self):
         tmp_str = super().__strAppend__()
         tmp_str += ('Device:\t{}\n'.format(self.device))
-        tmp_str += ('Number of batches after smoothing on:\t{}\n'.format(self.smoothingStartIter))
+        tmp_str += ('Number of batches after smoothing on:\t{}\n'.format(self.batchPercentStart))
         return tmp_str
 
-class Test_DefaultSmoothingBorderline_Metadata(DefaultSmoothingBorderline_Metadata):
-    def __init__(self, test_device = 'cpu',test_numbOfBatchAfterSwitchOn = 10):
+class Test_DefaultSmoothingSimpleMean_Metadata(DefaultSmoothingSimpleMean_Metadata):
+    def __init__(self, test_device = 'cpu', test_numbOfBatchAfterSwitchOn = 0.5):
         """
             Klasa z domyślnymi testowymi parametrami.
         """
-        super().__init__(device=test_device, smoothingStartIter=test_numbOfBatchAfterSwitchOn)
+        super().__init__(device=test_device, batchPercentStart=test_numbOfBatchAfterSwitchOn)
 
-class DefaultSmoothingBorderline(sf.Smoothing):
+class DefaultSmoothingSimpleMean(sf.Smoothing):
     """
     Włącza wygładzanie po przejściu przez określoną ilość iteracji pętli.
     Wygładzanie polega na liczeniu średnich tensorów.
@@ -393,8 +395,8 @@ class DefaultSmoothingBorderline(sf.Smoothing):
     def __init__(self, smoothingMetadata):
         super().__init__(smoothingMetadata=smoothingMetadata)
 
-        if(not isinstance(smoothingMetadata, DefaultSmoothingBorderline_Metadata)):
-            raise Exception("Metadata class '{}' is not the type of '{}'".format(type(smoothingMetadata), DefaultSmoothingBorderline_Metadata.__name__))
+        if(not isinstance(smoothingMetadata, DefaultSmoothingSimpleMean_Metadata)):
+            raise Exception("Metadata class '{}' is not the type of '{}'".format(type(smoothingMetadata), DefaultSmoothingSimpleMean_Metadata.__name__))
 
         self.sumWeights = {}
         self.countWeights = 0
@@ -404,7 +406,7 @@ class DefaultSmoothingBorderline(sf.Smoothing):
 
     def __call__(self, helperEpoch, helper, model, dataMetadata, modelMetadata, metadata, smoothingMetadata):
         super().__call__(helperEpoch=helperEpoch, helper=helper, model=model, dataMetadata=dataMetadata, modelMetadata=modelMetadata, metadata=metadata, smoothingMetadata=smoothingMetadata)
-        if(helperEpoch.trainTotalNumber > smoothingMetadata.smoothingStartIter):
+        if(helperEpoch.trainTotalNumber > smoothingMetadata.batchPercentStart * helperEpoch.maxTrainTotalNumber):
             self.countWeights += 1
             with torch.no_grad():
                 for key, arg in model.getNNModelModule().state_dict().items():
@@ -451,11 +453,11 @@ class DefaultSmoothingBorderline(sf.Smoothing):
             self.enabled = False
 
     def createDefaultMetadataObj(self):
-        return DefaultSmoothingBorderline_Metadata()
+        return DefaultSmoothingSimpleMean_Metadata()
 
 # oscilation generalized mean
 class DefaultSmoothingOscilationGeneralizedMean_Metadata(_SmoothingOscilationBase_Metadata):
-    def __init__(self, generalizedMeanPower = 1,
+    def __init__(self, generalizedMeanPower = 1.0,
         device = 'cpu',
         weightSumContainerSize = 10, weightSumContainerSizeStartAt=5, softMarginAdditionalLoops = 20, 
         batchPercentMaxStart = 0.9988, batchPercentMinStart = 0.02, 
@@ -476,7 +478,7 @@ class DefaultSmoothingOscilationGeneralizedMean_Metadata(_SmoothingOscilationBas
         return tmp_str
 
 class Test_DefaultSmoothingOscilationGeneralizedMean_Metadata(DefaultSmoothingOscilationGeneralizedMean_Metadata):
-    def __init__(self, test_generalizedMeanPower = 1,
+    def __init__(self, test_generalizedMeanPower = 1.0,
         test_device = 'cpu',
         test_weightSumContainerSize = 10, test_weightSumContainerSizeStartAt=5, test_softMarginAdditionalLoops = 3, 
         test_batchPercentMaxStart = 0.85, test_batchPercentMinStart = 0.1, 
@@ -1032,7 +1034,8 @@ class DefaultData(sf.Data):
             return 
 
         with torch.no_grad():
-            if(metadata.shouldTest() and (helperEpoch.epochNumber + 1 in dataMetadata.startTestAtEpoch or helperEpoch.epochNumber + 1 == dataMetadata.epoch) ):
+            if((metadata.shouldTest() and (helperEpoch.epochNumber + 1 in dataMetadata.startTestAtEpoch or helperEpoch.epochNumber + 1 == dataMetadata.epoch) )
+                or helperEpoch.endEpoches):
                 helperEpoch.currentLoopTimeAlias = 'loopTestTime_normal'
                 self.testLoop(model=model, helperEpoch=helperEpoch, dataMetadata=dataMetadata, modelMetadata=modelMetadata, metadata=metadata, smoothing=smoothing, smoothingMetadata=smoothingMetadata)
                 smoothing.saveWeights(weights=model.getNNModelModule().state_dict().items(), key='main')
@@ -1133,7 +1136,7 @@ DataMap = {
 
 SmoothingMap = {
     'disabled': DisabledSmoothing,
-    'borderline': DefaultSmoothingBorderline,
+    'simpleMean': DefaultSmoothingSimpleMean,
     'generalizedMean': DefaultSmoothingOscilationGeneralizedMean,
     'EWMA': DefaultSmoothingOscilationEWMA,
     'weightedMean': DefaultSmoothingOscilationWeightedMean,
@@ -1193,8 +1196,8 @@ if(__name__ == '__main__'):
     obj = models.alexnet(pretrained=True)
 
     #sf.useDeterministic()
-    #sf.modelDetermTest(sf.Metadata, DefaultData_Metadata, DefaultModel_Metadata, DefaultData, VGG16Model, DefaultSmoothingBorderline)
-    stat = sf.modelRun(sf.Metadata, DefaultData_Metadata, DefaultModel_Metadata, DefaultDataMNIST, DefaultModel, DefaultSmoothingBorderline, obj)
+    #sf.modelDetermTest(sf.Metadata, DefaultData_Metadata, DefaultModel_Metadata, DefaultData, VGG16Model, DefaultSmoothingSimpleMean)
+    stat = sf.modelRun(sf.Metadata, DefaultData_Metadata, DefaultModel_Metadata, DefaultDataMNIST, DefaultModel, DefaultSmoothingSimpleMean, obj)
 
     #plt.plot(stat.trainLossArray)
     #plt.xlabel('Train index')
