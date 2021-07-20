@@ -20,6 +20,8 @@ import copy
 import matplotlib.pyplot as plt
 import numpy
 
+from typing import Union
+
 SAVE_AND_EXIT_FLAG = False
 CURRENT_STAT = None
 
@@ -1167,10 +1169,15 @@ class EpochDataContainer():
         self.firstSmoothingSuccess = False # flaga zostaje zapalona, gdy po raz pierwszy wygładzanie zostało włączone
         self.averaged = False # flaga powinna zostać zapalona, gdy model posiada wygładzone wagi i wyłączona w przeciwnym wypadku
         
+        self.modes = [] # różne rodzaje trybów, w tym 'normal' oraz 'smoothing'
         self.endEpoches = False # flaga zostanie zapalona, gdy faza treningowa zostanie całkowicie zakończona i modelowi pozostało
                                 # wykonać tylko fazę walidacyjną 
 
+    def addSmoothingMode(self):
+        self.modes.append("smoothing")
 
+    def addNormalMode(self):
+        self.modes.append("normal")
 
 class Statistics():
     """
@@ -1797,6 +1804,7 @@ class Data(SaveClass, BaseMainClass, BaseLogicClass):
         epochHelper.statistics.logFolder = metadata.stream.root
         epochHelper.trainTotalNumber = 0
         epochHelper.testTotalNumber = 0
+        epochHelper.addNormalMode()
         return epochHelper
 
     def epochLoopTearDown(self):
@@ -1822,7 +1830,7 @@ class Data(SaveClass, BaseMainClass, BaseLogicClass):
             
             self.__epoch__(helperEpoch=self.epochHelper, model=model, dataMetadata=dataMetadata, modelMetadata=modelMetadata, metadata=metadata, smoothing=smoothing, smoothingMetadata=smoothingMetadata)
             metadata.stream.print(f"\nEpoch End\n-------------------------------")
-            model.schedulerStep(epochNumb=ep, metadata=metadata)
+            model.schedulerStep(epochNumb=ep, metadata=metadata, shtypes=self.epochHelper.modes)
 
             if(self.epochHelper.endEpoches):
                 metadata.stream.print("\nEnding epoch loop at epoch {}\n-------------------------------".format(ep + 1))
@@ -1974,6 +1982,48 @@ class Smoothing(SaveClass, BaseMainClass, BaseLogicClass):
     def canUpdate(self = None):
         return True
 
+class SchedulerContainer():
+    def __init__(self, schedType: str, importance: int):
+        """
+            importance - in what order to call objects of type SchedulerContainer. 
+                The greater the value, the more important the object is.
+                When step() is called successfully, other objects of type SchedulerContainer will not be called.
+        """
+        if(schedType != 'smoothing' and schedType != 'normal'):
+            raise Exception("Scheduler type can only be 'smoothing' or 'normal'.")
+        if(not isinstance(importance, int)):
+            raise Exception("Scheduler importance can be only of the type int.")
+        self.schedType = schedType
+        self.schedulers = []
+        self.importance = importance
+
+    def getType(self):
+        return self.schedType
+
+    def getImportance(self):
+        return self.importance
+
+    def add(self, schedule: list, scheduler):
+        self.schedulers.append((schedule, scheduler))
+        return self
+
+    def _schedulerStep(self, epochNumb, metadata, smoothing: bool):
+        def canRunEpochStep(epochStep, epochNumb):
+            return epochStep is None \
+                or not epochStep \
+                or epochNumb + 1 in epochStep
+
+    def step(self, shtypes: Union[str, list], epochNumb: int, metadata):
+        if( (isinstance(shtypes, list) and self.schedType in shtypes) or self.schedType == shtypes):
+            for epochStep, scheduler in self.schedulers:
+                if(_schedulerStep(epochNumb=epochNumb, epochStep=epochStep)):
+                    scheduler.step()
+                    metadata.stream.print("Set learning rate to {} of a scheduler {} in mode: {}".format(
+                        scheduler.get_last_lr(), str(type(scheduler)), self.schedType), ['model:0'])
+            return True
+        return False
+        
+
 class __BaseModel(nn.Module, SaveClass, BaseMainClass, BaseLogicClass):
     def __init__(self):
         super().__init__()
@@ -1986,19 +2036,25 @@ class __BaseModel(nn.Module, SaveClass, BaseMainClass, BaseLogicClass):
         """
             Set optimizer and loss function.
 
-            schedulers - a list of tuple with 2 aruments: list of epochs where the step will be called and scheduler.
-                If list of epochs is None, on each call will be called step on scheduler.
+            schedulers - a list of objects of the type SchedulerContainer.
         """
         self.loss_fn = lossFunc
         self.optimizer = optimizer
-        self.schedulers = schedulers
+        self.schedulers = schedulers.sort(key=lambda x : x.getImportance()) if schedulers is not None else schedulers
 
-    def schedulerStep(self, epochNumb, metadata):
+    def _step(self, metadata, scheduler):
+        scheduler.step()
+        metadata.stream.print("Set learning rate to {}".format(scheduler.get_last_lr()), ['model:0'])
+
+    def schedulerStep(self, epochNumb, metadata, shtypes: Union[str, list]):
+        """
+            When step() of a given SchedulerContainer object is called successfully, 
+            other objects of type SchedulerContainer will not be called.
+        """
         if(self.schedulers is not None):
-            for epochStep, scheduler in self.schedulers:
-                if(epochStep is None or epochNumb + 1 in epochStep):
-                    scheduler.step()
-                    metadata.stream.print("Set learning rate to {}".format(scheduler.get_last_lr()), ['model:0'])
+            for schedulerObj in self.schedulers:
+                if(schedulerObj.step(shtypes=shtypes, epochNumb=epochNumb, metadata=metadata)):
+                    return
 
     def canUpdate(self = None):
         return True

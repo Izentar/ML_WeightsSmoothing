@@ -279,9 +279,11 @@ class _SmoothingOscilationBase(sf.Smoothing):
 
         # czy spełniono waruek na twardy epsilon
         minStart = smoothingMetadata.batchPercentMinStart * helperEpoch.maxTrainTotalNumber
-        if(absAvgDiff < smoothingMetadata.hardEpsilon and helperEpoch.trainTotalNumber > minStart):
+        if(absAvgDiff < smoothingMetadata.hardEpsilon and helperEpoch.trainTotalNumber > minStart and not self.alwaysOn):
             self.alwaysOn = True
-            metadata.stream.print("Reached hard epsilon. Average losses are: {}; {}".format(avg_1, avg_2), ['debug:0', 'model:0'])
+            helperEpoch.addSmoothingMode()
+            metadata.stream.print("Reached hard epsilon. Average losses are: {}; {}\nSmoothing scheduler enabled.".format(
+                avg_1, avg_2), ['debug:0', 'model:0'])
 
         # czy wykonano maksymalną liczbę pętli przed włączeniem wygładzania
         return bool(
@@ -397,9 +399,15 @@ class DefaultSmoothingSimpleMean(sf.Smoothing):
 
         self.sumWeights = {}
         self.countWeights = 0
+        self.smoothingEnabled = False
 
     def __isSmoothingGoodEnough__(self, helperEpoch, helper, model, dataMetadata, modelMetadata, metadata, smoothingMetadata):
         return False
+
+    def _firstSetup(self, helperEpoch):
+        if(not self.smoothingEnabled):
+            self.smoothingEnabled = True
+            helperEpoch.addSmoothingMode()
 
     def __call__(self, helperEpoch, helper, model, dataMetadata, modelMetadata, metadata, smoothingMetadata):
         super().__call__(helperEpoch=helperEpoch, helper=helper, model=model, dataMetadata=dataMetadata, modelMetadata=modelMetadata, metadata=metadata, smoothingMetadata=smoothingMetadata)
@@ -855,16 +863,21 @@ class DefaultPytorchAveragedSmoothing(sf.Smoothing):
     def __init__(self, smoothingMetadata, model):
         super().__init__(smoothingMetadata)
         self.swaModel = torch.optim.swa_utils.AveragedModel(model.getNNModelModule())
-        self.enabled = False # true dla pierszego udanego __call__
+        self.runSmoothing = False # true dla pierszego udanego __call__
     
     def __call__(self, helperEpoch, helper, model, dataMetadata, modelMetadata, smoothingMetadata, metadata):
         super().__call__(helperEpoch=helperEpoch, helper=helper, model=model, dataMetadata=dataMetadata, modelMetadata=modelMetadata, metadata=metadata, smoothingMetadata=smoothingMetadata)
 
         if(helperEpoch.trainTotalNumber > (smoothingMetadata.smoothingStartPercent * helperEpoch.maxTrainTotalNumber)):
-            self.enabled = True
+            self._firstSetup(helperEpoch=helperEpoch)
             self.swaModel.update_parameters(model.getNNModelModule())
             return True
         return False
+
+    def _firstSetup(self, helperEpoch):
+        if(not self.runSmoothing):
+            self.runSmoothing = True
+            helperEpoch.addSmoothingMode()
 
     def __isSmoothingGoodEnough__(self, helperEpoch, helper, model, dataMetadata, modelMetadata, metadata, smoothingMetadata):
         return False
@@ -880,7 +893,7 @@ class DefaultPytorchAveragedSmoothing(sf.Smoothing):
         if(tmpCheck is not None):
             return tmpCheck
 
-        if(self.enabled):
+        if(self.runSmoothing):
             return sf.cloneTorchDict(self.swaModel.module.state_dict())
         else:
             return {}
