@@ -1586,6 +1586,7 @@ class Data(SaveClass, BaseMainClass, BaseLogicClass):
                 return
 
             if(StaticData.TEST_MODE and batch >= StaticData.MAX_DEBUG_LOOPS):
+                helperEpoch.endEpoches = True
                 metadata.stream.print("In test mode, triggered max loops which is {} iteration. Breaking train loop.".format(StaticData.MAX_DEBUG_LOOPS), "debug:0")
                 break
             
@@ -2007,16 +2008,15 @@ class SchedulerContainer():
         self.schedulers.append((schedule, scheduler))
         return self
 
-    def _schedulerStep(self, epochNumb, metadata, smoothing: bool):
-        def canRunEpochStep(epochStep, epochNumb):
-            return epochStep is None \
-                or not epochStep \
-                or epochNumb + 1 in epochStep
+    def _schedulerStep(self, epochNumb, epochStep):
+        return epochStep is None \
+            or not epochStep \
+            or epochNumb + 1 in epochStep
 
     def step(self, shtypes: Union[str, list], epochNumb: int, metadata):
         if( (isinstance(shtypes, list) and self.schedType in shtypes) or self.schedType == shtypes):
             for epochStep, scheduler in self.schedulers:
-                if(_schedulerStep(epochNumb=epochNumb, epochStep=epochStep)):
+                if(self._schedulerStep(epochNumb=epochNumb, epochStep=epochStep)):
                     scheduler.step()
                     metadata.stream.print("Set learning rate to {} of a scheduler {} in mode: {}".format(
                         scheduler.get_last_lr(), str(type(scheduler)), self.schedType), ['model:0'])
@@ -2040,7 +2040,10 @@ class __BaseModel(nn.Module, SaveClass, BaseMainClass, BaseLogicClass):
         """
         self.loss_fn = lossFunc
         self.optimizer = optimizer
-        self.schedulers = schedulers.sort(key=lambda x : x.getImportance()) if schedulers is not None else schedulers
+        self.schedulers = schedulers
+
+        if(self.schedulers is not None):
+            self.schedulers.sort(key=lambda x : x.getImportance())
 
     def _step(self, metadata, scheduler):
         scheduler.step()
