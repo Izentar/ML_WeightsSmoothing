@@ -1054,6 +1054,7 @@ class DefaultData(sf.Data):
                 wg = smoothing.__getSmoothedWeights__(metadata=metadata, smoothingMetadata=smoothingMetadata)
                 if(wg):
                     sf.Output.printBash('Starting smoothing test at epoch {}.'.format(helperEpoch.epochNumber), 'info')
+                    metadata.stream.print("Smoothing test", 'model:0')
                     self.setModelSmoothedWeights(model=model, helperEpoch=helperEpoch, weights=wg, metadata=metadata)
                     helperEpoch.currentLoopTimeAlias = 'loopTestTime_smooothing'
                     self.testAlias = 'statLossTest_smooothing'

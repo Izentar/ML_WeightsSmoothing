@@ -66,7 +66,7 @@ def getParser():
     parser.add_argument('--smweightsumcontsizestartat', default=5, type=int, help='')
     parser.add_argument('--smmovingparam', default=0.27, type=float, help='')
     parser.add_argument('--smgeneralmeanpow', default=1.0, type=float, help='')
-    parser.add_argument('--smschedule', type=int, nargs='+', default=[150, 225],
+    parser.add_argument('--smschedule', type=int, nargs='+', default=[],
         help='Decrease learning rate at these epochs.')
     parser.add_argument('--smlr', default=0.05, type=float, help='')
 
@@ -228,13 +228,13 @@ if(__name__ == '__main__'):
             else:
                 raise Exception()
             scheduler = sf.MultiplicativeLR(optimizer, gamma=args.gamma)
-            swaScheduler = torch.optim.swa_utils.SWALR(optimizer, swa_lr=args.smlr)
+            swaScheduler = torch.optim.swa_utils.SWALR(optimizer, swa_lr=args.smlr, anneal_epochs=20, anneal_strategy='linear')
             loss_fn = nn.CrossEntropyLoss()     
 
             data = createData(args, dataMetadata)
             smoothing, smoothingMetadata = createSmoothing(args=args, model=model)
 
-            schedSmoothing = sf.SchedulerContainer(schedType='smoothing', importance=1).add(schedule=None, scheduler=swaScheduler)
+            schedSmoothing = sf.SchedulerContainer(schedType='smoothing', importance=1).add(schedule=args.smschedule, scheduler=swaScheduler)
             schedNormal = sf.SchedulerContainer(schedType='normal', importance=2).add(schedule=list(args.schedule), scheduler=scheduler)
 
             stat=dc.run(metadataObj=metadata, data=data, model=model, smoothing=smoothing, optimizer=optimizer, lossFunc=loss_fn,
