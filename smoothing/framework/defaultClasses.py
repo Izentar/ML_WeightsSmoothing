@@ -861,6 +861,7 @@ class DefaultPytorchAveragedSmoothing(sf.Smoothing):
         super().__call__(helperEpoch=helperEpoch, helper=helper, model=model, dataMetadata=dataMetadata, modelMetadata=modelMetadata, metadata=metadata, smoothingMetadata=smoothingMetadata)
 
         if(helperEpoch.trainTotalNumber > (smoothingMetadata.smoothingStartPercent * helperEpoch.maxTrainTotalNumber)):
+            self.enabled = True
             self.swaModel.update_parameters(model.getNNModelModule())
             return True
         return False
