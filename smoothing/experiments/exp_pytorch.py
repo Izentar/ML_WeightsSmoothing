@@ -60,6 +60,8 @@ def getParser():
     parser.add_argument('--smhardend', default=0.99, type=float, help='when to end smoothing and training definitely ([0;1])')
     parser.add_argument('--smsoftloops', default=20, type=int, help='the number of positive calls of the mean calculation in a row to start checking if smoothing is good enough to end training')
     parser.add_argument('--smepsilon', default=1e-6, type=float, help='')
+    parser.add_argument('--smhardepsilon', default=1e-7, type=float, help='')
+    parser.add_argument('--smweightepsilon', default=1e-5, type=float, help='')
     parser.add_argument('--smlosscontainer', default=50, type=int, help='')
     parser.add_argument('--smlosscontainerdelayedstart', default=25, type=int, help='')
     parser.add_argument('--smweightsumcontsize', default=10, type=int, help='')
