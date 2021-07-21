@@ -9,7 +9,7 @@ declare -a commands=(
     --epochs 164 --schedule 81 122 --gamma 0.1"
 
     "python3 smoothing/experiments/exp_pytorch.py --model vgg19_bn --dataset CIFAR10 --optim Adam --loops 5 \
-    --smoothing pytorch \
+    --smoothing pytorch --smlr 0.0003 \
     --epochs 164 --schedule 81 122 --gamma 0.1 --lr 0.001"
 )
 
@@ -57,6 +57,8 @@ declare -a names=(
 "Różne rodzaje wygładzania, dodać do komendy"
 
 --smoothing pytorch \
+
+--smoothing pytorch --smlr 0.0003 \
 '
 
 
