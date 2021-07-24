@@ -168,8 +168,6 @@ if(__name__ == '__main__'):
         modelDevice="cuda:0"
 
     otherData = {
-        "IMG_MEAN":[125.3, 123.0, 113.9],
-        "IMG_STD":[63.0, 62.1, 66.7],
         "prefix":"set_copyOfExper_",
         "Input parameters" : str(args),
         "runningAvgSize":10,
