@@ -36,9 +36,3 @@ if(__name__ == '__main__'):
         exit(1)
 
     average(paths)
-
-    '''s = sf.Statistics()
-    torch.save(s, "tmpStat")
-
-    
-    stat = torch.load("tmpStat")'''

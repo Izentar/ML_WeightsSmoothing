@@ -73,7 +73,8 @@ class DefaultModelSimpleConv(sf.Model):
         self.conv1 = nn.Conv2d(3, 6, 5)
         self.pool = nn.MaxPool2d(2, 2)
         self.conv2 = nn.Conv2d(6, 16, 5)
-        self.linear1 = nn.Linear(16 * 16, 212)
+        self.avgpool = nn.AdaptiveAvgPool2d((6, 6))
+        self.linear1 = nn.Linear(16*6*6, 212)
         self.linear2 = nn.Linear(212, 120)
         self.linear3 = nn.Linear(120, 84)
         self.linear4 = nn.Linear(84, 10)
@@ -90,7 +91,11 @@ class DefaultModelSimpleConv(sf.Model):
         x = self.pool(F.hardswish(self.conv2(x)))
         # 16 * 212 * 212 może zmienić rozmiar tensora na [1, 16 * 212 * 212] co nie zgadza się z rozmiarem batch_number 1 != 16. Wtedy należy dać [-1, 212 * 212] = [16, 212 * 212]
         # ogółem ta operacja nie jest bezpieczna przy modyfikacji danych.
-        x = x.view(-1, 16*16)   
+        #x = x.view(x.size(0), -1)   
+        x = self.avgpool(x)
+        print(x.size())
+        x = x.view(x.size(0), -1)   
+        print(x.size())
         x = F.hardswish(self.linear1(x))
         x = F.hardswish(self.linear2(x))
         x = F.hardswish(self.linear3(x))
@@ -827,7 +832,7 @@ class DefaultSmoothingOscilationWeightedMean(_SmoothingOscilationBase):
         if(self.countWeights > 0):
             self.divisionCounter += 1
             smWg = self.__getSmoothedWeights__(smoothingMetadata=smoothingMetadata, metadata=metadata)
-            stdDev = self._sumWeightsToArrayStd(smWg=smWg)
+            stdDev = self._sumWeightsToArrayStd(smoothedWeights=smWg)
 
             metadata.stream.print("Standard deviation:" + str(stdDev), 'debug:0')
             metadata.stream.print("Standard deviation bool: " + str(bool(stdDev < smoothingMetadata.weightsEpsilon)), 'debug:0')
@@ -1093,8 +1098,8 @@ class DefaultDataEMNIST(DefaultData):
     def __prepare__(self, dataMetadata):
         super().__prepare__(dataMetadata)
 
-        self.trainset = torchvision.datasets.EMNIST(root=sf.StaticData.DATA_PATH, train=True, transform=self.transformTrain, download=dataMetadata.download)
-        self.testset = torchvision.datasets.EMNIST(root=sf.StaticData.DATA_PATH, train=False, transform=self.transformTest, download=dataMetadata.download)
+        self.trainset = torchvision.datasets.EMNIST(root=sf.StaticData.DATA_PATH, train=True, transform=self.transformTrain, download=dataMetadata.download, split='digits')
+        self.testset = torchvision.datasets.EMNIST(root=sf.StaticData.DATA_PATH, train=False, transform=self.transformTest, download=dataMetadata.download, split='digits')
 
         self.trainloader = torch.utils.data.DataLoader(self.trainset, batch_size=dataMetadata.batchTrainSize, sampler=dataMetadata.trainSampler,
                                           shuffle=dataMetadata.trainShuffle, num_workers=dataMetadata.trainLoaderWorkers, pin_memory=dataMetadata.pin_memoryTrain, worker_init_fn=dataMetadata.worker_seed if sf.enabledDeterminism() else None)

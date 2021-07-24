@@ -63,21 +63,21 @@ def getParser():
     parser.add_argument('--smhardepsilon', default=5e-8, type=float, help='')
     parser.add_argument('--smweightepsilon', default=1e-5, type=float, help='')
     parser.add_argument('--smlosscontainer', default=200, type=int, help='')
-    parser.add_argument('--smlosscontainerdelayedstart', default=100, type=int, help='')
-    parser.add_argument('--smweightsumcontsize', default=10, type=int, help='')
-    parser.add_argument('--smweightsumcontsizestartat', default=5, type=int, help='')
-    parser.add_argument('--smmovingparam', default=0.05, type=float, help='')
-    parser.add_argument('--smgeneralmeanpow', default=1.0, type=float, help='')
+    parser.add_argument('--smlosscontainerdelayedstart', default=100, type=int, help='where the second average of loss container should start')
+    parser.add_argument('--smweightsumcontsize', default=10, type=int, help='the size of the sum container')
+    parser.add_argument('--smweightsumcontsizestartat', default=5, type=int, help='where the second average of weights sum container should start')
+    parser.add_argument('--smmovingparam', default=0.05, type=float, help='moving parameter for the moving mean')
+    parser.add_argument('--smgeneralmeanpow', default=1.0, type=float, help='the power of general mean')
     parser.add_argument('--smschedule', type=int, nargs='+', default=[],
-        help='Decrease learning rate at these epochs.')
-    parser.add_argument('--smlr', default=0.05, type=float, help='')
+        help='Invoke SWALR scheduler at these epochs.')
+    parser.add_argument('--smlr', default=0.05, type=float, help='value that SWALR schedule sets as learning rate')
 
 
 
     return parser
 
 smmetadata = [
-    (dc.DisabledSmoothing_Metadata, None),
+    (dc.DisabledSmoothing_Metadata, dc.DisabledSmoothing_Metadata),
     (dc.DefaultPytorchAveragedSmoothing_Metadata, dc.Test_DefaultPytorchAveragedSmoothing_Metadata),
     (dc.DefaultSmoothingOscilationEWMA_Metadata, dc.Test_DefaultSmoothingOscilationEWMA_Metadata),
     (dc.DefaultSmoothingOscilationGeneralizedMean_Metadata, dc.Test_DefaultSmoothingOscilationGeneralizedMean_Metadata),
@@ -93,6 +93,7 @@ def createSmoothing(args, model):
         index = 1
 
     if(args.smoothing == "disabled"):
+        
         smoothingMetadata = smmetadata[0][index]()
         smoothing = dc.DisabledSmoothing(smoothingMetadata)
 
