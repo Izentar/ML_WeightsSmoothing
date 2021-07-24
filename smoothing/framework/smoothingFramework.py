@@ -1613,10 +1613,10 @@ class Data(SaveClass, BaseMainClass, BaseLogicClass):
 
             if(self.trainHelper.smoothingSuccess):
                 if(helperEpoch.firstSmoothingSuccess == False):
-                    metadata.stream.print("Successful first smoothing call while train at batch {}".format(batch), ['model:0', 'debug:0'])
+                    metadata.stream.print("Successful first smoothing call while training at batch {}".format(batch), ['model:0', 'debug:0'])
                     helperEpoch.firstSmoothingSuccess = True
                 else:
-                    metadata.stream.print("Successful smoothing call while train at batch {}".format(batch), 'debug:0')
+                    metadata.stream.print("Successful smoothing call while training at batch {}".format(batch), 'debug:0')
 
             self.__afterTrain__(helperEpoch=helperEpoch, helper=self.trainHelper, model=model, dataMetadata=dataMetadata, modelMetadata=modelMetadata, metadata=metadata, smoothing=smoothing, smoothingMetadata=smoothingMetadata)
 

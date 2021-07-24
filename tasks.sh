@@ -5,20 +5,24 @@
 # pole do modyfikacji
 declare -a commands=(
     "python3 smoothing/experiments/exp_pytorch.py --model vgg19_bn --dataset CIFAR10 --optim SGD --loops 1 \
-    --smoothing ewma --smlr 0.001 \
+    --smoothing ewma --smlr 0.01 \
     --epochs 164 --schedule 81 122 --gamma 0.001"
 
     "python3 smoothing/experiments/exp_pytorch.py --model vgg19_bn --dataset CIFAR10 --optim SGD --loops 1 \
-    --smoothing ewma --smlr 0.001 --smmovingparam 0.1 \
-    --epochs 164 --schedule 81 122 --gamma 0.001"
+    --smoothing ewma --smlr 0.05 \
+    --epochs 164 --schedule 81 122"
 
     "python3 smoothing/experiments/exp_pytorch.py --model vgg19_bn --dataset CIFAR10 --optim SGD --loops 1 \
-    --smoothing ewma --smlr 0.001 --smmovingparam 0.15 \
-    --epochs 164 --schedule 81 122 --gamma 0.001"
+    --smoothing ewma --smlr 0.01 --smweightsumcontsize 500 --smweightsumcontsizestartat 250\
+    --epochs 164 --schedule 81 122"
 
     "python3 smoothing/experiments/exp_pytorch.py --model vgg19_bn --dataset CIFAR10 --optim SGD --loops 1 \
-    --smoothing ewma --smlr 0.001 --smmovingparam 0.2 \
-    --epochs 164 --schedule 81 122 --gamma 0.001"
+    --smoothing ewma --smlr 0.01 --smweightsumcontsize 1000 --smweightsumcontsizestartat 500\
+    --epochs 164 --schedule 81 122"
+
+    "python3 smoothing/experiments/exp_pytorch.py --model vgg19_bn --dataset CIFAR10 --optim SGD --loops 1 \
+    --smoothing ewma --smlr 0.01 --smweightsumcontsize 2000 --smweightsumcontsizestartat 1000\
+    --epochs 164 --schedule 81 122"
 )
 
 declare -a names=(
