@@ -185,7 +185,8 @@ if(__name__ == '__main__'):
         "Adam_param": "learning_rate weight-decay"
     }
 
-    normalize = transforms.Normalize(mean=[x / 255.0 for x in otherData["IMG_MEAN"]], std=[x / 255.0 for x in otherData["IMG_STD"]])
+    CIFAR10_normalize = transforms.Normalize(mean=(0.4914, 0.4822, 0.4465), std=(0.2023, 0.1994, 0.2010))
+    CIFAR100_normalize = transforms.Normalize(mean=(0.5070,  0.4865,  0.4409), std=(0.2673,  0.2564,  0.2761))
 
     metadata = sf.Metadata(testFlag=True, trainFlag=True, debugInfo=True)
     dataMetadata = dc.DefaultData_Metadata(pin_memoryTest=False, pin_memoryTrain=False, epoch=args.epochs,
@@ -197,12 +198,12 @@ if(__name__ == '__main__'):
             #transforms.RandomVerticalFlip(),
             #torchvision.transforms.GaussianBlur(5),
             transforms.ToTensor(),
-            normalize,
+            CIFAR10_normalize if args.dataset == 'CIFAR10' else CIFAR100_normalize,
             #Cutout(n_holes=1, length=5)
         ]),
         transformTest=transforms.Compose([
             transforms.ToTensor(),
-            normalize
+            CIFAR10_normalize if args.dataset == 'CIFAR10' else CIFAR100_normalize
         ]))
     optimizerDataDict={
         "learning_rate":args.lr,
