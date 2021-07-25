@@ -71,8 +71,7 @@ def getParser():
     parser.add_argument('--smschedule', type=int, nargs='+', default=[],
         help='Invoke SWALR scheduler at these epochs.')
     parser.add_argument('--smlr', default=0.01, type=float, help='value that SWALR schedule sets as learning rate')
-
-
+    parser.add_argument('--smoffsched', action='store_true', help='choose if smoothing scheduler should be created')
 
     return parser
 
@@ -239,9 +238,15 @@ if(__name__ == '__main__'):
             schedSmoothing = sf.SchedulerContainer(schedType='smoothing', importance=1).add(schedule=args.smschedule, scheduler=swaScheduler)
             schedNormal = sf.SchedulerContainer(schedType='normal', importance=2).add(schedule=list(args.schedule), scheduler=scheduler)
 
+            schedulers = None
+            if(args.smoffsched):
+                schedulers = [schedNormal]
+            else:
+                schedulers = [schedSmoothing, schedNormal]
+
             stat=dc.run(metadataObj=metadata, data=data, model=model, smoothing=smoothing, optimizer=optimizer, lossFunc=loss_fn,
                 modelMetadata=modelMetadata, dataMetadata=dataMetadata, smoothingMetadata=smoothingMetadata, rootFolder=rootFolder,
-                schedulers=[schedSmoothing, schedNormal], logData=otherData)
+                schedulers=schedulers, logData=otherData)
 
             stat.saveSelf(name="stat")
 
