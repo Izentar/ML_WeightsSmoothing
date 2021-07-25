@@ -254,7 +254,7 @@ class RunningGeneralMeanWeights():
         self.weightsDictAvg[key].mul_(self.N).add_(arg.pow(self.power)).div_(self.N + 1)
 
     def __methodPow_1(self, key, arg):
-        self.weightsDictAvg[key].mul_(self.N).add_(arg).div_(self.N + 1)
+        self.weightsDictAvg[key].add_(arg)
 
     def __methodDivGet_(self):
         tmpDict = {}
@@ -263,7 +263,10 @@ class RunningGeneralMeanWeights():
         return tmpDict
 
     def __methodDivGet_1(self):
-        return self.weightsDictAvg
+        tmpDict = {}
+        for key, val in self.weightsDictAvg.items():
+            tmpDict[key] = val.div(self.N)
+        return tmpDict
 
     def addWeights(self, weights: dict):
         with torch.no_grad():
