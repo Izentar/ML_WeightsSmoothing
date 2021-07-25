@@ -118,7 +118,7 @@ class Test_RunExperiment(unittest.TestCase):
             optimizerDataDict={"learning_rate":1e-3, "momentum":0.9}
 
             obj = models.alexnet()
-            smoothingMetadata = dc.Test_DefaultSmoothingSimpleMean_Metadata(numbOfBatchAfterSwitchOn=5, device='cuda:0')
+            smoothingMetadata = dc.Test_DefaultSmoothingSimpleMean_Metadata(batchPercentStart=0.01, device='cuda:0')
             modelMetadata = dc.DefaultModel_Metadata(lossFuncDataDict={}, optimizerDataDict=optimizerDataDict, device='cuda:0')
 
             data = dc.DefaultDataMNIST(dataMetadata)
@@ -142,7 +142,7 @@ class Test_RunExperiment(unittest.TestCase):
             optimizerDataDict={"learning_rate":1e-3, "momentum":0.9}
 
             obj = models.wide_resnet50_2()
-            smoothingMetadata = dc.Test_DefaultSmoothingSimpleMean_Metadata(numbOfBatchAfterSwitchOn=5, device='cuda:0')
+            smoothingMetadata = dc.Test_DefaultSmoothingSimpleMean_Metadata(batchPercentStart=0.01, device='cuda:0')
             modelMetadata = dc.DefaultModel_Metadata(lossFuncDataDict={}, optimizerDataDict=optimizerDataDict, device='cuda:0')
 
             data = dc.DefaultDataMNIST(dataMetadata)

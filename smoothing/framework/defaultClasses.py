@@ -383,11 +383,11 @@ class DefaultSmoothingSimpleMean_Metadata(sf.Smoothing_Metadata):
         return tmp_str
 
 class Test_DefaultSmoothingSimpleMean_Metadata(DefaultSmoothingSimpleMean_Metadata):
-    def __init__(self, device = 'cpu', numbOfBatchAfterSwitchOn = 0.5):
+    def __init__(self, device = 'cpu', batchPercentStart = 0.5):
         """
             Klasa z domyślnymi testowymi parametrami.
         """
-        super().__init__(device=device, batchPercentStart=numbOfBatchAfterSwitchOn)
+        super().__init__(device=device, batchPercentStart=batchPercentStart)
 
 class DefaultSmoothingSimpleMean(sf.Smoothing):
     """

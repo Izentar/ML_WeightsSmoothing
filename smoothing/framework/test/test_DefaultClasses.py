@@ -427,7 +427,7 @@ class Test_DefaultSmoothingSimpleMean(Test_DefaultSmoothing):
         self.modelMetadata = TestModel_Metadata()
         self.model = TestModel(self.modelMetadata)
         self.helper = sf.TrainDataContainer()
-        self.smoothingMetadata = dc.Test_DefaultSmoothingSimpleMean_Metadata(numbOfBatchAfterSwitchOn=2)
+        self.smoothingMetadata = dc.Test_DefaultSmoothingSimpleMean_Metadata(batchPercentStart=0.01)
         self.dataMetadata = dc.DefaultData_Metadata()
         self.helperEpoch = sf.EpochDataContainer()
         self.helperEpoch.trainTotalNumber = 3
