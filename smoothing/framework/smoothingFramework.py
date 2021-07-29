@@ -1508,8 +1508,6 @@ class Data(SaveClass, BaseMainClass, BaseLogicClass):
         #print(torch.cuda.memory_summary())
         model.__getOptimizer__().step()
 
-        helper.outputs = outputs
-
         # run smoothing
         helper.smoothingSuccess = smoothing(helperEpoch=helperEpoch, helper=helper, model=model, dataMetadata=dataMetadata, modelMetadata=modelMetadata, smoothingMetadata=smoothingMetadata, metadata=metadata)
 
