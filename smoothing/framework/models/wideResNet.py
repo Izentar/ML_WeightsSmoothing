@@ -95,3 +95,7 @@ class WideResNet(nn.Module):
         out = F.avg_pool2d(out, 8)
         out = out.view(-1, self.nChannels)
         return self.fc(out)
+
+if(__name__ == '__main__'):
+    model = WideResNet(depth=28, widen_factor=4, num_classes=10)
+    print(model)

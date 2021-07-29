@@ -156,3 +156,7 @@ def densenet(**kwargs):
     Constructs a ResNet model.
     """
     return DenseNet(**kwargs)
+
+if(__name__ == '__main__'):
+    model = densenet(num_classes=10)
+    print(model)
