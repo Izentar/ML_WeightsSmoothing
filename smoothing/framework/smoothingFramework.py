@@ -1501,8 +1501,8 @@ class Data(SaveClass, BaseMainClass, BaseLogicClass):
         
         # forward + backward + optimize
         #print(torch.cuda.memory_summary(device='cuda:0'))
-        outputs = model.getNNModelModule()(helper.inputs)
-        helper.loss = model.__getLossFun__()(outputs, helper.labels)
+        helper.outputs = model.getNNModelModule()(helper.inputs)
+        helper.loss = model.__getLossFun__()(helper.outputs, helper.labels)
         #print(torch.cuda.memory_summary())
         helper.loss.backward()
         #print(torch.cuda.memory_summary())
@@ -1564,7 +1564,6 @@ class Data(SaveClass, BaseMainClass, BaseLogicClass):
             self.trainHelper = self.setTrainLoop(model=model, modelMetadata=modelMetadata, metadata=metadata)
         
         self.trainHelper.loopTimer.clearTime()
-        #torch.cuda.empty_cache()
         self.__beforeTrainLoop__(helperEpoch=helperEpoch, helper=self.trainHelper, model=model, dataMetadata=dataMetadata, modelMetadata=modelMetadata, metadata=metadata, smoothing=smoothing, smoothingMetadata=smoothingMetadata)
         metadata.stream.print("Starting train batch at: {}".format(startNumb), "debug:0")
 
@@ -1573,13 +1572,9 @@ class Data(SaveClass, BaseMainClass, BaseLogicClass):
             if(batch < startNumb): # already iterated
                 continue
 
-            #del self.trainHelper.inputs
-            #del self.trainHelper.labels
-
             self.trainHelper.inputs = inputs
             self.trainHelper.labels = labels
             self.trainHelper.batchNumber = batch
-            helperEpoch.trainTotalNumber += 1
             if(SAVE_AND_EXIT_FLAG):
                 metadata.stream.print("Triggered SAVE_AND_EXIT_FLAG.", "debug:0")
                 self.__trainLoopExit__(helperEpoch=helperEpoch, helper=self.trainHelper, model=model, dataMetadata=dataMetadata, modelMetadata=modelMetadata, metadata=metadata, smoothing=smoothing, smoothingMetadata=smoothingMetadata)
@@ -1587,17 +1582,14 @@ class Data(SaveClass, BaseMainClass, BaseLogicClass):
                 return
 
             if(StaticData.TEST_MODE and batch >= StaticData.MAX_DEBUG_LOOPS):
-                helperEpoch.endEpoches = True
                 metadata.stream.print("In test mode, triggered max loops which is {} iteration. Breaking train loop.".format(StaticData.MAX_DEBUG_LOOPS), "debug:0")
                 break
-            
+
+            helperEpoch.trainTotalNumber += 1
             self.__beforeTrain__(helperEpoch=helperEpoch, helper=self.trainHelper, model=model, dataMetadata=dataMetadata, modelMetadata=modelMetadata, metadata=metadata, smoothing=smoothing, smoothingMetadata=smoothingMetadata)
-            
-            #del self.trainHelper.loss
 
             self.trainHelper.timer.clearTime()
             self.trainHelper.timer.start()
-            
             
             self.__train__(helperEpoch=helperEpoch, helper=self.trainHelper, model=model, dataMetadata=dataMetadata, modelMetadata=modelMetadata, metadata=metadata, smoothing=smoothing, smoothingMetadata=smoothingMetadata)
 
@@ -1609,7 +1601,6 @@ class Data(SaveClass, BaseMainClass, BaseLogicClass):
                 metadata.stream.print(self.trainHelper.timer.getDiff() , alias=helperEpoch.currentLoopTimeAlias)
             self.trainHelper.timer.addToStatistics()
             weightsSum = sumAllWeights(dict(model.getNNModelModule().named_parameters()))
-            #weightsSum = 1.0
             metadata.stream.print(str(weightsSum), 'weightsSumTrain')
 
             if(self.trainHelper.smoothingSuccess):
@@ -1795,8 +1786,8 @@ class Data(SaveClass, BaseMainClass, BaseLogicClass):
 
     def _updateTotalNumbLoops(self, dataMetadata: 'Data_Metadata'):
         if(test_mode.isActive()):
-            self.epochHelper.maxTrainTotalNumber = self.__howManyTrainInvInOneEpoch__() * dataMetadata.epoch * StaticData.MAX_DEBUG_LOOPS
-            self.epochHelper.maxTestTotalNumber = self.__howManyTestInvInOneEpoch__() * dataMetadata.epoch * StaticData.MAX_DEBUG_LOOPS
+            self.epochHelper.maxTrainTotalNumber = self.__howManyTrainInvInOneEpoch__() * (dataMetadata.epoch if dataMetadata.epoch < StaticData.MAX_EPOCH_DEBUG_LOOPS else StaticData.MAX_EPOCH_DEBUG_LOOPS) * StaticData.MAX_DEBUG_LOOPS
+            self.epochHelper.maxTestTotalNumber = self.__howManyTestInvInOneEpoch__() * (dataMetadata.epoch if dataMetadata.epoch < StaticData.MAX_EPOCH_DEBUG_LOOPS else StaticData.MAX_EPOCH_DEBUG_LOOPS) * StaticData.MAX_DEBUG_LOOPS
         else:
             self.epochHelper.maxTrainTotalNumber = self.__howManyTrainInvInOneEpoch__() * dataMetadata.epoch * len(self.trainloader)
             self.epochHelper.maxTestTotalNumber = self.__howManyTestInvInOneEpoch__() * dataMetadata.epoch * len(self.testloader)
@@ -1824,6 +1815,8 @@ class Data(SaveClass, BaseMainClass, BaseLogicClass):
             if(ep < self.epochHelper.epochNumber): # already iterated
                 continue
             if(StaticData.TEST_MODE and ep >= StaticData.MAX_EPOCH_DEBUG_LOOPS):
+                metadata.stream.print("\nEnding debug epoch loop at epoch {}\n-------------------------------".format(ep + 1))
+                self.epochHelper.endEpoches = True
                 break
             self.epochHelper.epochNumber = ep
             self._updateTotalNumbLoops(dataMetadata=dataMetadata)
