@@ -2096,6 +2096,7 @@ class Model(__BaseModel):
 
         # dane wewnętrzne
         self.weightsInit = False # flaga mówiąca, czy wagi zostały zainicjalizowane
+        self.getNNModelModule().to(modelMetadata.device)
 
     def __initializeWeights__(self):
         self.weightsInit = True
@@ -2164,6 +2165,8 @@ class PredefinedModel(__BaseModel):
         super().__init__()
         self.modelObj = obj
         self.name = name
+        self.modelObj.to(modelMetadata.device)
+        self.__initializeWeights__()
 
     def __initializeWeights__(self):
         self.modelObj._initialize_weights()

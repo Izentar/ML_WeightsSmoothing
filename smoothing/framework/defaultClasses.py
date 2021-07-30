@@ -82,8 +82,7 @@ class DefaultModelSimpleConv(sf.Model):
         #self.loss_fn = nn.CrossEntropyLoss()
         #self.optimizer = optim.SGD(self.getNNModelModule().parameters(), lr=modelMetadata.learning_rate, momentum=modelMetadata.momentum)
         #self.optimizer = optim.AdamW(self.parameters(), lr=modelMetadata.learning_rate)
-
-        self.getNNModelModule().to(modelMetadata.device)
+        
         self.__initializeWeights__()
 
     def forward(self, x):
@@ -122,7 +121,6 @@ class DefaultModelSimpleConv(sf.Model):
 class DefaultModelPredef(sf.PredefinedModel):
     def __init__(self, obj, modelMetadata, name):
         super().__init__(obj=obj, modelMetadata=modelMetadata, name=name)
-        self.getNNModelModule().to(modelMetadata.device)
 
     def __update__(self, modelMetadata):
         self.getNNModelModule().to(modelMetadata.device)
@@ -395,6 +393,7 @@ class DefaultSmoothingSimpleMean(sf.Smoothing):
     Wygładzanie polega na liczeniu średnich tensorów.
     Wygładzanie włączane jest od momentu wykonania określonej ilości pętli oraz jest liczone od końca iteracji.
     Liczy średnią arytmetyczną.
+    Działanie podobne do klasy AveragedModel.
     """
     def __init__(self, smoothingMetadata):
         super().__init__(smoothingMetadata=smoothingMetadata)
