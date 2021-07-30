@@ -2166,7 +2166,6 @@ class PredefinedModel(__BaseModel):
         self.modelObj = obj
         self.name = name
         self.modelObj.to(modelMetadata.device)
-        self.__initializeWeights__()
 
     def __initializeWeights__(self):
         self.modelObj._initialize_weights()

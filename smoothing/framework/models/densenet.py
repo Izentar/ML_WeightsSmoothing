@@ -111,7 +111,9 @@ class DenseNet(nn.Module):
         self.avgpool = nn.AvgPool2d(8)
         self.fc = nn.Linear(self.inplanes, num_classes)
 
-        # Weight initialization
+        self._initialize_weights()
+
+    def _initialize_weights(self):
         for m in self.modules():
             if isinstance(m, nn.Conv2d):
                 n = m.kernel_size[0] * m.kernel_size[1] * m.out_channels
