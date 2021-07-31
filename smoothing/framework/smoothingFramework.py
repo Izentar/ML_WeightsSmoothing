@@ -16,6 +16,7 @@ import errno
 import csv
 import operator
 import copy
+import json
 
 import matplotlib.pyplot as plt
 import numpy
@@ -2606,6 +2607,9 @@ def printClassToLog(metadata, *obj):
         if(o is not None):
             metadata.stream.print(str(o), where)
 
+def prettyStr(d, indent=0):
+    return str(json.dumps(d, indent=2))
+
 def runObjs(metadataObj, dataMetadataObj, modelMetadataObj, smoothingMetadataObj, smoothingObj, dataObj, modelObj, folderLogNameSuffix = None, 
     folderRelativeRoot = None, logData: dict=None):
     """
@@ -2619,7 +2623,7 @@ def runObjs(metadataObj, dataMetadataObj, modelMetadataObj, smoothingMetadataObj
     metadataObj.relativeRoot = folderRelativeRoot
 
     printClassToLog(metadataObj, modelMetadataObj, dataObj,
-        dataMetadataObj,  modelObj, smoothingObj, smoothingMetadataObj, "Other data:\n" + str(logData))
+        dataMetadataObj,  modelObj, smoothingObj, smoothingMetadataObj, "Other data:\n" + prettyStr(logData))
 
     modelTotalParams = sum(p.numel() for p in modelObj.parameters())
     metadataObj.stream.print("\nNumber of parameters of the model: {}\n".format(modelTotalParams), 'model:0')

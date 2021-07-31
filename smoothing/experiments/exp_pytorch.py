@@ -20,6 +20,7 @@ from framework.models.wideResNet import WideResNet
 import numpy as np
 import math
 import argparse
+import sys
 
 VGG = "vgg19_bn"
 DENSENET = "densenet"
@@ -169,9 +170,10 @@ if(__name__ == '__main__'):
 
     otherData = {
         "prefix":"set_copyOfExper_",
-        "Input parameters" : str(args),
+        "Input parameters" : str(args).split(),
         "runningAvgSize":10,
         "num_classes":10 if args.dataset == "CIFAR10" else 100,
+        "bash_input": ' '.join(sys.argv),
 
         "optim": args.optim,
         "model": args.model,
