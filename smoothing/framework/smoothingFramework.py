@@ -2378,7 +2378,7 @@ def commandLineArg(metadata, dataMetadata, modelMetadata, argv, enableLoad = Tru
 
 def averageStatistics(statistics: list, filePaths: dict=None, 
     relativeRootFolder = None,
-    fileFormat = '.svg', dpi = 900, widthTickFreq = 0.08, aspectRatio = 0.3, startAt = None, resolutionInches = 11.5, outputFolderNameSuffix = None):
+    dpi = 900, widthTickFreq = 0.08, aspectRatio = 0.3, startAt = None, resolutionInches = 11.5, outputFolderNameSuffix = None):
     """
         Funkcja dla podanych logów w formacie csv uśrednia je. Logi muszą być w odpowiednim formacie, czyli:
             - jeden plik jest przeznaczony dla jednego rodzaju danych w formacie liczby, zapisywanych kolejnych
@@ -2767,7 +2767,7 @@ def checkForEmptyFile(filePath):
     """
     return os.path.isfile(filePath) and os.path.getsize(filePath) > 0
 
-def plot(filePath: list, xlabel, ylabel, name = None, plotInputRoot = None, plotOutputRoot = None, fileFormat = '.svg', dpi = 900, widthTickFreq = 0.08, 
+def plot(filePath: list, xlabel, ylabel, name = None, plotsNames: list = None, plotInputRoot = None, plotOutputRoot = None, fileFormat = '.svg', dpi = 900, widthTickFreq = 0.08, 
     aspectRatio = 0.3, startAt = None, resolutionInches = 11.5):
     """
     Rozmiar wyjściowej grafiki jest podana wzorem [resolutionInches; resolutionInches / aspectRatio]
@@ -2792,6 +2792,13 @@ def plot(filePath: list, xlabel, ylabel, name = None, plotInputRoot = None, plot
     if(len(filePath) == 0):
         Output.printBash("Could not create plot. Input files names are empty.", 'warn')
         return
+    
+    if(plotsNames is not None and (len(plotsNames) != len(filePath))):
+        Output.printBash("Could not create plot. Input target plot names do not match file paths.", 'warn')
+        return
+
+    if(plotsNames is not None and not plotsNames):
+        plotsNames = None
 
     fp = []
     xleft, xright = [], []
@@ -2806,14 +2813,14 @@ def plot(filePath: list, xlabel, ylabel, name = None, plotInputRoot = None, plot
     else:
         fp = filePath
 
-    for fn in fp:
+    for idx, fn in enumerate(fp):
         if(not checkForEmptyFile(fn)):
             Output.printBash("Cannot plot file '{}'. File is empty or does not exist.".format(fn), 'warn')
             continue
         data = pd.read_csv(fn, header=None)
         if(len(data) > sampleMaxSize):
             sampleMaxSize = len(data)
-        plt.plot(data, label=os.path.basename(fn))
+        plt.plot(data, label=os.path.basename(fn) if plotsNames is None else plotsNames[idx])
 
         xleft2, xright2 = ax.get_xlim()
         xleft.append(xleft2)

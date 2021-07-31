@@ -26,8 +26,8 @@ def printStats(stat, metadata, startAt = -10, fileFormat='.svg'):
     for st in stat:
         st.printPlots(startAt=startAt)
 
-    avgStats = sf.averageStatistics(stat, relativeRootFolder=metadata.relativeRoot, fileFormat=fileFormat)
-    avgStats.printPlots(startAt=startAt)
+    avgStats = sf.averageStatistics(stat, relativeRootFolder=metadata.relativeRoot)
+    avgStats.printPlots(startAt=startAt, fileFormat=fileFormat)
 
 def printAvgStats(stat, metadataRoot, startAt = -10, runningAvgSize=1, fileFormat='.svg'):
     """
@@ -40,5 +40,5 @@ def printAvgStats(stat, metadataRoot, startAt = -10, runningAvgSize=1, fileForma
         root = metadataRoot
     else:
         raise Exception("Unknown data type: {}".format(type(metadataRoot)))
-    avgStats = sf.averageStatistics(stat, relativeRootFolder=root, fileFormat=fileFormat)
-    avgStats.printPlots(startAt=startAt, runningAvgSize=runningAvgSize)
+    avgStats = sf.averageStatistics(stat, relativeRootFolder=root)
+    avgStats.printPlots(startAt=startAt, runningAvgSize=runningAvgSize, fileFormat=fileFormat)
