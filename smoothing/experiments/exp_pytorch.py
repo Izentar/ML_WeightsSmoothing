@@ -246,7 +246,7 @@ if(__name__ == '__main__'):
 
             stat=dc.run(metadataObj=metadata, data=data, model=model, smoothing=smoothing, optimizer=optimizer, lossFunc=loss_fn,
                 modelMetadata=modelMetadata, dataMetadata=dataMetadata, smoothingMetadata=smoothingMetadata, rootFolder=rootFolder,
-                schedulers=schedulers, logData=otherData)
+                schedulers=schedulers, logData=otherData, fileFormat='.png')
 
             stat.saveSelf(name="stat")
 

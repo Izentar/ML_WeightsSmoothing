@@ -1231,6 +1231,7 @@ class Statistics():
             smthTestCorrectSum - zapisywane po wykonanym teście, gdy model posiada wygładzone wagi, suma poprawnych predykcji testowych. Domyślnie [] dla None.
             smthPredSizeSum - zapisywane po wykonanym teście, gdy model posiada wygładzone wagi, ilość wszystkich predykcji. Domyślnie [] dla None.
         """
+        ##################################
         self.logFolder = logFolder
         if(isinstance(plotBatches, dict) or plotBatches is None):
             self.plotBatches = plotBatches if plotBatches is not None else {}
@@ -1243,25 +1244,54 @@ class Statistics():
         self.rootInputFolder = rootInputFolder
 
         ###################################
+        def fromTensorToItem(fromObj):
+            if(isinstance(fromObj, torch.Tensor)):
+                return fromObj.item()
+            elif(isinstance(fromObj, list)):
+                return [x.item() for x in fromObj]
+            elif(isinstance(fromObj, tuple)):
+                return tuple(x.item() for x in fromObj)
+            else:
+                return fromObj
+
         def setAndCheckList(fromObj):
+            fromObj = fromTensorToItem(fromObj)
             return (fromObj if isinstance(fromObj, list) else [fromObj]) if fromObj is not None else []
+
+        def specialCase(checkWhat, total, size):
+            if(checkWhat == "count"):
+                return [], [float(total[0] / size[0])]
+            else:
+                checkWhat = fromTensorToItem(checkWhat)
+                if(isinstance(checkWhat, tuple) and len(checkWhat) == 2):
+                    return setAndCheckList(checkWhat[0]), setAndCheckList(checkWhat[1])
+                return [], setAndCheckList(checkWhat)
+        ###################################
 
         self.testLossSum = setAndCheckList(testLossSum)
         self.testCorrectSum = setAndCheckList(testCorrectSum)
         self.predSizeSum = setAndCheckList(predSizeSum)
+
+        self.correctRatioStd, self.correctRatio = specialCase(checkWhat=correctRatio, 
+            total=self.testCorrectSum, size=self.predSizeSum)
+        '''
         if(correctRatio == "count"):
             self.correctRatio = [float(self.testCorrectSum[0] / self.predSizeSum[0])]
         else:
             self.correctRatio = setAndCheckList(correctRatio)
+        '''
 
         self.trainLoopTimerSum = setAndCheckList(trainLoopTimerSum)
         self.testLoopTimerSum = setAndCheckList(testLoopTimerSum)
 
+        self.lossRatioStd, self.lossRatio = specialCase(checkWhat=lossRatio,
+            total=self.testLossSum, size=self.predSizeSum)
+        '''
         if(lossRatio == "count"):
             self.lossRatio = [float(self.testLossSum[0] / self.predSizeSum[0])]
         else:
             self.lossRatio = setAndCheckList(lossRatio)
-        
+        '''
         self.trainTimeLoop = setAndCheckList(trainTimeLoop)
         self.avgTrainTimeLoop = setAndCheckList(avgTrainTimeLoop)
         self.trainTotalNumb = setAndCheckList(trainTotalNumb)
@@ -1279,6 +1309,13 @@ class Statistics():
         self.smthTestLossSum = setAndCheckList(smthTestLossSum)
         self.smthTestCorrectSum = setAndCheckList(smthTestCorrectSum)
         self.smthPredSizeSum = setAndCheckList(smthPredSizeSum)
+
+        self.smthLossRatioStd, self.smthLossRatio = specialCase(checkWhat=smthLossRatio, 
+            total=self.smthTestLossSum, size=self.smthPredSizeSum)
+
+        self.smthCorrectRatioStd, self.smthCorrectRatio = specialCase(checkWhat=smthCorrectRatio,
+            total=self.smthTestCorrectSum, size=self.smthPredSizeSum)
+        '''
         if(smthLossRatio == "count"):
             self.smthLossRatio = [float(self.smthTestLossSum[0] / self.smthPredSizeSum[0])]
         else:
@@ -1287,6 +1324,7 @@ class Statistics():
             self.smthCorrectRatio = [float(self.smthTestCorrectSum[0] / self.smthPredSizeSum[0])]
         else:
             self.smthCorrectRatio = setAndCheckList(smthCorrectRatio)
+        '''
 
     def printPlots(self, fileFormat = '.svg', dpi = 900, widthTickFreq = 0.08, aspectRatio = 0.3,
     startAt = None, resolutionInches = 11.5, runningAvgSize=1):
@@ -2477,21 +2515,20 @@ def averageStatistics(statistics: list, filePaths: dict=None,
         addAll(tmp_smthAvgTestTimeLoop, st.smthAvgTestTimeLoop)
         tmp_smthAvgTestTimeLoopCount += len(st.smthAvgTestTimeLoop)
 
-        
     newStats = Statistics(
         testLossSum=torch.mean(torch.as_tensor(tmp_testLossSum, dtype=torch.float64)).item(),
         testCorrectSum=torch.mean(torch.as_tensor(tmp_testCorrectSum, dtype=torch.float64)).item(),
         predSizeSum=torch.mean(torch.as_tensor(tmp_predSizeSum, dtype=torch.float64)).item(),
 
-        lossRatio="count",
-        correctRatio="count",
+        lossRatio=torch.std_mean(torch.as_tensor([x / y for x, y in zip(tmp_testLossSum, tmp_predSizeSum)], dtype=torch.float64)),
+        correctRatio=torch.std_mean(torch.as_tensor([x / y for x, y in zip(tmp_testCorrectSum, tmp_predSizeSum)], dtype=torch.float64)),
 
         smthTestLossSum=torch.mean(torch.as_tensor(tmp_smthTestLossSum, dtype=torch.float64)).item(),
         smthTestCorrectSum=torch.mean(torch.as_tensor(tmp_smthTestCorrectSum, dtype=torch.float64)).item(),
         smthPredSizeSum=torch.mean(torch.as_tensor(tmp_smthPredSizeSum, dtype=torch.float64)).item(),
 
-        smthLossRatio="count",
-        smthCorrectRatio="count",
+        smthLossRatio=torch.std_mean(torch.as_tensor([x / y for x, y in zip(tmp_smthTestLossSum, tmp_smthPredSizeSum)], dtype=torch.float64)),
+        smthCorrectRatio=torch.std_mean(torch.as_tensor([x / y for x, y in zip(tmp_smthTestCorrectSum, tmp_smthPredSizeSum)], dtype=torch.float64)),
 
         trainTimeLoop=safeDivide(sum(tmp_trainTimeLoop), numOfAvgFiles, 0.0),
         trainTimeUnits=tmp_trainTimeUnits,
@@ -2528,6 +2565,9 @@ def averageStatistics(statistics: list, filePaths: dict=None,
         for obj in config:
             fh.write(obj + "\n")
 
+    def trySetOrNan(objList: list):
+        return objList[0] if objList else "Nan"
+
     # zapisz średnie dokładności modelu
     with open(os.path.join(newOutLogFolder, 'model_summary.txt'), "w") as fh:
         fh.write("\nModel averaged\n")
@@ -2537,14 +2577,16 @@ def averageStatistics(statistics: list, filePaths: dict=None,
         fh.write(f" Loop train time ({newStats.trainTimeUnits[0]}): {newStats.trainTimeLoop[0]}\n")
         fh.write(f" Number of batches done in total: {newStats.trainTotalNumb[0]}\n")
 
-        fh.write("\nNormal model averaged\nTest summary:\n Average accuracy: {:>6f}%, Avg loss: {:>8f}\n".format(
-            100*(newStats.correctRatio[0]), newStats.lossRatio[0] ))
+        fh.write("\nNormal model averaged\nTest summary:\n Average accuracy: {:>6f}% +- {:>6f}, Avg loss: {:>8f} +- {:>8f}\n".format(
+            100*(newStats.correctRatio[0]), trySetOrNan(newStats.correctRatioStd),
+            newStats.lossRatio[0], trySetOrNan(newStats.lossRatioStd)))
         fh.write(f" Average test execution time in a loop ({newStats.testTimeUnits[0]}): {newStats.avgTestTimeLoop[0]:>3f}\n")
         fh.write(f" Time to complete the entire loop ({newStats.testTimeUnits[0]}): {newStats.testTimeLoop[0]:>3f}\n")
 
         fh.write("\nSmoothed model averaged\n")
-        fh.write("Test summary:\n Average accuracy: {:>6f}%, Avg loss: {:>8f}\n".format(
-            100*(newStats.smthCorrectRatio[0]), newStats.smthLossRatio[0]))
+        fh.write("Test summary:\n Average accuracy: {:>6f}% +- {:>6f}, Avg loss: {:>8f} +- {:>8f}\n".format(
+            100*(newStats.smthCorrectRatio[0]), trySetOrNan(newStats.smthCorrectRatioStd),
+            newStats.smthLossRatio[0], trySetOrNan(newStats.smthLossRatioStd)))
         fh.write(f" Average test execution time in a loop ({newStats.smthTestTimeUnits[0]}): {newStats.smthAvgTestTimeLoop[0]:>3f}\n")
         fh.write(f" Time to complete the entire loop ({newStats.smthTestTimeUnits[0]}): {newStats.smthTestTimeLoop[0]:>3f}\n")
 
