@@ -866,7 +866,7 @@ class DefaultPytorchAveragedSmoothing(sf.Smoothing):
     """
     def __init__(self, smoothingMetadata, model):
         super().__init__(smoothingMetadata)
-        self.swaModel = torch.optim.swa_utils.AveragedModel(model.getNNModelModule())
+        self.swaModel = torch.optim.swa_utils.AveragedModel(model.getNNModelModule(), device=smoothingMetadata.device)
         self.runSmoothing = False # true dla pierszego udanego __call__
     
     def __call__(self, helperEpoch, helper, model, dataMetadata, modelMetadata, smoothingMetadata, metadata):
