@@ -22,14 +22,14 @@ def printException(ex, types):
         ), 'err')
     sf.Output.printBash("Full traceback:\n{}".format(traceback.format_exc()), 'err')
 
-def printStats(stat, metadata, startAt = -10):
+def printStats(stat, metadata, startAt = -10, fileFormat='.svg'):
     for st in stat:
         st.printPlots(startAt=startAt)
 
-    avgStats = sf.averageStatistics(stat, relativeRootFolder=metadata.relativeRoot)
+    avgStats = sf.averageStatistics(stat, relativeRootFolder=metadata.relativeRoot, fileFormat=fileFormat)
     avgStats.printPlots(startAt=startAt)
 
-def printAvgStats(stat, metadataRoot, startAt = -10, runningAvgSize=1):
+def printAvgStats(stat, metadataRoot, startAt = -10, runningAvgSize=1, fileFormat='.svg'):
     """
         metadataRoot - obiekt metadaty lub folder nadrzędny w którym zostaną zapisane logi. Jeżeli folder nie istnieje, zostanie stworzony.
     """
@@ -40,5 +40,5 @@ def printAvgStats(stat, metadataRoot, startAt = -10, runningAvgSize=1):
         root = metadataRoot
     else:
         raise Exception("Unknown data type: {}".format(type(metadataRoot)))
-    avgStats = sf.averageStatistics(stat, relativeRootFolder=root)
+    avgStats = sf.averageStatistics(stat, relativeRootFolder=root, fileFormat=fileFormat)
     avgStats.printPlots(startAt=startAt, runningAvgSize=runningAvgSize)

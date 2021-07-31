@@ -251,6 +251,6 @@ if(__name__ == '__main__'):
             stat.saveSelf(name="stat")
 
             stats.append(stat)
-        experiments.printAvgStats(stats, metadata, runningAvgSize=otherData["runningAvgSize"])
+        experiments.printAvgStats(stats, metadata, runningAvgSize=otherData["runningAvgSize"], fileFormat='.png')
     except Exception as ex:
         experiments.printException(ex, types)
