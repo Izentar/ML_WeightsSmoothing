@@ -27,9 +27,9 @@ def printStats(stat, metadata, startAt = -10, fileFormat='.svg', dpi=900):
         st.printPlots(startAt=startAt)
 
     avgStats = sf.averageStatistics(stat, relativeRootFolder=metadata.relativeRoot)
-    avgStats.printPlots(startAt=startAt, fileFormat=fileFormat, dpi=dpi)
+    avgStats.printPlots(startAt=startAt, **kwargs)
 
-def printAvgStats(stat, metadataRoot, startAt = -10, runningAvgSize=1, fileFormat='.svg', dpi=900):
+def printAvgStats(stat, metadataRoot, startAt = -10, runningAvgSize=1, **kwargs):
     """
         metadataRoot - obiekt metadaty lub folder nadrzędny w którym zostaną zapisane logi. Jeżeli folder nie istnieje, zostanie stworzony.
     """
@@ -41,4 +41,4 @@ def printAvgStats(stat, metadataRoot, startAt = -10, runningAvgSize=1, fileForma
     else:
         raise Exception("Unknown data type: {}".format(type(metadataRoot)))
     avgStats = sf.averageStatistics(stat, relativeRootFolder=root)
-    avgStats.printPlots(startAt=startAt, runningAvgSize=runningAvgSize, fileFormat=fileFormat, dpi=dpi)
+    avgStats.printPlots(startAt=startAt, runningAvgSize=runningAvgSize, **kwargs)

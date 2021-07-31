@@ -1174,7 +1174,7 @@ def __checkClassExistence(checkedMap, obj):
 
 
 def run(data, model, smoothing, metadataObj, modelMetadata, dataMetadata, smoothingMetadata, optimizer, lossFunc, schedulers: list=None,
-    rootFolder = None, startPrintAt = -10, runningAvgSize=1, logData=None, fileFormat = '.svg', dpi=900):
+    rootFolder = None, startPrintAt = -10, logData=None, **kwargs):
     """
         Funckja przygotowuje do wywołania eksperymentu. Na końcu działania funkcja tworzy wykresy.
     """
@@ -1204,7 +1204,7 @@ def run(data, model, smoothing, metadataObj, modelMetadata, dataMetadata, smooth
 
     metadataObj.printEndModel()
 
-    statistics.printPlots(startAt=startPrintAt, runningAvgSize=runningAvgSize, fileFormat=fileFormat, dpi=dpi)
+    statistics.printPlots(startAt=startPrintAt, **kwargs)
 
     return statistics
 

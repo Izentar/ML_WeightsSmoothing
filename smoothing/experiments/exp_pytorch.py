@@ -246,11 +246,12 @@ if(__name__ == '__main__'):
 
             stat=dc.run(metadataObj=metadata, data=data, model=model, smoothing=smoothing, optimizer=optimizer, lossFunc=loss_fn,
                 modelMetadata=modelMetadata, dataMetadata=dataMetadata, smoothingMetadata=smoothingMetadata, rootFolder=rootFolder,
-                schedulers=schedulers, logData=otherData, fileFormat='.png', dpi=300)
+                schedulers=schedulers, logData=otherData, fileFormat='.png', dpi=300, resolutionInches=6.5, widthTickFreq=0.15)
 
             stat.saveSelf(name="stat")
 
             stats.append(stat)
-        experiments.printAvgStats(stats, metadata, runningAvgSize=otherData["runningAvgSize"], fileFormat='.png', dpi=300)
+        experiments.printAvgStats(stats, metadata, runningAvgSize=otherData["runningAvgSize"], fileFormat='.png', dpi=300, 
+            resolutionInches=6.5, widthTickFreq=0.15)
     except Exception as ex:
         experiments.printException(ex, types)

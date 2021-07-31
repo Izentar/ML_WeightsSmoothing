@@ -2768,7 +2768,7 @@ def checkForEmptyFile(filePath):
     return os.path.isfile(filePath) and os.path.getsize(filePath) > 0
 
 def plot(filePath: list, xlabel, ylabel, name = None, plotsNames: list = None, plotInputRoot = None, plotOutputRoot = None, fileFormat = '.svg', dpi = 900, widthTickFreq = 0.08, 
-    aspectRatio = 0.3, startAt = None, resolutionInches = 11.5):
+    aspectRatio = 0.3, startAt = None, resolutionInches = 11.5, fontSize = 13):
     """
     Rozmiar wyjściowej grafiki jest podana wzorem [resolutionInches; resolutionInches / aspectRatio]
     """
@@ -2847,9 +2847,9 @@ def plot(filePath: list, xlabel, ylabel, name = None, plotsNames: list = None, p
     tmp = sampleMaxSize / widthTickFreq
     ax.xaxis.set_ticks(numpy.arange(startAt, xright, (sampleMaxSize*widthTickFreq)*aspectRatio))
     ax.set_xlim(xmin=startAt)
-    plt.legend()
-    plt.xlabel(xlabel=xlabel)
-    plt.ylabel(ylabel=ylabel)
+    plt.legend(fontsize=fontSize)
+    plt.xlabel(xlabel=xlabel, fontsize=fontSize)
+    plt.ylabel(ylabel=ylabel, fontsize=fontSize)
     plt.grid()
 
 
