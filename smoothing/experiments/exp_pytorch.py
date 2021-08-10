@@ -244,8 +244,6 @@ if(__name__ == '__main__'):
             if(args.smoffsched):
                 schedulers = [schedNormal]
             else:
-                if(not args.smschedule):
-                    raise Exception("Smoothing scheduler has been not set but it is being used.")
                 schedulers = [schedSmoothing, schedNormal]
 
             stat=dc.run(metadataObj=metadata, data=data, model=model, smoothing=smoothing, optimizer=optimizer, lossFunc=loss_fn,
