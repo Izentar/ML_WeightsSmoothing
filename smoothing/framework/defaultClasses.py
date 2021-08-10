@@ -279,6 +279,7 @@ class _SmoothingOscilationBase(sf.Smoothing):
 
         # oblicz bezwzględną różnicę dwóch średnich strat
         absAvgDiff = abs(avg_1 - avg_2)
+        metadata.stream.print("Loss avg diff : {}".format(absAvgDiff), 'debug:0')
 
         # czy spełniono waruek na twardy epsilon
         minStart = smoothingMetadata.batchPercentMinStart * helperEpoch.maxTrainTotalNumber
@@ -351,9 +352,6 @@ class _SmoothingOscilationBase(sf.Smoothing):
         super().__call__(helperEpoch=helperEpoch, helper=helper, model=model, dataMetadata=dataMetadata, modelMetadata=modelMetadata, metadata=metadata, smoothingMetadata=smoothingMetadata)
         # dodaj stratę do listy cyklicznej
         self.lossContainer.pushBack(helper.loss.item())
-
-        metadata.stream.print("Loss avg diff : " + 
-            str(abs(self.lossContainer.getAverage() - self.lossContainer.getAverage(smoothingMetadata.lossContainerDelayedStartAt))), 'debug:0')
 
         self.weightsComputed = self.canComputeWeights(helperEpoch=helperEpoch, helper=helper, dataMetadata=dataMetadata, smoothingMetadata=smoothingMetadata, metadata=metadata)
         if(self.weightsComputed):                
