@@ -2059,8 +2059,10 @@ class SchedulerContainer():
                 if(self._schedulerStep(epochNumb=epochNumb, epochStep=epochStep)):
                     scheduler.step(metrics=metrics)
 
+                    tmpstr = 'learning rate:\t'
+                    tmpstr = str([group['lr'] for group in scheduler.optimizer.param_groups]) + ',\t'
                     metadata.stream.print("Set learning rate to {} of a scheduler {} in mode: {}".format(
-                        scheduler.get_last_lr(), str(type(scheduler)), self.schedType), ['model:0'])
+                        tmpstr, str(type(scheduler)), self.schedType), ['model:0'])
             return True
         return False
         
