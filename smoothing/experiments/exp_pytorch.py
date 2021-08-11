@@ -34,6 +34,7 @@ def getParser():
     parser.add_argument('--loops', default=5, type=int, help='how many times test must repeat (default 5)')
     parser.add_argument('--model', default=VGG, choices=[VGG, WRESNET, DENSENET], 
         help='model type (default {})'.format(WRESNET))
+    parser.add_argument('--teststep', type=int, default=10, help='A number specifying for which multiples of epochs to call the test')
     parser.add_argument('--test', help='debug / test mode', action='store_true')
     parser.add_argument('--debug', help='debug / test mode', action='store_true')
 
@@ -78,7 +79,7 @@ def getParser():
     parser.add_argument('--smpatience', default=75, type=int, help='')
     parser.add_argument('--smthreshold', default=0.0001, type=float, help='')
     parser.add_argument('--smminlr', default=0.01, type=float, help='')
-    parser.add_argument('--smsmcooldown', default=40, type=int, help='')
+    parser.add_argument('--smcooldown', default=40, type=int, help='')
 
 
     return parser
@@ -198,9 +199,15 @@ def createSmScheduler(args, optimizer):
         raise Exception()
     return smsched
 
+def validateArgs(args):
+    if(args.sched == 'adapt' and args.teststep != 1):
+        raise Exception("Bad combination for '{}' and '{}'.".format(args.sched, args.teststep))
+
 if(__name__ == '__main__'):
     args = getParser().parse_args()
     print("Arguments passed:\n{}".format(args))
+
+    validateArgs(args)
 
     modelDevice = 'cuda:0'
     if(sf.test_mode().isActive()):
@@ -228,7 +235,7 @@ if(__name__ == '__main__'):
 
     metadata = sf.Metadata(testFlag=True, trainFlag=True, debugInfo=True)
     dataMetadata = dc.DefaultData_Metadata(pin_memoryTest=False, pin_memoryTrain=False, epoch=args.epochs,
-        batchTrainSize=128, batchTestSize=100, startTestAtEpoch=list(range(0, args.epochs+11, 10)) + [1], 
+        batchTrainSize=128, batchTestSize=100, startTestAtEpoch=list(range(0, args.epochs+args.teststep + 1, args.teststep)) + [1], 
         transformTrain=transforms.Compose([
             transforms.RandomCrop(32, padding=4),
             #transforms.ColorJitter(),

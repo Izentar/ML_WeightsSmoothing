@@ -351,8 +351,6 @@ class CircularList():
 
     def getMeanStd(self):
         return numpy.std(self.array), numpy.mean(self.array)
-        tmp = torch.std_mean(input=self.array)
-        return (tmp[0].item(), tmp[1].item())
 
     def __setstate__(self):
         self.__dict__.update(state)
@@ -389,7 +387,9 @@ class MultiplicativeLR():
             ret.append(gr['lr'])
         return ret
 
-    def step(self):
+    def step(self, metric):
+        # metric is unused but needed for interface
+
         for gr in self.optimizer.param_groups:
             gr['lr'] *= self.gamma
         self.stepCount += 1
@@ -1871,7 +1871,7 @@ class Data(SaveClass, BaseMainClass, BaseLogicClass):
             
             self.__epoch__(helperEpoch=self.epochHelper, model=model, dataMetadata=dataMetadata, modelMetadata=modelMetadata, metadata=metadata, smoothing=smoothing, smoothingMetadata=smoothingMetadata)
             metadata.stream.print(f"\nEpoch End\n-------------------------------")
-            model.schedulerStep(epochNumb=ep, metadata=metadata, shtypes=self.epochHelper.modes)
+            model.schedulerStep(epochNumb=ep, metadata=metadata, shtypes=self.epochHelper.modes, metrics=self.epochHelper.statistics.testLossSum[-1]) # get lasts sum of losses
 
             if(self.epochHelper.endEpoches):
                 metadata.stream.print("\nEnding epoch loop at epoch {}\n-------------------------------".format(ep + 1))
@@ -2053,11 +2053,12 @@ class SchedulerContainer():
             or not epochStep \
             or epochNumb + 1 in epochStep
 
-    def step(self, shtypes: Union[str, list], epochNumb: int, metadata):
+    def step(self, shtypes: Union[str, list], epochNumb: int, metadata, metrics):
         if( (isinstance(shtypes, list) and self.schedType in shtypes) or self.schedType == shtypes):
             for epochStep, scheduler in self.schedulers:
                 if(self._schedulerStep(epochNumb=epochNumb, epochStep=epochStep)):
-                    scheduler.step()
+                    scheduler.step(metrics=metrics)
+
                     metadata.stream.print("Set learning rate to {} of a scheduler {} in mode: {}".format(
                         scheduler.get_last_lr(), str(type(scheduler)), self.schedType), ['model:0'])
             return True
@@ -2089,14 +2090,14 @@ class __BaseModel(nn.Module, SaveClass, BaseMainClass, BaseLogicClass):
         scheduler.step()
         metadata.stream.print("Set learning rate to {}".format(scheduler.get_last_lr()), ['model:0'])
 
-    def schedulerStep(self, epochNumb, metadata, shtypes: Union[str, list]):
+    def schedulerStep(self, epochNumb, metadata, shtypes: Union[str, list], metrics):
         """
             When step() of a given SchedulerContainer object is called successfully, 
             other objects of type SchedulerContainer will not be called.
         """
         if(self.schedulers is not None):
             for schedulerObj in self.schedulers:
-                if(schedulerObj.step(shtypes=shtypes, epochNumb=epochNumb, metadata=metadata)):
+                if(schedulerObj.step(shtypes=shtypes, epochNumb=epochNumb, metadata=metadata, metrics=metrics)):
                     return
 
     def canUpdate(self = None):
