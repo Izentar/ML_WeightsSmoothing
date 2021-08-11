@@ -29,6 +29,7 @@ WRESNET = "wide_resnet"
 def getParser():
     parser = argparse.ArgumentParser(description='PyTorch Classification Training', add_help=True)
     parser.add_argument('--optim', default='SGD', choices=["SGD", "Adam"], help='choose optimizer')
+    parser.add_argument('--sched', default='swa', choices=["swa", "adapt"], help='choose scheduler')
     parser.add_argument('--dataset', default='CIFAR10', choices=["CIFAR10", "CIFAR100"], help='choose dataset')
     parser.add_argument('--loops', default=5, type=int, help='how many times test must repeat (default 5)')
     parser.add_argument('--model', default=WRESNET, choices=[VGG, WRESNET, DENSENET], 
@@ -55,6 +56,7 @@ def getParser():
     parser.add_argument('--growthRate', type=int, default=12, help='Growth rate for DenseNet.')
     parser.add_argument('--compressionRate', type=int, default=2, help='Compression Rate (theta) for DenseNet.')    
 
+    parser.add_argument('--smsched', default='swa', choices=["swa"], help='choose smoothing scheduler')
     parser.add_argument('--smoothing', default='disabled', choices=["disabled", "pytorch", "ewma", "generMean", "simplemean"], help='choose smoothing mode')
     parser.add_argument('--smstart', default=0.8, type=float, help='when to start smoothing, exact location ([0;1])')
     parser.add_argument('--smsoftstart', default=0.02, type=float, help='when to enable smoothing, it does not mean it will start calculating average weights ([0;1])')
@@ -73,6 +75,13 @@ def getParser():
         help='Invoke SWALR scheduler at these epochs.')
     parser.add_argument('--smlr', default=0.01, type=float, help='value that SWALR schedule sets as learning rate')
     parser.add_argument('--smoffsched', action='store_true', help='choose if smoothing scheduler should be created')
+
+    parser.add_argument('--smfactor', default=0.1, type=float, help='')
+    parser.add_argument('--smpatience', default=75, type=int, help='')
+    parser.add_argument('--smthreshold', default=0.0001, type=float, help='')
+    parser.add_argument('--smminlr', default=0.01, type=float, help='')
+    parser.add_argument('--smsmcooldown', default=40, type=int, help='')
+
 
     return parser
 
@@ -160,6 +169,37 @@ def createModel(args, modelMetadata):
 
     return obj, model
 
+def createOptimizer(args, model, optimizerDataDict):
+    optimizer = None
+    if(args.optim == "SGD"):
+        optimizer = optim.SGD(model.getNNModelModule().parameters(), lr=args.lr, 
+            weight_decay=args.weight_decay, momentum=args.momentum, nesterov=optimizerDataDict['nesterov'])
+    elif(args.optim == "Adam"):
+        optimizer = optim.Adam(model.getNNModelModule().parameters(), lr=args.lr, 
+            weight_decay=args.weight_decay)
+    else:
+        raise Exception()
+    return optimizer
+
+def createScheduler(args, optimizer):
+    sched = None
+    if(args.sched == 'multiplic'):
+        sched = sf.MultiplicativeLR(optimizer, gamma=args.gamma)
+    elif(args.sched == 'adapt'):
+        sched = optim.lr_scheduler.ReduceLROnPlateau(optimizer, mode='min', factor=args.smfactor, patience=args.smpatience, 
+            threshold=args.smthreshold, min_lr=args.smminlr, cooldown=args.smcooldown)
+    else:
+        raise Exception()
+    return sched
+
+def createSmScheduler(args, optimizer):
+    smsched = None
+    if(args.smsched == 'swa'):
+        smsched = torch.optim.swa_utils.SWALR(optimizer, swa_lr=args.smlr, anneal_epochs=20, anneal_strategy='linear')
+    else:
+        raise Exception()
+    return smsched
+
 if(__name__ == '__main__'):
     args = getParser().parse_args()
     print("Arguments passed:\n{}".format(args))
@@ -220,25 +260,17 @@ if(__name__ == '__main__'):
 
         for r in range(args.loops):
             obj, model = createModel(args, modelMetadata)
+            optimizer = createOptimizer(args, model=model, optimizerDataDict=optimizerDataDict)
+            sched = createScheduler(args, optimizer)
+            smsched = createSmScheduler(args, optimizer)
 
-            optimizer = None
-            if(args.optim == "SGD"):
-                optimizer = optim.SGD(model.getNNModelModule().parameters(), lr=args.lr, 
-                    weight_decay=args.weight_decay, momentum=args.momentum, nesterov=optimizerDataDict['nesterov'])
-            elif(args.optim == "Adam"):
-                optimizer = optim.Adam(model.getNNModelModule().parameters(), lr=args.lr, 
-                    weight_decay=args.weight_decay)
-            else:
-                raise Exception()
-            scheduler = sf.MultiplicativeLR(optimizer, gamma=args.gamma)
-            swaScheduler = torch.optim.swa_utils.SWALR(optimizer, swa_lr=args.smlr, anneal_epochs=20, anneal_strategy='linear')
             loss_fn = nn.CrossEntropyLoss()     
 
             data = createData(args, dataMetadata)
             smoothing, smoothingMetadata = createSmoothing(args=args, model=model)
 
-            schedSmoothing = sf.SchedulerContainer(schedType='smoothing', importance=1).add(schedule=args.smschedule, scheduler=swaScheduler)
-            schedNormal = sf.SchedulerContainer(schedType='normal', importance=2).add(schedule=list(args.schedule), scheduler=scheduler)
+            schedSmoothing = sf.SchedulerContainer(schedType='smoothing', importance=1).add(schedule=args.smschedule, scheduler=smsched)
+            schedNormal = sf.SchedulerContainer(schedType='normal', importance=2).add(schedule=list(args.schedule), scheduler=sched)
 
             schedulers = None
             if(args.smoffsched):
