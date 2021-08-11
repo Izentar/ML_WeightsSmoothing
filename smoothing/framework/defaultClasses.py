@@ -323,9 +323,9 @@ class _SmoothingOscilationBase(sf.Smoothing):
             self.tensorPrevSum.pushBack(absSum)
             std, mean = self.tensorPrevSum.getMeanStd()
 
-            metadata.stream.print("Sum debug:" + str(absSum), 'debug:0')
-            metadata.stream.print("Weight mean" + str(mean), 'debug:0')
-            metadata.stream.print("Weight std" + str(std), 'debug:0')
+            metadata.stream.print("Sum debug: " + str(absSum), 'debug:0')
+            metadata.stream.print("Weight mean: " + str(mean), 'debug:0')
+            metadata.stream.print("Weight std: " + str(std), 'debug:0')
             metadata.stream.print("Weight std bool: " + str(bool(std < smoothingMetadata.weightsEpsilon)), 'debug:0')
             
             return self._smoothingGoodEnoughCheck(val=std, smoothingMetadata=smoothingMetadata)

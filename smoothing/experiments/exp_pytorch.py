@@ -78,7 +78,7 @@ def getParser():
     parser.add_argument('--smfactor', default=0.1, type=float, help='')
     parser.add_argument('--smpatience', default=6, type=int, help='')
     parser.add_argument('--smthreshold', default=0.0001, type=float, help='')
-    parser.add_argument('--smminlr', default=0.01, type=float, help='')
+    parser.add_argument('--smminlr', default=0.0, type=float, help='')
     parser.add_argument('--smcooldown', default=25, type=int, help='')
 
 
