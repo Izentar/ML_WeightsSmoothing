@@ -44,7 +44,7 @@ def getParser():
         metavar='LR', help='initial learning rate')
     parser.add_argument('--drop', '--dropout', default=0, type=float,
             metavar='Dropout', help='Dropout ratio')
-    parser.add_argument('--schedule', type=int, nargs='+', default=[150, 225],
+    parser.add_argument('--schedule', type=int, nargs='+', default=[],
         help='Decrease learning rate at these epochs.')
     parser.add_argument('--gamma', type=float, default=0.1, help='LR is multiplied by gamma on schedule.')
     parser.add_argument('--momentum', default=0.9, type=float, metavar='M',
@@ -76,10 +76,10 @@ def getParser():
     parser.add_argument('--smoffsched', action='store_true', help='choose if smoothing scheduler should be created')
 
     parser.add_argument('--smfactor', default=0.1, type=float, help='')
-    parser.add_argument('--smpatience', default=75, type=int, help='')
+    parser.add_argument('--smpatience', default=6, type=int, help='')
     parser.add_argument('--smthreshold', default=0.0001, type=float, help='')
     parser.add_argument('--smminlr', default=0.01, type=float, help='')
-    parser.add_argument('--smcooldown', default=40, type=int, help='')
+    parser.add_argument('--smcooldown', default=25, type=int, help='')
 
 
     return parser
