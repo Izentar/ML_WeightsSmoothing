@@ -349,6 +349,11 @@ class CircularList():
 
         return tmpSum / l
 
+    def getMeanStd(self):
+        return numpy.std(self.array), numpy.mean(self.array)
+        tmp = torch.std_mean(input=self.array)
+        return (tmp[0].item(), tmp[1].item())
+
     def __setstate__(self):
         self.__dict__.update(state)
         self.arrayIndex = self.arrayIndex % self.arrayMax
@@ -1622,6 +1627,8 @@ class Data(SaveClass, BaseMainClass, BaseLogicClass):
 
             if(StaticData.TEST_MODE and batch >= StaticData.MAX_DEBUG_LOOPS):
                 metadata.stream.print("In test mode, triggered max loops which is {} iteration. Breaking train loop.".format(StaticData.MAX_DEBUG_LOOPS), "debug:0")
+                if(StaticData.TEST_MODE and helperEpoch.epochNumber + 1 >= StaticData.MAX_EPOCH_DEBUG_LOOPS):
+                    helperEpoch.endEpoches = True
                 break
 
             helperEpoch.trainTotalNumber += 1

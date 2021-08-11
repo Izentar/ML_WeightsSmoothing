@@ -29,10 +29,10 @@ WRESNET = "wide_resnet"
 def getParser():
     parser = argparse.ArgumentParser(description='PyTorch Classification Training', add_help=True)
     parser.add_argument('--optim', default='SGD', choices=["SGD", "Adam"], help='choose optimizer')
-    parser.add_argument('--sched', default='swa', choices=["swa", "adapt"], help='choose scheduler')
+    parser.add_argument('--sched', default='multiplic', choices=["multiplic", "adapt"], help='choose scheduler')
     parser.add_argument('--dataset', default='CIFAR10', choices=["CIFAR10", "CIFAR100"], help='choose dataset')
     parser.add_argument('--loops', default=5, type=int, help='how many times test must repeat (default 5)')
-    parser.add_argument('--model', default=WRESNET, choices=[VGG, WRESNET, DENSENET], 
+    parser.add_argument('--model', default=VGG, choices=[VGG, WRESNET, DENSENET], 
         help='model type (default {})'.format(WRESNET))
     parser.add_argument('--test', help='debug / test mode', action='store_true')
     parser.add_argument('--debug', help='debug / test mode', action='store_true')
@@ -49,7 +49,7 @@ def getParser():
     parser.add_argument('--momentum', default=0.9, type=float, metavar='M',
         help='momentum')
     parser.add_argument('--weight-decay', '--wd', default=5e-4, type=float,
-        metavar='W', help='weight decay (default: 1e-4)')
+        metavar='W', help='weight decay (default: 5e-4)')
 
     parser.add_argument('--depth', type=int, default=29, help='Model depth.')
     parser.add_argument('--widen-factor', type=int, default=4, help='Widen factor. 4 -> 64, 8 -> 128, ...')
@@ -66,9 +66,7 @@ def getParser():
     parser.add_argument('--smhardepsilon', default=5e-8, type=float, help='')
     parser.add_argument('--smweightepsilon', default=1e-5, type=float, help='')
     parser.add_argument('--smlosscontainer', default=200, type=int, help='')
-    parser.add_argument('--smlosscontainerdelayedstart', default=100, type=int, help='where the second average of loss container should start')
     parser.add_argument('--smweightsumcontsize', default=200, type=int, help='the size of the sum container')
-    parser.add_argument('--smweightsumcontsizestartat', default=100, type=int, help='where the second average of weights sum container should start')
     parser.add_argument('--smmovingparam', default=0.05, type=float, help='moving parameter for the moving mean')
     parser.add_argument('--smgeneralmeanpow', default=1.0, type=float, help='the power of general mean')
     parser.add_argument('--smschedule', type=int, nargs='+', default=[],
@@ -114,16 +112,16 @@ def createSmoothing(args, model):
         smoothingMetadata = smmetadata[2][index](device="cuda:0",
             batchPercentMaxStart=args.smhardend, batchPercentMinStart=args.smsoftstart, softMarginAdditionalLoops=args.smsoftloops,
             epsilon=args.smepsilon, hardEpsilon=args.smhardepsilon, weightsEpsilon=args.smweightepsilon, lossContainer=args.smlosscontainer,
-            lossContainerDelayedStartAt=args.smlosscontainerdelayedstart, weightSumContainerSize=args.smweightsumcontsize,
-            weightSumContainerSizeStartAt=args.smweightsumcontsizestartat, movingAvgParam=args.smmovingparam)
+            weightSumContainerSize=args.smweightsumcontsize,
+            movingAvgParam=args.smmovingparam)
         smoothing = dc.DefaultSmoothingOscilationEWMA(smoothingMetadata)
 
     elif(args.smoothing == "generMean"):
         smoothingMetadata = smmetadata[3][index](device="cuda:0",
             batchPercentMaxStart=args.smhardend, batchPercentMinStart=args.smsoftstart, softMarginAdditionalLoops=args.smsoftloops,
             epsilon=args.smepsilon, hardEpsilon=args.smhardepsilon, weightsEpsilon=args.smweightepsilon, lossContainer=args.smlosscontainer,
-            lossContainerDelayedStartAt=args.smlosscontainerdelayedstart, weightSumContainerSize=args.smweightsumcontsize,
-            weightSumContainerSizeStartAt=args.smweightsumcontsizestartat, generalizedMeanPower=args.smgeneralmeanpow)
+            weightSumContainerSize=args.smweightsumcontsize,
+            generalizedMeanPower=args.smgeneralmeanpow)
         smoothing = dc.DefaultSmoothingOscilationGeneralizedMean(smoothingMetadata)
 
     elif(args.smoothing == "simplemean"):
