@@ -65,7 +65,6 @@ def getParser():
     parser.add_argument('--smsoftloops', default=200, type=int, help='the number of positive calls of the mean calculation in a row to start checking if smoothing is good enough to end training')
     
     parser.add_argument('--smepsilon', default=1e-6, type=float, help='')
-    parser.add_argument('--smhardepsilon', default=5e-8, type=float, help='')
     parser.add_argument('--smweightepsilon', default=1e-5, type=float, help='')
 
     parser.add_argument('--smlosscontainer', default=600, type=int, help='')
@@ -114,7 +113,7 @@ def createSmoothing(args, model):
     elif(args.smoothing == "ewma"):
         smoothingMetadata = smmetadata[2][index](device="cuda:0",
             batchPercentMaxStart=args.smhardend, batchPercentMinStart=args.smsoftstart, softMarginAdditionalLoops=args.smsoftloops,
-            epsilon=args.smepsilon, hardEpsilon=args.smhardepsilon, weightsEpsilon=args.smweightepsilon, lossContainer=args.smlosscontainer,
+            epsilon=args.smepsilon, weightsEpsilon=args.smweightepsilon, lossContainer=args.smlosscontainer,
             weightSumContainerSize=args.smweightsumcontsize,
             movingAvgParam=args.smmovingparam)
         smoothing = dc.DefaultSmoothingOscilationEWMA(smoothingMetadata)
@@ -122,7 +121,7 @@ def createSmoothing(args, model):
     elif(args.smoothing == "generMean"):
         smoothingMetadata = smmetadata[3][index](device="cuda:0",
             batchPercentMaxStart=args.smhardend, batchPercentMinStart=args.smsoftstart, softMarginAdditionalLoops=args.smsoftloops,
-            epsilon=args.smepsilon, hardEpsilon=args.smhardepsilon, weightsEpsilon=args.smweightepsilon, lossContainer=args.smlosscontainer,
+            epsilon=args.smepsilon, weightsEpsilon=args.smweightepsilon, lossContainer=args.smlosscontainer,
             weightSumContainerSize=args.smweightsumcontsize,
             generalizedMeanPower=args.smgeneralmeanpow)
         smoothing = dc.DefaultSmoothingOscilationGeneralizedMean(smoothingMetadata)
@@ -191,7 +190,7 @@ def createScheduler(args, optimizer):
             threshold=args.threshold, min_lr=args.minlr, cooldown=args.cooldown)
     else:
         raise Exception()
-    return sched
+    return sched, True
 
 def createSmScheduler(args, optimizer):
     smsched = None
@@ -199,7 +198,7 @@ def createSmScheduler(args, optimizer):
         smsched = torch.optim.swa_utils.SWALR(optimizer, swa_lr=args.smlr, anneal_epochs=20, anneal_strategy='linear')
     else:
         raise Exception()
-    return smsched
+    return smsched, False
 
 def validateArgs(args):
     if(args.sched == 'adapt' and args.teststep != 1):
@@ -268,16 +267,16 @@ if(__name__ == '__main__'):
         for r in range(args.loops):
             obj, model = createModel(args, modelMetadata)
             optimizer = createOptimizer(args, model=model, optimizerDataDict=optimizerDataDict)
-            sched = createScheduler(args, optimizer)
-            smsched = createSmScheduler(args, optimizer)
+            sched, schedMetric = createScheduler(args, optimizer)
+            smsched, smschedMetric = createSmScheduler(args, optimizer)
 
             loss_fn = nn.CrossEntropyLoss()     
 
             data = createData(args, dataMetadata)
             smoothing, smoothingMetadata = createSmoothing(args=args, model=model)
 
-            schedSmoothing = sf.SchedulerContainer(schedType='smoothing', importance=1).add(schedule=args.smschedule, scheduler=smsched)
-            schedNormal = sf.SchedulerContainer(schedType='normal', importance=2).add(schedule=list(args.schedule), scheduler=sched)
+            schedSmoothing = sf.SchedulerContainer(schedType='smoothing', importance=1).add(schedule=args.smschedule, scheduler=smsched, metric=smschedMetric)
+            schedNormal = sf.SchedulerContainer(schedType='normal', importance=2).add(schedule=list(args.schedule), scheduler=sched, metric=schedMetric)
 
             schedulers = None
             if(args.smoffsched):

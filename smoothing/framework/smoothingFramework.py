@@ -2044,8 +2044,11 @@ class SchedulerContainer():
     def getImportance(self):
         return self.importance
 
-    def add(self, schedule: list, scheduler):
-        self.schedulers.append((schedule, scheduler))
+    def add(self, schedule: list, scheduler, metric):
+        """
+            metric - jeżeli krok przyjmuje metrykę, czyli zsumowaną stratę dla wykonanego treningu modelu
+        """
+        self.schedulers.append((schedule, scheduler, metric))
         return self
 
     def _schedulerStep(self, epochNumb, epochStep):
@@ -2055,9 +2058,12 @@ class SchedulerContainer():
 
     def step(self, shtypes: Union[str, list], epochNumb: int, metadata, metrics):
         if( (isinstance(shtypes, list) and self.schedType in shtypes) or self.schedType == shtypes):
-            for epochStep, scheduler in self.schedulers:
+            for epochStep, scheduler, metric in self.schedulers:
                 if(self._schedulerStep(epochNumb=epochNumb, epochStep=epochStep)):
-                    scheduler.step(metrics=metrics)
+                    if(metric):
+                        scheduler.step(metrics=metrics)
+                    else:
+                        scheduler.step()
 
                     tmpstr = 'learning rate:\t'
                     tmpstr = str([group['lr'] for group in scheduler.optimizer.param_groups]) + ',\t'
