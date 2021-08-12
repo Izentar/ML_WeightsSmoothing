@@ -62,12 +62,14 @@ def getParser():
     parser.add_argument('--smstart', default=0.8, type=float, help='when to start smoothing, exact location ([0;1])')
     parser.add_argument('--smsoftstart', default=0.02, type=float, help='when to enable smoothing, it does not mean it will start calculating average weights ([0;1])')
     parser.add_argument('--smhardend', default=0.99, type=float, help='when to end smoothing and training definitely ([0;1])')
-    parser.add_argument('--smsoftloops', default=20, type=int, help='the number of positive calls of the mean calculation in a row to start checking if smoothing is good enough to end training')
+    parser.add_argument('--smsoftloops', default=200, type=int, help='the number of positive calls of the mean calculation in a row to start checking if smoothing is good enough to end training')
+    
     parser.add_argument('--smepsilon', default=1e-6, type=float, help='')
     parser.add_argument('--smhardepsilon', default=5e-8, type=float, help='')
     parser.add_argument('--smweightepsilon', default=1e-5, type=float, help='')
-    parser.add_argument('--smlosscontainer', default=200, type=int, help='')
-    parser.add_argument('--smweightsumcontsize', default=200, type=int, help='the size of the sum container')
+
+    parser.add_argument('--smlosscontainer', default=600, type=int, help='')
+    parser.add_argument('--smweightsumcontsize', default=100, type=int, help='the size of the sum container')
     parser.add_argument('--smmovingparam', default=0.05, type=float, help='moving parameter for the moving mean')
     parser.add_argument('--smgeneralmeanpow', default=1.0, type=float, help='the power of general mean')
     parser.add_argument('--smschedule', type=int, nargs='+', default=[],
@@ -75,11 +77,11 @@ def getParser():
     parser.add_argument('--smlr', default=0.01, type=float, help='value that SWALR schedule sets as learning rate')
     parser.add_argument('--smoffsched', action='store_true', help='choose if smoothing scheduler should be created')
 
-    parser.add_argument('--smfactor', default=0.1, type=float, help='')
-    parser.add_argument('--smpatience', default=6, type=int, help='')
-    parser.add_argument('--smthreshold', default=0.0001, type=float, help='')
-    parser.add_argument('--smminlr', default=0.0, type=float, help='')
-    parser.add_argument('--smcooldown', default=25, type=int, help='')
+    parser.add_argument('--factor', default=0.1, type=float, help='')
+    parser.add_argument('--patience', default=6, type=int, help='')
+    parser.add_argument('--threshold', default=0.0001, type=float, help='')
+    parser.add_argument('--minlr', default=0.0, type=float, help='')
+    parser.add_argument('--cooldown', default=25, type=int, help='')
 
 
     return parser
@@ -185,8 +187,8 @@ def createScheduler(args, optimizer):
     if(args.sched == 'multiplic'):
         sched = sf.MultiplicativeLR(optimizer, gamma=args.gamma)
     elif(args.sched == 'adapt'):
-        sched = optim.lr_scheduler.ReduceLROnPlateau(optimizer, mode='min', factor=args.smfactor, patience=args.smpatience, 
-            threshold=args.smthreshold, min_lr=args.smminlr, cooldown=args.smcooldown)
+        sched = optim.lr_scheduler.ReduceLROnPlateau(optimizer, mode='min', factor=args.factor, patience=args.patience, 
+            threshold=args.threshold, min_lr=args.minlr, cooldown=args.cooldown)
     else:
         raise Exception()
     return sched

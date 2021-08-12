@@ -2061,8 +2061,8 @@ class SchedulerContainer():
 
                     tmpstr = 'learning rate:\t'
                     tmpstr = str([group['lr'] for group in scheduler.optimizer.param_groups]) + ',\t'
-                    metadata.stream.print("Set learning rate to {} of a scheduler {} in mode: {}".format(
-                        tmpstr, str(type(scheduler)), self.schedType), ['model:0'])
+                    metadata.stream.print("Set learning rate to {} of a scheduler {} in mode: {} metric: {}".format(
+                        tmpstr, str(type(scheduler)), self.schedType, str(metrics)), ['model:0'])
             return True
         return False
         
