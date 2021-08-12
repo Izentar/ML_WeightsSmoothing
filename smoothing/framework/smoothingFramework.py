@@ -387,7 +387,7 @@ class MultiplicativeLR():
             ret.append(gr['lr'])
         return ret
 
-    def step(self, metric):
+    def step(self, metrics):
         # metric is unused but needed for interface
 
         for gr in self.optimizer.param_groups:
