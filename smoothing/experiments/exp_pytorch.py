@@ -62,12 +62,15 @@ def getParser():
     parser.add_argument('--smstart', default=0.8, type=float, help='when to start smoothing, exact location ([0;1])')
     parser.add_argument('--smsoftstart', default=0.02, type=float, help='when to enable smoothing, it does not mean it will start calculating average weights ([0;1])')
     parser.add_argument('--smhardend', default=0.99, type=float, help='when to end smoothing and training definitely ([0;1])')
-    parser.add_argument('--smsoftloops', default=200, type=int, help='the number of positive calls of the mean calculation in a row to start checking if smoothing is good enough to end training')
     
-    parser.add_argument('--smepsilon', default=1e-6, type=float, help='')
-    parser.add_argument('--smweightepsilon', default=1e-5, type=float, help='')
+    parser.add_argument('--smlossPatience', default=293, type=int, help='')
+    parser.add_argument('--smlossThreshold', default=1e-4, type=float, help='')
+    parser.add_argument('--smweightPatience', default=150, type=int, help='')
+    parser.add_argument('--smweightThreshold', default=1e-4, type=float, help='')
+    parser.add_argument('--smlossThresholdMode', default='rel', choices=['rel', 'abs'], type=str, help='')
+    parser.add_argument('--smweightThresholdMode', default='rel', choices=['rel', 'abs'], type=str, help='')
 
-    parser.add_argument('--smlosscontainer', default=600, type=int, help='')
+    parser.add_argument('--smlosscontainer', default=195, type=int, help='')
     parser.add_argument('--smweightsumcontsize', default=100, type=int, help='the size of the sum container')
     parser.add_argument('--smmovingparam', default=0.05, type=float, help='moving parameter for the moving mean')
     parser.add_argument('--smgeneralmeanpow', default=1.0, type=float, help='the power of general mean')
@@ -112,16 +115,20 @@ def createSmoothing(args, model):
 
     elif(args.smoothing == "ewma"):
         smoothingMetadata = smmetadata[2][index](device="cuda:0",
-            batchPercentMaxStart=args.smhardend, batchPercentMinStart=args.smsoftstart, softMarginAdditionalLoops=args.smsoftloops,
-            epsilon=args.smepsilon, weightsEpsilon=args.smweightepsilon, lossContainer=args.smlosscontainer,
+            batchPercentMaxStart=args.smhardend, batchPercentMinStart=args.smsoftstart,
+            lossPatience = args.smlossPatience, lossThreshold = args.smlossThreshold, weightPatience = args.smweightPatience, 
+            weightThreshold = args.smweightThreshold, lossThresholdMode = args.smlossThresholdMode, weightThresholdMode = args.smweightThresholdMode,
+            lossContainerSize=args.smlosscontainer,
             weightSumContainerSize=args.smweightsumcontsize,
             movingAvgParam=args.smmovingparam)
         smoothing = dc.DefaultSmoothingOscilationEWMA(smoothingMetadata)
 
     elif(args.smoothing == "generMean"):
         smoothingMetadata = smmetadata[3][index](device="cuda:0",
-            batchPercentMaxStart=args.smhardend, batchPercentMinStart=args.smsoftstart, softMarginAdditionalLoops=args.smsoftloops,
-            epsilon=args.smepsilon, weightsEpsilon=args.smweightepsilon, lossContainer=args.smlosscontainer,
+            batchPercentMaxStart=args.smhardend, batchPercentMinStart=args.smsoftstart,
+            lossPatience = args.smlossPatience, lossThreshold = args.smlossThreshold, weightPatience = args.smweightPatience, 
+            weightThreshold = args.smweightThreshold, lossThresholdMode = args.smlossThresholdMode, weightThresholdMode = args.smweightThresholdMode,
+            lossContainerSize=args.smlosscontainer,
             weightSumContainerSize=args.smweightsumcontsize,
             generalizedMeanPower=args.smgeneralmeanpow)
         smoothing = dc.DefaultSmoothingOscilationGeneralizedMean(smoothingMetadata)
