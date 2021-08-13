@@ -306,7 +306,7 @@ class _SmoothingOscilationBase(sf.Smoothing):
                     * jeżeli tak, to kontynuuje działanie algorytmu
                     * w przeciwnym wypadku zwraca False
                 - obliczenie z listy cyklicznej strat ich odchylenia standardowe
-                - podanie obliczonego odchylenia standardowego (std) do ewaluacji
+                - podanie obliczonego odchylenia standardowego (mean) do ewaluacji
                 - jeżeli std jest lepsze od poprzedniego zachowanego std wraz z zastosowaniem lossThreshold, wtedy licznik jest resetowany
                 - w przeciwnym wypadku licznik jest zwiększany o 1
                 - jeżeli licznik przekroczy granicę lossPatience oraz wykonano minimalną liczbę pętli batchPercentMinStart, wtedy metoda zwraca True
@@ -372,9 +372,9 @@ class _SmoothingOscilationBase(sf.Smoothing):
 
     def _cmpWeightSum_isBetter(self, metric, smoothingMetadata):
         if(smoothingMetadata.weightThresholdMode == 'rel'):
-            return metric < self.bestWeight[1] * (1. - smoothingMetadata.weightThreshold)
+            return metric < self.bestWeight[0] * (1. - smoothingMetadata.weightThreshold)
         else:
-            return metric < self.bestWeight[1] - smoothingMetadata.weightThreshold
+            return metric < self.bestWeight[0] - smoothingMetadata.weightThreshold
 
     def getWeighsCount(self):
         return len(self.tensorPrevSum)
@@ -422,7 +422,7 @@ class _SmoothingOscilationBase(sf.Smoothing):
             metadata.stream.print("Weight mean: " + str(mean), 'debug:0')
             metadata.stream.print("Weight std: " + str(std), 'debug:0')
 
-            if(self._cmpWeightSum_isBetter(metric=mean, smoothingMetadata=smoothingMetadata)):
+            if(self._cmpWeightSum_isBetter(metric=std, smoothingMetadata=smoothingMetadata)):
                 self.badWeightCount = 0
                 self.bestWeight = (std, mean, absSum)
                 metadata.stream.print("Weight count reset. Best: {}".format(self.bestWeight), 'debug:0')
