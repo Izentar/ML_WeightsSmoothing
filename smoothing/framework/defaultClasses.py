@@ -383,11 +383,11 @@ class _SmoothingOscilationBase(sf.Smoothing):
 
         Algorytm:
         - algorytm wykonuje się tylko wtedy, gdy wygładzanie zostało włączone
-        - na początku sprawdza ilość wywołań tej metody jeżeli wygładzanie jest włączone, czy przekroczyła ona limit weightWarmup.
-            * jeżeli tak, to kontynuuje działanie algorytmu
-            * w przeciwnym wypadku zwraca False
         - sumowanie wszystkich wag dla których wcześniej oblicza się wartość bezwzględną
         - dodanie obliczonej wartości do bufora cyklicznego
+        - sprawdza ilość wywołań tej metody jeżeli wygładzanie jest włączone, czy przekroczyła ona limit weightWarmup.
+            * jeżeli tak, to kontynuuje działanie algorytmu
+            * w przeciwnym wypadku zwraca False
         - obliczenie średniej oraz odchylenia standardowego z bufora cyklicznego
         - podanie obliczonego odchylenia standardowego (std) do ewaluacji
         - jeżeli std jest lepsze od poprzedniego zachowanego std wraz z zastosowaniem weightThreshold, wtedy licznik jest resetowany
@@ -398,11 +398,13 @@ class _SmoothingOscilationBase(sf.Smoothing):
 
         if(self.alwaysOn):
             self._smoothingCounter += 1
-            if(smoothingMetadata.weightWarmup > self._smoothingCounter):
-                return False
 
             absSum = self._sumAllWeights(smoothingMetadata=smoothingMetadata, metadata=metadata)
             self.tensorPrevSum.pushBack(absSum)
+
+            if(smoothingMetadata.weightWarmup > self._smoothingCounter):
+                return False
+
             std, mean = self.tensorPrevSum.getStdMean()
 
             metadata.stream.print("Sum debug: " + str(absSum), 'debug:0')
