@@ -164,7 +164,7 @@ class _SmoothingOscilationBase_Metadata(sf.Smoothing_Metadata):
     def __init__(self, 
         device = 'cpu',
         weightSumContainerSize = 100, 
-        batchPercentMaxStart = 0.9988, batchPercentMinStart = 0.02, 
+        batchPercentMaxStart = 0.9988, batchPercentMinStart = 0.02, startAt = 1,
         lossWarmup = 293, lossPatience = 293, lossThreshold = 1e-4, lossThresholdMode = 'rel',
         weightWarmup = 150, weightPatience = 150, weightThreshold = 1e-4, weightThresholdMode = 'rel',
         lossContainerSize=195):
@@ -176,6 +176,8 @@ class _SmoothingOscilationBase_Metadata(sf.Smoothing_Metadata):
                 większa wskazuje na większą liczbę wykonanych iteracji.
             batchPercentMinStart - minimalna ilość iteracji po których wygładzanie może zostać włączone. Wartość w przedziale [0; 1], gdzie
                 większa wskazuje na większą liczbę wykonanych iteracji.
+            startAt - włącza algorytm wygładzania po koreślonej tym parametrem liczby epok. W podanej epoce wygładzanie zostanie włączone.
+                Domyślnie parametr ustawiony jest na 1, przez co algorytm wygładzania działa od samego początku
 
             lossWarmup - liczba początkowych wywołań call() dla których algorytm wykrywania wygładzania jeszcze nie zostanie włączony
             lossPatience - liczba wywołań call() wygładzania bez poprawy, po którym wygładzanie zostanie włączone, a wagi modelu zaczną liczyć się do średniej
@@ -194,9 +196,11 @@ class _SmoothingOscilationBase_Metadata(sf.Smoothing_Metadata):
         super().__init__()
 
         if(lossThresholdMode != 'rel' and lossThresholdMode != 'abs'):
-            raise Exception("Unknown loss threshold mode. Used: {}. Can choose from: 'rel', 'abs'")
+            raise Exception("Unknown loss threshold mode. Used: {}. Can choose from: 'rel', 'abs'".format(lossThresholdMode))
         if(weightThresholdMode != 'rel' and weightThresholdMode != 'abs'):
-            raise Exception("Unknown weight threshold mode. Used: {}. Can choose from: 'rel', 'abs'")
+            raise Exception("Unknown weight threshold mode. Used: {}. Can choose from: 'rel', 'abs'".format(weightThresholdMode))
+        if(not isinstance(startAt, int) or startAt < 1):
+            raise Exception("Bad startAt argument. Used: {}. Can be only of type int and startAt >= 1".format(startAt))
 
         self.device = device
         self.weightSumContainerSize = weightSumContainerSize
@@ -204,6 +208,7 @@ class _SmoothingOscilationBase_Metadata(sf.Smoothing_Metadata):
         self.batchPercentMaxStart = batchPercentMaxStart
         self.batchPercentMinStart = batchPercentMinStart
 
+        self.startAt = startAt
         self.lossWarmup = lossWarmup
         self.lossPatience = lossPatience
         self.lossThreshold = lossThreshold
@@ -221,6 +226,7 @@ class _SmoothingOscilationBase_Metadata(sf.Smoothing_Metadata):
         tmp_str += ('Min loops to start (%):\t{}\n'.format(self.batchPercentMinStart))
         tmp_str += ('Loss container size:\t{}\n'.format(self.lossContainerSize))
 
+        tmp_str += ('Start smoothing at:\t{}\n'.format(self.startAt))
         tmp_str += ('Loss patience:\t{}\n'.format(self.lossPatience))
         tmp_str += ('Loss warmup:\t{}\n'.format(self.lossWarmup))
         tmp_str += ('Loss threshold:\t{}\n'.format(self.lossThreshold))
@@ -236,7 +242,7 @@ class _SmoothingOscilationBase_Metadata(sf.Smoothing_Metadata):
 class _Test_SmoothingOscilationBase_Metadata(_SmoothingOscilationBase_Metadata):
     def __init__(self,
         device = 'cpu',
-        weightSumContainerSize = 10, batchPercentMaxStart = 0.7, batchPercentMinStart = 0.1, 
+        weightSumContainerSize = 10, batchPercentMaxStart = 0.7, batchPercentMinStart = 0.1, startAt = 2,
         lossWarmup = 10, lossPatience = 10, lossThreshold = 0.1, lossThresholdMode = 'rel',
         weightWarmup = 10, weightPatience = 10, weightThreshold = 0.1, weightThresholdMode = 'rel',
         lossContainerSize=10):
@@ -244,7 +250,7 @@ class _Test_SmoothingOscilationBase_Metadata(_SmoothingOscilationBase_Metadata):
             Klasa z domyślnymi testowymi parametrami.
         """
 
-        super().__init__(device=device,
+        super().__init__(device=device, startAt=startAt,
         weightSumContainerSize=weightSumContainerSize, batchPercentMaxStart=batchPercentMaxStart, batchPercentMinStart=batchPercentMinStart,
         lossWarmup=lossWarmup, lossPatience=lossPatience, lossThreshold=lossThreshold, weightPatience=weightPatience, weightThreshold=weightThreshold, 
         weightWarmup=weightWarmup, lossThresholdMode=lossThresholdMode, weightThresholdMode=weightThresholdMode,
@@ -382,6 +388,9 @@ class _SmoothingOscilationBase(sf.Smoothing):
         Jeżeli różnica będzie wystarczająco mała i można zakończyć wygładzanie, metoda zwróci True. W przeciwnym wypadku zwraca False.
 
         Algorytm:
+        - sprawdza, czy aktualna epoka jest większa lub równa od startAt
+            * jeżeli tak, to kontynuuje algorytm
+            * w przeciwnym wypadku zwraca False
         - algorytm wykonuje się tylko wtedy, gdy wygładzanie zostało włączone
         - sumowanie wszystkich wag dla których wcześniej oblicza się wartość bezwzględną
         - dodanie obliczonej wartości do bufora cyklicznego
@@ -395,6 +404,9 @@ class _SmoothingOscilationBase(sf.Smoothing):
         - jeżeli licznik przekroczy granicę weightPatience, wtedy metoda zwraca True
         - w przeciwnym wypadku zwraca False
         """
+        if(smoothingMetadata.startAt > helperEpoch.epochNumber + 1):
+            print(smoothingMetadata.startAt, helperEpoch.epochNumber + 1)
+            return False
 
         if(self.alwaysOn):
             self._smoothingCounter += 1
@@ -429,6 +441,9 @@ class _SmoothingOscilationBase(sf.Smoothing):
         self.countWeightsInaRow += 1
 
     def __call__(self, helperEpoch, helper, model, dataMetadata, modelMetadata, metadata, smoothingMetadata):
+        if(smoothingMetadata.startAt > helperEpoch.epochNumber + 1):
+            return False
+
         super().__call__(helperEpoch=helperEpoch, helper=helper, model=model, dataMetadata=dataMetadata, modelMetadata=modelMetadata, metadata=metadata, smoothingMetadata=smoothingMetadata)
         # dodaj stratę do listy cyklicznej
         self.lossContainerSize.pushBack(helper.loss.item())

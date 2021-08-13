@@ -101,7 +101,7 @@ class StaticData:
     FORCE_PRINT_WARNINGS = False
     AT_EXIT_SAVE_STAT = True
     MAX_DEBUG_LOOPS = 71
-    MAX_EPOCH_DEBUG_LOOPS = 2
+    MAX_EPOCH_DEBUG_LOOPS = 3
 
 class SaveClass:
     def __init__(self):
@@ -1874,11 +1874,11 @@ class Data(SaveClass, BaseMainClass, BaseLogicClass):
             
             self.__epoch__(helperEpoch=self.epochHelper, model=model, dataMetadata=dataMetadata, modelMetadata=modelMetadata, metadata=metadata, smoothing=smoothing, smoothingMetadata=smoothingMetadata)
             metadata.stream.print(f"\nEpoch End\n-------------------------------")
-            model.schedulerStep(epochNumb=ep, metadata=metadata, shtypes=self.epochHelper.modes, metrics=self.epochHelper.statistics.testLossSum[-1]) # get lasts sum of losses
-
             if(self.epochHelper.endEpoches):
                 metadata.stream.print("\nEnding epoch loop at epoch {}\n-------------------------------".format(ep + 1))
                 break
+
+            model.schedulerStep(epochNumb=ep, metadata=metadata, shtypes=self.epochHelper.modes, metrics=self.epochHelper.statistics.testLossSum[-1]) # get lasts sum of losses
 
             if(SAVE_AND_EXIT_FLAG):
                 self.__epochLoopExit__(helperEpoch=self.epochHelper, model=model, dataMetadata=dataMetadata, modelMetadata=modelMetadata, metadata=metadata, smoothing=smoothing, smoothingMetadata=smoothingMetadata)

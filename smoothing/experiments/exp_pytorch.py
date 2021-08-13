@@ -63,6 +63,7 @@ def getParser():
     parser.add_argument('--smsoftstart', default=0.02, type=float, help='when to enable smoothing, it does not mean it will start calculating average weights ([0;1])')
     parser.add_argument('--smhardend', default=0.99, type=float, help='when to end smoothing and training definitely ([0;1])')
     
+    parser.add_argument('--smstartAt', default=1, type=int, help='')
     parser.add_argument('--smlossWarmup', default=293, type=int, help='')
     parser.add_argument('--smlossPatience', default=293, type=int, help='')
     parser.add_argument('--smlossThreshold', default=1e-4, type=float, help='')
@@ -90,14 +91,6 @@ def getParser():
 
     return parser
 
-smmetadata = [
-    (dc.DisabledSmoothing_Metadata, dc.DisabledSmoothing_Metadata),
-    (dc.DefaultPytorchAveragedSmoothing_Metadata, dc.Test_DefaultPytorchAveragedSmoothing_Metadata),
-    (dc.DefaultSmoothingOscilationEWMA_Metadata, dc.Test_DefaultSmoothingOscilationEWMA_Metadata),
-    (dc.DefaultSmoothingOscilationGeneralizedMean_Metadata, dc.Test_DefaultSmoothingOscilationGeneralizedMean_Metadata),
-    (dc.DefaultSmoothingSimpleMean_Metadata, dc.Test_DefaultSmoothingSimpleMean_Metadata)
-]
-
 def createSmoothing(args, model):
     smoothing = None
     smoothingMetadata = None
@@ -107,39 +100,51 @@ def createSmoothing(args, model):
         index = 1
 
     if(args.smoothing == "disabled"):
-        
-        smoothingMetadata = smmetadata[0][index]()
+        smoothingMetadata = dc.DisabledSmoothing_Metadata()
         smoothing = dc.DisabledSmoothing(smoothingMetadata)
 
     elif(args.smoothing == "pytorch"):
-        smoothingMetadata = smmetadata[1][index](device="cuda:0", smoothingStartPercent=args.smstart)
+        if(sf.test_mode.isActive()):
+            smoothingMetadata = Test_DefaultPytorchAveragedSmoothing_Metadata(device="cuda:0")
+        else:
+            smoothingMetadata = DefaultPytorchAveragedSmoothing_Metadata(device="cuda:0", smoothingStartPercent=args.smstart)
         smoothing = dc.DefaultPytorchAveragedSmoothing(smoothingMetadata=smoothingMetadata, model=model)
 
     elif(args.smoothing == "ewma"):
-        smoothingMetadata = smmetadata[2][index](device="cuda:0",
-            batchPercentMaxStart=args.smhardend, batchPercentMinStart=args.smsoftstart,
-            lossPatience = args.smlossPatience, lossThreshold = args.smlossThreshold, weightPatience = args.smweightPatience, 
-            weightThreshold = args.smweightThreshold, lossThresholdMode = args.smlossThresholdMode, weightThresholdMode = args.smweightThresholdMode,
-            lossContainerSize=args.smlosscontainer, lossWarmup=args.smlossWarmup, weightWarmup=args.smweightWarmup,
-            weightSumContainerSize=args.smweightsumcontsize,
-            movingAvgParam=args.smmovingparam)
+        if(sf.test_mode.isActive()):
+            smoothingMetadata = dc.Test_DefaultSmoothingOscilationEWMA_Metadata(device="cuda:0")
+        else:
+            smoothingMetadata = DefaultSmoothingOscilationEWMA_Metadata(device="cuda:0",
+                batchPercentMaxStart=args.smhardend, batchPercentMinStart=args.smsoftstart, startAt=args.smstartAt,
+                lossPatience = args.smlossPatience, lossThreshold = args.smlossThreshold, weightPatience = args.smweightPatience, 
+                weightThreshold = args.smweightThreshold, lossThresholdMode = args.smlossThresholdMode, weightThresholdMode = args.smweightThresholdMode,
+                lossContainerSize=args.smlosscontainer, lossWarmup=args.smlossWarmup, weightWarmup=args.smweightWarmup,
+                weightSumContainerSize=args.smweightsumcontsize,
+                movingAvgParam=args.smmovingparam)
+
         smoothing = dc.DefaultSmoothingOscilationEWMA(smoothingMetadata)
 
     elif(args.smoothing == "generMean"):
-        smoothingMetadata = smmetadata[3][index](device="cuda:0",
-            batchPercentMaxStart=args.smhardend, batchPercentMinStart=args.smsoftstart,
-            lossPatience = args.smlossPatience, lossThreshold = args.smlossThreshold, weightPatience = args.smweightPatience, 
-            weightThreshold = args.smweightThreshold, lossThresholdMode = args.smlossThresholdMode, weightThresholdMode = args.smweightThresholdMode,
-            lossContainerSize=args.smlosscontainer, lossWarmup=args.smlossWarmup, weightWarmup=args.smweightWarmup,
-            weightSumContainerSize=args.smweightsumcontsize,
-            generalizedMeanPower=args.smgeneralmeanpow)
+        if(sf.test_mode.isActive()):
+            smoothingMetadata = Test_DefaultSmoothingOscilationGeneralizedMean_Metadata(device="cuda:0")
+        else:
+            smoothingMetadata = DefaultSmoothingOscilationGeneralizedMean_Metadata(device="cuda:0",
+                batchPercentMaxStart=args.smhardend, batchPercentMinStart=args.smsoftstart, startAt=args.smstartAt,
+                lossPatience = args.smlossPatience, lossThreshold = args.smlossThreshold, weightPatience = args.smweightPatience, 
+                weightThreshold = args.smweightThreshold, lossThresholdMode = args.smlossThresholdMode, weightThresholdMode = args.smweightThresholdMode,
+                lossContainerSize=args.smlosscontainer, lossWarmup=args.smlossWarmup, weightWarmup=args.smweightWarmup,
+                weightSumContainerSize=args.smweightsumcontsize,
+                generalizedMeanPower=args.smgeneralmeanpow)
         smoothing = dc.DefaultSmoothingOscilationGeneralizedMean(smoothingMetadata)
 
     elif(args.smoothing == "simplemean"):
-        smoothingMetadata = smmetadata[4][index](device="cuda:0", batchPercentStart=args.smstart)
+        if(sf.test_mode.isActive()):
+            smoothingMetadata = Test_DefaultSmoothingSimpleMean_Metadata(device="cuda:0")
+        else:
+            smoothingMetadata = DefaultSmoothingSimpleMean_Metadata(device="cuda:0", batchPercentStart=args.smstart)
         smoothing = dc.DefaultSmoothingSimpleMean(smoothingMetadata)
     else:
-        raise Exception()
+        raise Exception("Unknown smoothing type")
 
     return smoothing, smoothingMetadata
 
