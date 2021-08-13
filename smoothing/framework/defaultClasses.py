@@ -276,10 +276,10 @@ class _SmoothingOscilationBase(sf.Smoothing):
 
         self.lossContainerSize = sf.CircularList(smoothingMetadata.lossContainerSize)
 
-        self.bestLoss = (math.inf, 0.0, 0.0) # std, mean, weightsSum
+        self.bestLoss = (math.inf, math.inf, math.inf) # std, mean, weightsSum
         self.badLossCount = 0
 
-        self.bestWeight = (math.inf, 0.0, 0.0) # std, mean, weightsSum
+        self.bestWeight = (math.inf, math.inf, math.inf) # std, mean, weightsSum
         self.badWeightCount = 0
 
         self._callCounter = 0
