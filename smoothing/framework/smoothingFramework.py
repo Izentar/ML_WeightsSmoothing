@@ -349,8 +349,11 @@ class CircularList():
 
         return tmpSum / l
 
-    def getMeanStd(self):
+    def getStdMean(self):
         return numpy.std(self.array), numpy.mean(self.array)
+
+    def getMean(self):
+        return numpy.mean(self.array)
 
     def __setstate__(self):
         self.__dict__.update(state)

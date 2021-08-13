@@ -63,8 +63,10 @@ def getParser():
     parser.add_argument('--smsoftstart', default=0.02, type=float, help='when to enable smoothing, it does not mean it will start calculating average weights ([0;1])')
     parser.add_argument('--smhardend', default=0.99, type=float, help='when to end smoothing and training definitely ([0;1])')
     
+    parser.add_argument('--smlossWarmup', default=293, type=int, help='')
     parser.add_argument('--smlossPatience', default=293, type=int, help='')
     parser.add_argument('--smlossThreshold', default=1e-4, type=float, help='')
+    parser.add_argument('--smweightWarmup', default=150, type=int, help='')
     parser.add_argument('--smweightPatience', default=150, type=int, help='')
     parser.add_argument('--smweightThreshold', default=1e-4, type=float, help='')
     parser.add_argument('--smlossThresholdMode', default='rel', choices=['rel', 'abs'], type=str, help='')
@@ -118,7 +120,7 @@ def createSmoothing(args, model):
             batchPercentMaxStart=args.smhardend, batchPercentMinStart=args.smsoftstart,
             lossPatience = args.smlossPatience, lossThreshold = args.smlossThreshold, weightPatience = args.smweightPatience, 
             weightThreshold = args.smweightThreshold, lossThresholdMode = args.smlossThresholdMode, weightThresholdMode = args.smweightThresholdMode,
-            lossContainerSize=args.smlosscontainer,
+            lossContainerSize=args.smlosscontainer, lossWarmup=args.smlossWarmup, weightWarmup=args.smweightWarmup,
             weightSumContainerSize=args.smweightsumcontsize,
             movingAvgParam=args.smmovingparam)
         smoothing = dc.DefaultSmoothingOscilationEWMA(smoothingMetadata)
@@ -128,7 +130,7 @@ def createSmoothing(args, model):
             batchPercentMaxStart=args.smhardend, batchPercentMinStart=args.smsoftstart,
             lossPatience = args.smlossPatience, lossThreshold = args.smlossThreshold, weightPatience = args.smweightPatience, 
             weightThreshold = args.smweightThreshold, lossThresholdMode = args.smlossThresholdMode, weightThresholdMode = args.smweightThresholdMode,
-            lossContainerSize=args.smlosscontainer,
+            lossContainerSize=args.smlosscontainer, lossWarmup=args.smlossWarmup, weightWarmup=args.smweightWarmup,
             weightSumContainerSize=args.smweightsumcontsize,
             generalizedMeanPower=args.smgeneralmeanpow)
         smoothing = dc.DefaultSmoothingOscilationGeneralizedMean(smoothingMetadata)

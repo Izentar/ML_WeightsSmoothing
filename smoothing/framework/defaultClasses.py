@@ -165,7 +165,8 @@ class _SmoothingOscilationBase_Metadata(sf.Smoothing_Metadata):
         device = 'cpu',
         weightSumContainerSize = 100, 
         batchPercentMaxStart = 0.9988, batchPercentMinStart = 0.02, 
-        lossPatience = 293, lossThreshold = 1e-4, weightPatience = 150, weightThreshold = 1e-4, lossThresholdMode = 'rel', weightThresholdMode = 'rel',
+        lossWarmup = 293, lossPatience = 293, lossThreshold = 1e-4, lossThresholdMode = 'rel',
+        weightWarmup = 150, weightPatience = 150, weightThreshold = 1e-4, weightThresholdMode = 'rel',
         lossContainerSize=195):
         """
             device - urządzenie na którym ma działać wygładzanie
@@ -176,12 +177,14 @@ class _SmoothingOscilationBase_Metadata(sf.Smoothing_Metadata):
             batchPercentMinStart - minimalna ilość iteracji po których wygładzanie może zostać włączone. Wartość w przedziale [0; 1], gdzie
                 większa wskazuje na większą liczbę wykonanych iteracji.
 
+            lossWarmup - liczba początkowych wywołań call() dla których algorytm wykrywania wygładzania jeszcze nie zostanie włączony
             lossPatience - liczba wywołań call() wygładzania bez poprawy, po którym wygładzanie zostanie włączone, a wagi modelu zaczną liczyć się do średniej
             lossThreshold - próg pomiaru dla nowych wartości staty modelu
             lossThresholdMode - tryb liczący, jakie kolejne wartości straty można uznać za znaczącą zmianę:
                 * 'rel', który służy do skalowania według wzoru 'loss * (1 - lossThreshold)'
                 * 'abs' podany wzorem 'loss - lossThreshold'.
 
+            weightWarmup - liczba początkowych wywołań __isSmoothingGoodEnough__() dla których algorytm wygładzania wag jeszcze nie zostanie włączony
             weightPatience - liczba wywołań __isSmoothingGoodEnough__() wygładzania bez poprawy, po którym uznaje się, że liczenie wygładzonych wag nie wprowadzi
                 znaczących w nich zmian. Po tym momencie metoda __isSmoothingGoodEnough__() zwraca zawsze True. 
             weightThreshold - próg pomiaru dla nowych wartości wygładzonych wag modelu
@@ -201,8 +204,10 @@ class _SmoothingOscilationBase_Metadata(sf.Smoothing_Metadata):
         self.batchPercentMaxStart = batchPercentMaxStart
         self.batchPercentMinStart = batchPercentMinStart
 
+        self.lossWarmup = lossWarmup
         self.lossPatience = lossPatience
         self.lossThreshold = lossThreshold
+        self.weightWarmup = weightWarmup
         self.weightPatience = weightPatience
         self.weightThreshold = weightThreshold
         self.lossThresholdMode = lossThresholdMode
@@ -217,8 +222,10 @@ class _SmoothingOscilationBase_Metadata(sf.Smoothing_Metadata):
         tmp_str += ('Loss container size:\t{}\n'.format(self.lossContainerSize))
 
         tmp_str += ('Loss patience:\t{}\n'.format(self.lossPatience))
+        tmp_str += ('Loss warmup:\t{}\n'.format(self.lossWarmup))
         tmp_str += ('Loss threshold:\t{}\n'.format(self.lossThreshold))
         tmp_str += ('Weight patience:\t{}\n'.format(self.weightPatience))
+        tmp_str += ('Weight warmup:\t{}\n'.format(self.weightWarmup))
         tmp_str += ('Weight threshold:\t{}\n'.format(self.weightThreshold))
         tmp_str += ('Loss threshold mode:\t{}\n'.format(self.lossThresholdMode))
         tmp_str += ('Weight threshold mode:\t{}\n'.format(self.weightThresholdMode))
@@ -229,17 +236,18 @@ class _SmoothingOscilationBase_Metadata(sf.Smoothing_Metadata):
 class _Test_SmoothingOscilationBase_Metadata(_SmoothingOscilationBase_Metadata):
     def __init__(self,
         device = 'cpu',
-        weightSumContainerSize = 5, batchPercentMaxStart = 0.85, batchPercentMinStart = 0.1, 
-        lossPatience = 10, lossThreshold = 0.1, weightPatience = 5, weightThreshold = 0.1, lossThresholdMode = 'rel', weightThresholdMode = 'rel',
-        lossContainerSize=5):
+        weightSumContainerSize = 10, batchPercentMaxStart = 0.7, batchPercentMinStart = 0.1, 
+        lossWarmup = 10, lossPatience = 10, lossThreshold = 0.1, lossThresholdMode = 'rel',
+        weightWarmup = 10, weightPatience = 10, weightThreshold = 0.1, weightThresholdMode = 'rel',
+        lossContainerSize=10):
         """
             Klasa z domyślnymi testowymi parametrami.
         """
 
         super().__init__(device=device,
         weightSumContainerSize=weightSumContainerSize, batchPercentMaxStart=batchPercentMaxStart, batchPercentMinStart=batchPercentMinStart,
-        lossPatience=lossPatience, lossThreshold=lossThreshold, weightPatience=weightPatience, weightThreshold=weightThreshold, 
-        lossThresholdMode=lossThresholdMode, weightThresholdMode=weightThresholdMode,
+        lossWarmup=lossWarmup, lossPatience=lossPatience, lossThreshold=lossThreshold, weightPatience=weightPatience, weightThreshold=weightThreshold, 
+        weightWarmup=weightWarmup, lossThresholdMode=lossThresholdMode, weightThresholdMode=weightThresholdMode,
         lossContainerSize=lossContainerSize)
 
 class _SmoothingOscilationBase(sf.Smoothing):
@@ -273,6 +281,9 @@ class _SmoothingOscilationBase(sf.Smoothing):
 
         self.bestWeight = (math.inf, 0.0, 0.0) # std, mean, weightsSum
         self.badWeightCount = 0
+
+        self._callCounter = 0
+        self._smoothingCounter = 0
         
     def _setSmoothingAlwaysOn(self, helperEpoch, mean, std, metadata):
         if(not self.alwaysOn):
@@ -285,6 +296,9 @@ class _SmoothingOscilationBase(sf.Smoothing):
         """
             Algorytm:
                 - jeżeli wygładzanie jest włączone, zwraca True
+                - na początku sprawdza ilość wywołań tej metody, czy przekroczyła ona limit lossWarmup.
+                    * jeżeli tak, to kontynuuje działanie algorytmu
+                    * w przeciwnym wypadku zwraca False
                 - obliczenie z listy cyklicznej strat ich odchylenia standardowe
                 - podanie obliczonego odchylenia standardowego (std) do ewaluacji
                 - jeżeli std jest lepsze od poprzedniego zachowanego std wraz z zastosowaniem lossThreshold, wtedy licznik jest resetowany
@@ -298,10 +312,13 @@ class _SmoothingOscilationBase(sf.Smoothing):
         if(self.alwaysOn):
             return True
 
-        std, mean = self.lossContainerSize.getMeanStd()
+        if(smoothingMetadata.lossWarmup > self._callCounter):
+            return False
+
+        std, mean = self.lossContainerSize.getStdMean()
         tmp = helper.loss.item()
 
-        if(self._cmpLoss_isBetter(metric=std, smoothingMetadata=smoothingMetadata)):
+        if(self._cmpLoss_isBetter(metric=mean, smoothingMetadata=smoothingMetadata)):
             self.badLossCount = 0
             self.bestLoss = (std, mean, tmp)
             metadata.stream.print("Loss count reset.", 'debug:0')
@@ -343,15 +360,15 @@ class _SmoothingOscilationBase(sf.Smoothing):
 
     def _cmpLoss_isBetter(self, metric, smoothingMetadata):
         if(smoothingMetadata.lossThresholdMode == 'rel'):
-            return metric < self.bestLoss[0] * (1. - smoothingMetadata.lossThreshold)
+            return metric < self.bestLoss[1] * (1. - smoothingMetadata.lossThreshold)
         else:
-            return metric < self.bestLoss[0] - smoothingMetadata.lossThreshold
+            return metric < self.bestLoss[1] - smoothingMetadata.lossThreshold
 
     def _cmpWeightSum_isBetter(self, metric, smoothingMetadata):
         if(smoothingMetadata.weightThresholdMode == 'rel'):
-            return metric < self.bestWeight[0] * (1. - smoothingMetadata.weightThreshold)
+            return metric < self.bestWeight[1] * (1. - smoothingMetadata.weightThreshold)
         else:
-            return metric < self.bestWeight[0] - smoothingMetadata.weightThreshold
+            return metric < self.bestWeight[1] - smoothingMetadata.weightThreshold
 
     def getWeighsCount(self):
         return len(self.tensorPrevSum)
@@ -366,6 +383,9 @@ class _SmoothingOscilationBase(sf.Smoothing):
 
         Algorytm:
         - algorytm wykonuje się tylko wtedy, gdy wygładzanie zostało włączone
+        - na początku sprawdza ilość wywołań tej metody jeżeli wygładzanie jest włączone, czy przekroczyła ona limit weightWarmup.
+            * jeżeli tak, to kontynuuje działanie algorytmu
+            * w przeciwnym wypadku zwraca False
         - sumowanie wszystkich wag dla których wcześniej oblicza się wartość bezwzględną
         - dodanie obliczonej wartości do bufora cyklicznego
         - obliczenie średniej oraz odchylenia standardowego z bufora cyklicznego
@@ -375,16 +395,21 @@ class _SmoothingOscilationBase(sf.Smoothing):
         - jeżeli licznik przekroczy granicę weightPatience, wtedy metoda zwraca True
         - w przeciwnym wypadku zwraca False
         """
+
         if(self.alwaysOn):
+            self._smoothingCounter += 1
+            if(smoothingMetadata.weightWarmup > self._smoothingCounter):
+                return False
+
             absSum = self._sumAllWeights(smoothingMetadata=smoothingMetadata, metadata=metadata)
             self.tensorPrevSum.pushBack(absSum)
-            std, mean = self.tensorPrevSum.getMeanStd()
+            std, mean = self.tensorPrevSum.getStdMean()
 
             metadata.stream.print("Sum debug: " + str(absSum), 'debug:0')
             metadata.stream.print("Weight mean: " + str(mean), 'debug:0')
             metadata.stream.print("Weight std: " + str(std), 'debug:0')
 
-            if(self._cmpWeightSum_isBetter(metric=std, smoothingMetadata=smoothingMetadata)):
+            if(self._cmpWeightSum_isBetter(metric=mean, smoothingMetadata=smoothingMetadata)):
                 self.badWeightCount = 0
                 self.bestWeight = (std, mean, absSum)
                 metadata.stream.print("Weight count reset.", 'debug:0')
@@ -403,6 +428,7 @@ class _SmoothingOscilationBase(sf.Smoothing):
         super().__call__(helperEpoch=helperEpoch, helper=helper, model=model, dataMetadata=dataMetadata, modelMetadata=modelMetadata, metadata=metadata, smoothingMetadata=smoothingMetadata)
         # dodaj stratę do listy cyklicznej
         self.lossContainerSize.pushBack(helper.loss.item())
+        self._callCounter += 1
 
         self.weightsComputed = self._canComputeWeights(helperEpoch=helperEpoch, helper=helper, dataMetadata=dataMetadata, smoothingMetadata=smoothingMetadata, metadata=metadata)
         if(self.weightsComputed):                
