@@ -405,7 +405,6 @@ class _SmoothingOscilationBase(sf.Smoothing):
         - w przeciwnym wypadku zwraca False
         """
         if(smoothingMetadata.startAt > helperEpoch.epochNumber + 1):
-            print(smoothingMetadata.startAt, helperEpoch.epochNumber + 1)
             return False
 
         if(self.alwaysOn):

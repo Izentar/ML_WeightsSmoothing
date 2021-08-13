@@ -1875,7 +1875,7 @@ class Data(SaveClass, BaseMainClass, BaseLogicClass):
             self.__epoch__(helperEpoch=self.epochHelper, model=model, dataMetadata=dataMetadata, modelMetadata=modelMetadata, metadata=metadata, smoothing=smoothing, smoothingMetadata=smoothingMetadata)
             metadata.stream.print(f"\nEpoch End\n-------------------------------")
             if(self.epochHelper.endEpoches):
-                metadata.stream.print("\nEnding epoch loop at epoch {}\n-------------------------------".format(ep + 1))
+                metadata.stream.print("\nEnding epoch loop sooner at epoch {}\n-------------------------------".format(ep + 1))
                 break
 
             model.schedulerStep(epochNumb=ep, metadata=metadata, shtypes=self.epochHelper.modes, metrics=self.epochHelper.statistics.testLossSum[-1]) # get lasts sum of losses
