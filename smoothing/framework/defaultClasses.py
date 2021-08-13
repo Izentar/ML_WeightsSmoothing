@@ -419,7 +419,9 @@ class _SmoothingOscilationBase(sf.Smoothing):
                 self.badWeightCount += 1
                 metadata.stream.print("Weight count increase.", 'debug:0')
 
-            return (self.badWeightCount > smoothingMetadata.weightPatience)
+            if(self.badWeightCount > smoothingMetadata.weightPatience):
+                metadata.stream.print("Found best weight {}.".format(self.bestWeight), 'debug:0')
+                return True
         return False
 
     def calcMean(self, model, smoothingMetadata):
