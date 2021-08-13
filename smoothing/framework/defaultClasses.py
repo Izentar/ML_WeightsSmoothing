@@ -289,8 +289,8 @@ class _SmoothingOscilationBase(sf.Smoothing):
         if(not self.alwaysOn):
             self.alwaysOn = True
             helperEpoch.addSmoothingMode()
-            metadata.stream.print("Reached alwaysOn smoothing state. Average losses are: mean {}; \tstd {}\nSmoothing scheduler enabled.".format(
-                mean, std), ['debug:0', 'model:0'])
+            metadata.stream.print("Reached alwaysOn smoothing state. Average losses are: mean: {}; \tstd: {};\tbest: {}\nSmoothing scheduler enabled.".format(
+                mean, std, self.bestLoss), ['debug:0', 'model:0'])
 
     def _canComputeWeights(self, helper, helperEpoch, dataMetadata, smoothingMetadata, metadata):
         """
@@ -321,7 +321,7 @@ class _SmoothingOscilationBase(sf.Smoothing):
         if(self._cmpLoss_isBetter(metric=mean, smoothingMetadata=smoothingMetadata)):
             self.badLossCount = 0
             self.bestLoss = (std, mean, tmp)
-            metadata.stream.print("Loss count reset.", 'debug:0')
+            metadata.stream.print("Loss count reset. Best {}".format(self.bestLoss), 'debug:0')
         else:
             self.badLossCount += 1
             metadata.stream.print("Loss count increase.", 'debug:0')
@@ -414,7 +414,7 @@ class _SmoothingOscilationBase(sf.Smoothing):
             if(self._cmpWeightSum_isBetter(metric=mean, smoothingMetadata=smoothingMetadata)):
                 self.badWeightCount = 0
                 self.bestWeight = (std, mean, absSum)
-                metadata.stream.print("Weight count reset.", 'debug:0')
+                metadata.stream.print("Weight count reset. Best: {}".format(self.bestWeight), 'debug:0')
             else:
                 self.badWeightCount += 1
                 metadata.stream.print("Weight count increase.", 'debug:0')
