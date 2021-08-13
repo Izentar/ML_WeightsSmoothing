@@ -73,6 +73,7 @@ def getParser():
     parser.add_argument('--smlossThresholdMode', default='rel', choices=['rel', 'abs'], type=str, help='')
     parser.add_argument('--smweightThresholdMode', default='rel', choices=['rel', 'abs'], type=str, help='')
 
+
     parser.add_argument('--smlosscontainer', default=195, type=int, help='')
     parser.add_argument('--smweightsumcontsize', default=100, type=int, help='the size of the sum container')
     parser.add_argument('--smmovingparam', default=0.05, type=float, help='moving parameter for the moving mean')
@@ -81,6 +82,7 @@ def getParser():
         help='Invoke SWALR scheduler at these epochs.')
     parser.add_argument('--smlr', default=0.01, type=float, help='value that SWALR schedule sets as learning rate')
     parser.add_argument('--smoffsched', action='store_true', help='choose if smoothing scheduler should be created')
+    parser.add_argument('--smannealEpochs', default=5, type=int, help='')
 
     parser.add_argument('--factor', default=0.1, type=float, help='')
     parser.add_argument('--patience', default=6, type=int, help='')
@@ -209,7 +211,7 @@ def createScheduler(args, optimizer):
 def createSmScheduler(args, optimizer):
     smsched = None
     if(args.smsched == 'swa'):
-        smsched = torch.optim.swa_utils.SWALR(optimizer, swa_lr=args.smlr, anneal_epochs=20, anneal_strategy='linear')
+        smsched = torch.optim.swa_utils.SWALR(optimizer, swa_lr=args.smlr, anneal_epochs=args.smannealEpochs, anneal_strategy='linear')
     else:
         raise Exception()
     return smsched, False
