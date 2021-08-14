@@ -1973,13 +1973,13 @@ class Smoothing(SaveClass, BaseMainClass, BaseLogicClass):
         """
         Zwraca słownik wag, który można użyć do załadowania ich do modelu. Wagi ładuje się standardową metodą torch.
         Może zwrócić pusty słownik, jeżeli obiekt nie jest gotowy do podania wag.
-        Jeżeli zwraca pusty słownik, to wygładzanie nie zostało poprawnie skonfigurowane.
-        Gdy istnieje możliwość zwrócenia wag, zwraca None.
+        Jeżeli zwraca None, to wygładzanie nie zostało poprawnie skonfigurowane.
+        Gdy istnieje możliwość zwrócenia wag, zwraca pusty słownik.
         """
         if(self.enabled == False):
-            return {}
+            return None
         else:
-            None
+            return {}
 
     def __isSmoothingGoodEnough__(self, helperEpoch, helper, model, dataMetadata, modelMetadata, metadata, smoothingMetadata):
         """

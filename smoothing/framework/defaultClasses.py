@@ -458,6 +458,21 @@ class _SmoothingOscilationBase(sf.Smoothing):
     def createDefaultMetadataObj(self):
         return _SmoothingOscilationBase_Metadata()
 
+    def isBad_getSmoothedWeights(self, toCheck):  
+        """
+            Zwraca True, jeżeli nie można pobrać wag.
+            False w przeciwnym przypadku.
+        """  
+        if(toCheck is None):
+            return True
+
+        if(self.alwaysOn == False or self.countWeights == 0):
+            # wymaga się countWeights == 0 z powodu tego, że przy wywołaniu __isSmoothingGoodEnough__ pobiera wygładzone wagi, 
+            # zapisuje sumę, a później sprawdza, czy wykonano warmup. Podczas niespełnienia warunku warmup algorytm musi 
+            # zapisywać sumy do bufora / zapełniać bufor, ponieważ jest to główną rolą warmup
+            return True
+        return False
+
 # simple mean smoothing
 class DefaultSmoothingSimpleMean_Metadata(sf.Smoothing_Metadata):
     def __init__(self, device = 'cpu',
@@ -482,7 +497,7 @@ class Test_DefaultSmoothingSimpleMean_Metadata(DefaultSmoothingSimpleMean_Metada
 
 class DefaultSmoothingSimpleMean(sf.Smoothing):
     """
-    Włącza wygładzanie po przejściu przez określoną ilość iteracji pętli.
+    Włącza wygładzanie po przejściu przez określoną ilość iteracji pętli oaznaczonej parametrem batchPercentStart.
     Wygładzanie polega na liczeniu średnich tensorów.
     Wygładzanie włączane jest od momentu wykonania określonej ilości pętli oraz jest liczone od końca iteracji.
     Liczy średnią arytmetyczną.
@@ -519,9 +534,8 @@ class DefaultSmoothingSimpleMean(sf.Smoothing):
 
     def __getSmoothedWeights__(self, smoothingMetadata, metadata):
         tmpCheck = super().__getSmoothedWeights__(smoothingMetadata=smoothingMetadata, metadata=metadata)
-        if(tmpCheck is not None):
-            return tmpCheck
-
+        if(tmpCheck is None):
+            return {}
 
         average = {}
         if(self.countWeights == 0):
@@ -595,8 +609,9 @@ class DefaultSmoothingOscilationGeneralizedMean(_SmoothingOscilationBase):
 
     def __getSmoothedWeights__(self, smoothingMetadata, metadata):
         tmpCheck = super().__getSmoothedWeights__(smoothingMetadata=smoothingMetadata, metadata=metadata)
-        if(tmpCheck is not None):
-            return tmpCheck
+        if(self.isBad_getSmoothedWeights(tmpCheck)):
+            return {}
+        
         return self.mean.getWeights()
 
     def __setDictionary__(self, smoothingMetadata, dictionary):
@@ -670,13 +685,8 @@ class DefaultSmoothingOscilationEWMA(_SmoothingOscilationBase):
 
     def __getSmoothedWeights__(self, smoothingMetadata, metadata):
         tmpCheck = super().__getSmoothedWeights__(smoothingMetadata=smoothingMetadata, metadata=metadata)
-        if(tmpCheck is not None):
-            return tmpCheck # {}
-
-
-        average = {}
-        if(self.countWeights == 0):
-            return average # {}
+        if(self.isBad_getSmoothedWeights(tmpCheck)):
+            return {}
 
         return sf.cloneTorchDict(self.weightsSum)
 
@@ -747,7 +757,6 @@ class Test_DefaultSmoothingOscilationWeightedMean_Metadata(DefaultSmoothingOscil
 
         super().__init__(weightIter=weightIter, weightsArraySize=weightsArraySize, smoothingEndCheckType=smoothingEndCheckType, **kwargs)
 
-
 class DefaultSmoothingOscilationWeightedMean(_SmoothingOscilationBase):
     """
         Włącza wygładzanie, gdy zostaną spełnione określone warunki:
@@ -794,13 +803,10 @@ class DefaultSmoothingOscilationWeightedMean(_SmoothingOscilationBase):
 
     def __getSmoothedWeights__(self, smoothingMetadata, metadata):
         tmpCheck = super().__getSmoothedWeights__(smoothingMetadata=smoothingMetadata, metadata=metadata)
-        if(tmpCheck is not None):
-            return tmpCheck # {}
+        if(self.isBad_getSmoothedWeights(tmpCheck)):
+            return {}
 
         average = {}
-        if(self.countWeights == 0):
-            return average # {}
-
         # przygotuj słownik dla wag
         for wg in self.weightsArray:
             for key, val in wg.items():
@@ -898,7 +904,7 @@ class Test_DefaultPytorchAveragedSmoothing_Metadata(DefaultPytorchAveragedSmooth
 class DefaultPytorchAveragedSmoothing(sf.Smoothing):
     """
         Algorytm SWA. Korzysta z implementacji pytorcha torch.optim.swa_utils.AveragedModel.
-        Wygładzanie jest włączane po określonej liczbie iteracji pętli treningowej.
+        Wygładzanie jest włączane po określonej liczbie iteracji pętli treningowej, określonej parametrem smoothingStartPercent.
     """
     def __init__(self, smoothingMetadata, model):
         super().__init__(smoothingMetadata)
@@ -932,8 +938,8 @@ class DefaultPytorchAveragedSmoothing(sf.Smoothing):
 
     def __getSmoothedWeights__(self, smoothingMetadata, metadata):
         tmpCheck = super().__getSmoothedWeights__(smoothingMetadata=smoothingMetadata, metadata=metadata)
-        if(tmpCheck is not None):
-            return tmpCheck
+        if(tmpCheck is None):
+            return {}
 
         if(self.runSmoothing):
             return sf.cloneTorchDict(self.swaModel.module.state_dict())
