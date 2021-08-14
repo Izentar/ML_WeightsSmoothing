@@ -314,11 +314,11 @@ class CircularList():
         self.arrayIndex = 0
         self.arrayMax = maxCapacity
 
-    def pushBack(self, number):
+    def pushBack(self, value):
         if(self.arrayIndex < len(self.array)):
             del self.array[self.arrayIndex] # trzeba usunąć, inaczej insert zachowa w liście obiekt
-        self.array.insert(self.arrayIndex, number)
-        self.arrayIndex = (1 + self.arrayIndex) % self.arrayMax
+        self.array.insert(self.arrayIndex, value)
+        self.arrayIndex = (self.arrayIndex + 1) % self.arrayMax
 
     def getAverage(self, startAt=0):
         """
@@ -350,10 +350,13 @@ class CircularList():
         return tmpSum / l
 
     def getStdMean(self):
-        return numpy.std(self.array), numpy.mean(self.array)
+        return self.getStd(), self.getMean()
 
     def getMean(self):
         return numpy.mean(self.array)
+
+    def getStd(self):
+        return numpy.std(self.array)
 
     def __setstate__(self):
         self.__dict__.update(state)
@@ -369,6 +372,15 @@ class CircularList():
 
     def __len__(self):
         return len(self.array)
+
+    def get(self, idx):
+        return self.array[(self.arrayIndex + idx) % self.arrayMax]
+
+    def getMin(self):
+        return min(self.array)
+    
+    def getMax(self):
+        return max(self.array)
 
 class MultiplicativeLR():
     """ 

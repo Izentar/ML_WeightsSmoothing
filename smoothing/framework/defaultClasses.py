@@ -274,18 +274,18 @@ class _SmoothingOscilationBase(sf.Smoothing):
         
         self.countWeights = 0 # liczba wywołań calcMean()
         self.countWeightsInaRow = 0 # liczba wywołań calcMean() z rzędu. Resetowana do 0 gdy nie zostanie wywołana
-        self.tensorPrevSum = sf.CircularList(int(smoothingMetadata.weightSumContainerSize))
+        self.weightContainer = sf.CircularList(int(smoothingMetadata.weightSumContainerSize))
+        self.weightContainerStd = sf.CircularList(int(smoothingMetadata.weightSumContainerSize))
         self.divisionCounter = 0
         self.goodEnoughCounter = 0
         self.alwaysOn = False # gdy osiągnie warunek twardego epsilona
         self.weightsComputed = False
 
-        self.lossContainerSize = sf.CircularList(smoothingMetadata.lossContainerSize)
+        self.lossContainer = sf.CircularList(smoothingMetadata.lossContainerSize)
 
-        self.bestLoss = (math.inf, math.inf, math.inf) # std, mean, weightsSum
+        self.bestLoss = math.inf
         self.badLossCount = 0
 
-        self.bestWeight = (math.inf, math.inf, math.inf) # std, mean, weightsSum
         self.badWeightCount = 0
 
         self._callCounter = 0
@@ -321,12 +321,12 @@ class _SmoothingOscilationBase(sf.Smoothing):
         if(smoothingMetadata.lossWarmup > self._callCounter):
             return False
 
-        std, mean = self.lossContainerSize.getStdMean()
+        std, mean = self.lossContainer.getStdMean()
         tmp = helper.loss.item()
 
         if(self._cmpLoss_isBetter(metric=mean, smoothingMetadata=smoothingMetadata)):
             self.badLossCount = 0
-            self.bestLoss = (std, mean, tmp)
+            self.bestLoss = mean
             metadata.stream.print("Loss count reset. Best {}".format(self.bestLoss), 'debug:0')
         else:
             self.badLossCount += 1
@@ -366,21 +366,35 @@ class _SmoothingOscilationBase(sf.Smoothing):
 
     def _cmpLoss_isBetter(self, metric, smoothingMetadata):
         if(smoothingMetadata.lossThresholdMode == 'rel'):
-            return metric < self.bestLoss[1] * (1. - smoothingMetadata.lossThreshold)
+            return metric < self.bestLoss * (1. - smoothingMetadata.lossThreshold)
         else:
-            return metric < self.bestLoss[1] - smoothingMetadata.lossThreshold
+            return metric < self.bestLoss - smoothingMetadata.lossThreshold
 
     def _cmpWeightSum_isBetter(self, metric, smoothingMetadata):
+        """
+            Porównuje metrykę wraz z obliczoną różnicą. Można to wyobrazić jako prostokątne pudełko, w którym wyznaczamy
+            minimum oraz maksimum archiwalnych wartości std. Jego długość, to rozmiar bufora, a wysokość, to różnica między abs(max - min.
+            Bufor ten służy jedynie do przetrzymywania wartości.
+            Algorytm zwraca True, jeżeli znajdzie takie wartości, które są wyżej lub niżej względem wyznaczonego prostokątu.
+            Jednocześnie prostokąt będzie się zwiększał, zmniejszał wraz z wartościami w buforze.
+        """
+        minimum = self.weightContainerStd.getMin()
+        maximum = self.weightContainerStd.getMax()
+
         if(smoothingMetadata.weightThresholdMode == 'rel'):
-            return metric < self.bestWeight[0] * (1. - smoothingMetadata.weightThreshold)
+            return (metric > maximum * (1. - smoothingMetadata.weightThreshold)
+                or metric < minimum * (1. - smoothingMetadata.weightThreshold)
+                )
         else:
-            return metric < self.bestWeight[0] - smoothingMetadata.weightThreshold
+            return (metric > maximum - smoothingMetadata.weightThreshold
+                or metric < minimum - smoothingMetadata.weightThreshold
+                )
 
     def getWeighsCount(self):
-        return len(self.tensorPrevSum)
+        return len(self.weightContainer)
 
     def getLossCount(self):
-        return len(self.lossContainerSize)
+        return len(self.lossContainer)
 
     def __isSmoothingGoodEnough__(self, helperEpoch, helper, model, dataMetadata, modelMetadata, metadata, smoothingMetadata):
         """
@@ -411,12 +425,15 @@ class _SmoothingOscilationBase(sf.Smoothing):
             self._smoothingCounter += 1
 
             absSum = self._sumAllWeights(smoothingMetadata=smoothingMetadata, metadata=metadata)
-            self.tensorPrevSum.pushBack(absSum)
+            self.weightContainer.pushBack(absSum)
+
+            std = self.weightContainer.getStd()
 
             if(smoothingMetadata.weightWarmup > self._smoothingCounter):
+                self.weightContainerStd.pushBack(std) # dodaj, aby zapełnić bufor
                 return False
 
-            std, mean = self.tensorPrevSum.getStdMean()
+            mean = self.weightContainer.getMean()
 
             metadata.stream.print("Sum debug: " + str(absSum), 'debug:0')
             metadata.stream.print("Weight mean: " + str(mean), 'debug:0')
@@ -424,14 +441,16 @@ class _SmoothingOscilationBase(sf.Smoothing):
 
             if(self._cmpWeightSum_isBetter(metric=std, smoothingMetadata=smoothingMetadata)):
                 self.badWeightCount = 0
-                self.bestWeight = (std, mean, absSum)
-                metadata.stream.print("Weight count reset. Best: {}".format(self.bestWeight), 'debug:0')
+                metadata.stream.print("Weight count reset.", 'debug:0')
             else:
                 self.badWeightCount += 1
                 metadata.stream.print("Weight count increase.", 'debug:0')
 
+            # dodaj dopiero na końcu, aby wynik operacji _cmpWeightSum_isBetter nie brał pod uwagę nowej wartości
+            self.weightContainerStd.pushBack(std) 
+
             if(self.badWeightCount > smoothingMetadata.weightPatience):
-                metadata.stream.print("Found best weight {}.".format(self.bestWeight), 'debug:0')
+                metadata.stream.print("Found best weights. Smoothing is good enough", 'debug:0')
                 return True
         return False
 
@@ -445,7 +464,7 @@ class _SmoothingOscilationBase(sf.Smoothing):
 
         super().__call__(helperEpoch=helperEpoch, helper=helper, model=model, dataMetadata=dataMetadata, modelMetadata=modelMetadata, metadata=metadata, smoothingMetadata=smoothingMetadata)
         # dodaj stratę do listy cyklicznej
-        self.lossContainerSize.pushBack(helper.loss.item())
+        self.lossContainer.pushBack(helper.loss.item())
         self._callCounter += 1
 
         self.weightsComputed = self._canComputeWeights(helperEpoch=helperEpoch, helper=helper, dataMetadata=dataMetadata, smoothingMetadata=smoothingMetadata, metadata=metadata)
