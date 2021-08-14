@@ -1630,7 +1630,7 @@ class Data(SaveClass, BaseMainClass, BaseLogicClass):
 
             if(StaticData.TEST_MODE and batch >= StaticData.MAX_DEBUG_LOOPS):
                 metadata.stream.print("In test mode, triggered max loops which is {} iteration. Breaking train loop.".format(StaticData.MAX_DEBUG_LOOPS), "debug:0")
-                if(StaticData.TEST_MODE and helperEpoch.epochNumber + 1 >= StaticData.MAX_EPOCH_DEBUG_LOOPS):
+                if(StaticData.TEST_MODE and helperEpoch.epochNumber >= StaticData.MAX_EPOCH_DEBUG_LOOPS):
                     helperEpoch.endEpoches = True
                 break
 
@@ -1860,11 +1860,11 @@ class Data(SaveClass, BaseMainClass, BaseLogicClass):
 
         self.__beforeEpochLoop__(helperEpoch=self.epochHelper, model=model, dataMetadata=dataMetadata, modelMetadata=modelMetadata, metadata=metadata, smoothing=smoothing, smoothingMetadata=smoothingMetadata)
 
-        for ep, (loopEpoch) in enumerate(range(dataMetadata.epoch)):  # loop over the dataset multiple times
+        for ep, (loopEpoch) in enumerate(range(dataMetadata.epoch), start=1):  # loop over the dataset multiple times
             if(ep < self.epochHelper.epochNumber): # already iterated
                 continue
             if(StaticData.TEST_MODE and ep >= StaticData.MAX_EPOCH_DEBUG_LOOPS):
-                metadata.stream.print("\nEnding debug epoch loop at epoch {}\n-------------------------------".format(ep + 1))
+                metadata.stream.print("\nEnding debug epoch loop at epoch {}\n-------------------------------".format(ep))
                 self.epochHelper.endEpoches = True
                 break
             self.epochHelper.epochNumber = ep
@@ -1875,7 +1875,7 @@ class Data(SaveClass, BaseMainClass, BaseLogicClass):
             self.__epoch__(helperEpoch=self.epochHelper, model=model, dataMetadata=dataMetadata, modelMetadata=modelMetadata, metadata=metadata, smoothing=smoothing, smoothingMetadata=smoothingMetadata)
             metadata.stream.print(f"\nEpoch End\n-------------------------------")
             if(self.epochHelper.endEpoches):
-                metadata.stream.print("\nEnding epoch loop sooner at epoch {}\n-------------------------------".format(ep + 1))
+                metadata.stream.print("\nEnding epoch loop sooner at epoch {}\n-------------------------------".format(ep))
                 break
 
             model.schedulerStep(epochNumb=ep, metadata=metadata, shtypes=self.epochHelper.modes, metrics=self.epochHelper.statistics.testLossSum[-1]) # get lasts sum of losses
@@ -2057,7 +2057,7 @@ class SchedulerContainer():
     def _schedulerStep(self, epochNumb, epochStep):
         return epochStep is None \
             or not epochStep \
-            or epochNumb + 1 in epochStep
+            or epochNumb in epochStep
 
     def step(self, shtypes: Union[str, list], epochNumb: int, metadata, metrics):
         if( (isinstance(shtypes, list) and self.schedType in shtypes) or self.schedType == shtypes):

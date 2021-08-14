@@ -404,7 +404,7 @@ class _SmoothingOscilationBase(sf.Smoothing):
         - jeżeli licznik przekroczy granicę weightPatience, wtedy metoda zwraca True
         - w przeciwnym wypadku zwraca False
         """
-        if(smoothingMetadata.startAt > helperEpoch.epochNumber + 1):
+        if(smoothingMetadata.startAt > helperEpoch.epochNumber):
             return False
 
         if(self.alwaysOn):
@@ -440,7 +440,7 @@ class _SmoothingOscilationBase(sf.Smoothing):
         self.countWeightsInaRow += 1
 
     def __call__(self, helperEpoch, helper, model, dataMetadata, modelMetadata, metadata, smoothingMetadata):
-        if(smoothingMetadata.startAt > helperEpoch.epochNumber + 1):
+        if(smoothingMetadata.startAt > helperEpoch.epochNumber):
             return False
 
         super().__call__(helperEpoch=helperEpoch, helper=helper, model=model, dataMetadata=dataMetadata, modelMetadata=modelMetadata, metadata=metadata, smoothingMetadata=smoothingMetadata)
@@ -1088,7 +1088,7 @@ class DefaultData(sf.Data):
             return 
 
         with torch.no_grad():
-            if((metadata.shouldTest() and (helperEpoch.epochNumber + 1 in dataMetadata.startTestAtEpoch or helperEpoch.epochNumber + 1 == dataMetadata.epoch) )
+            if((metadata.shouldTest() and (helperEpoch.epochNumber in dataMetadata.startTestAtEpoch or helperEpoch.epochNumber == dataMetadata.epoch) )
                 or helperEpoch.endEpoches):
                 helperEpoch.currentLoopTimeAlias = 'loopTestTime_normal'
                 self.testLoop(model=model, helperEpoch=helperEpoch, dataMetadata=dataMetadata, modelMetadata=modelMetadata, metadata=metadata, smoothing=smoothing, smoothingMetadata=smoothingMetadata)
