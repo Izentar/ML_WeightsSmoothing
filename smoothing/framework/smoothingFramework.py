@@ -1217,7 +1217,9 @@ class Statistics():
         """
             logFolder - folder wyjściowy dla zapisywanych logów
             plotBatches - słownik {(nazwa_nowego_pliku, nazwa_osi_X, nazwa_osi_Y): [lista_nazw_plików_do_przeczytania]}. Domyślnie {} dla None.
-            avgPlotBatches - słownik uśrednionych plików csv {(nazwa_nowego_pliku, nazwa_osi_X, nazwa_osi_Y): [lista_nazw_plików_do_przeczytania]}. Domyślnie {} dla None.
+                Pliki tutaj zawarte już istnieją.
+            avgPlotBatches - słownik uśrednionych plików csv {(nazwa_nowego_pliku, nazwa_osi_X, nazwa_osi_Y): [lista_nazw_plików_do_przeczytania]}. 
+                Domyślnie {} dla None. Pliki tutaj zawarte już istnieją.
             rootInputFolder - folder wejściowy dla plików. Może być None.
 
             trainLoopTimerSum - Domyślnie [] dla None.
@@ -1347,30 +1349,54 @@ class Statistics():
             self.smthCorrectRatio = setAndCheckList(smthCorrectRatio)
         '''
 
-    def printPlots(self, fileFormat = '.svg', dpi = 900, widthTickFreq = 0.08, aspectRatio = 0.3,
+    def averageOneFile(fileName, runningAvgSize, outputFolder = None, inputFolder = None):
+        # add '.avg' to the name of the file
+        whereDot = fileName.rfind(".")
+        avg = ".avg"
+        avgFileName = fileName[:whereDot] + avg + fileName[whereDot:]
+
+        avgFileFolderName = avgFileName
+        if(outputFolder is not None):
+            avgFileFolderName = os.path.join(outputFolder, avgFileName)
+
+        folder_fileName = fileName
+        if(inputFolder is not None):
+            folder_fileName = os.path.join(inputFolder, fileName)
+
+        with open(avgFileFolderName, 'w') as fileAvgH, \
+                open(folder_fileName, 'r') as fileH:
+            counter = 0
+            circularList = CircularList(runningAvgSize)
+            for line in fileH.readlines():
+                circularList.pushBack(float(line))
+                fileAvgH.write(str(circularList.getAverage()) + '\n')
+        return avgFileName
+
+    def slidingWindow(fileNames: list, runningAvgSize, outputFolder = None, inputFolder = None):     
+        if(runningAvgSize > 1):
+            avgFileNames = []
+            for fileName in fileNames:
+                avgFileNames.append(Statistics.averageOneFile(fileName=fileName, runningAvgSize=runningAvgSize, 
+                    outputFolder=outputFolder, inputFolder=inputFolder))
+            return avgFileNames
+        return None
+
+    def printPlots(self, fileFormat = '.png', dpi = 900, widthTickFreq = 0.08, aspectRatio = 0.3,
     startAt = None, resolutionInches = 11.5, runningAvgSize=1):
         for (name, xlabel, ylabel), val in self.plotBatches.items():
             if(val is None):
                 Output.printBash("Some of the files to plot were not properly created. Instance ignored. Method Statistics.printPlots", 'warn')
-            
+
             if(runningAvgSize > 1):
                 avgName = name + ".avg"
-                self.avgPlotBatches[avgName] = []
-                for fileName in val:
-                    avgFileName = fileName[:fileName.rfind(".")] + ".avg" + fileName[fileName.rfind("."):]
-                    avgFileFolderName = os.path.join(self.logFolder, avgFileName)
-                    folder_fileName = fileName
-                    if(self.rootInputFolder is not None):
-                        folder_fileName = os.path.join(self.rootInputFolder, fileName)
-                    with open(avgFileFolderName, 'w') as fileAvgH, open(folder_fileName, 'r') as fileH:
-                        counter = 0
-                        circularList = CircularList(runningAvgSize)
-                        for line in fileH.readlines():
-                            circularList.pushBack(float(line))
-                            fileAvgH.write(str(circularList.getAverage()) + '\n')
-                    self.avgPlotBatches[avgName].append(avgFileName)
-                
-                plot(filePath=self.avgPlotBatches[avgName], xlabel=xlabel, ylabel=ylabel, name=avgName, 
+                newylabel = ylabel
+                out = Statistics.slidingWindow(fileNames=val, runningAvgSize=runningAvgSize, outputFolder=self.logFolder, inputFolder=self.rootInputFolder)
+                if(out is not None):
+                    newylabel = newylabel + ' (okno=' + str(runningAvgSize) + ')'
+                idx = (avgName, xlabel, newylabel)
+                self.avgPlotBatches[idx] = out
+
+                plot(filePath=self.avgPlotBatches[idx], xlabel=xlabel, ylabel=ylabel, name=avgName, 
                     plotInputRoot=self.rootInputFolder, plotOutputRoot=self.logFolder, 
                     fileFormat=fileFormat, dpi=dpi, widthTickFreq=widthTickFreq,
                     aspectRatio=aspectRatio, startAt=startAt, resolutionInches=resolutionInches)
@@ -2071,7 +2097,7 @@ class SchedulerContainer():
             or not epochStep \
             or epochNumb in epochStep
 
-    def step(self, shtypes: Union[str, list], epochNumb: int, metadata, metrics):
+    def step(self, shtypes: [str, list], epochNumb: int, metadata, metrics):
         if( (isinstance(shtypes, list) and self.schedType in shtypes) or self.schedType == shtypes):
             for epochStep, scheduler, metric in self.schedulers:
                 if(self._schedulerStep(epochNumb=epochNumb, epochStep=epochStep)):
