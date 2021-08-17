@@ -42,6 +42,9 @@ def getParser():
     parser.add_argument('--testarg', help='Use the arguments from the command line. If not, then use special default arguments prepared for \
         test mode.', action='store_true')
 
+    parser.add_argument('--swindow', type=int, default=20, help='sliding window size. To disable set less than 1.')
+    parser.add_argument('--savgwindow', type=int, default=10, help='sliding window size for averaged logs. To disable set less than 1.')
+
 
     parser.add_argument('--epochs', default=300, type=int, metavar='N',
         help='number of total epochs to run')
@@ -260,7 +263,6 @@ if(__name__ == '__main__'):
     otherData = {
         "prefix":"set_copyOfExper_",
         "Input parameters" : str(args).split(),
-        "runningAvgSize":10,
         "num_classes":10 if args.dataset == "CIFAR10" else 100,
         "bash_input": ' '.join(sys.argv),
 
@@ -329,12 +331,12 @@ if(__name__ == '__main__'):
 
             stat=dc.run(metadataObj=metadata, data=data, model=model, smoothing=smoothing, optimizer=optimizer, lossFunc=loss_fn,
                 modelMetadata=modelMetadata, dataMetadata=dataMetadata, smoothingMetadata=smoothingMetadata, rootFolder=rootFolder,
-                schedulers=schedulers, logData=otherData, fileFormat='.png', dpi=300, resolutionInches=6.5, widthTickFreq=0.15)
+                schedulers=schedulers, logData=otherData, fileFormat='.png', dpi=300, resolutionInches=6.5, widthTickFreq=0.15, runningAvgSize=args.swindow)
 
             stat.saveSelf(name="stat")
 
             stats.append(stat)
-        experiments.printAvgStats(stats, metadata, runningAvgSize=otherData["runningAvgSize"], fileFormat='.png', dpi=300, 
+        experiments.printAvgStats(stats, metadata, runningAvgSize=args.savgwindow, fileFormat='.png', dpi=300, 
             resolutionInches=6.5, widthTickFreq=0.15)
     except Exception as ex:
         experiments.printException(ex, types)
