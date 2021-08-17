@@ -1215,7 +1215,7 @@ class Statistics():
             smthTestTimeLoop = None, smthAvgTestTimeLoop = None, smthTestTimeUnits = None,
             smthLossRatio = None, smthCorrectRatio = None, smthTestLossSum = None, smthTestCorrectSum = None, smthPredSizeSum = None):
         """
-            logFolder - folder wyjściowy dla zapisywanych logów
+            logFolder - folder wyjściowy dla zapisywanych logów. Może być None.
             plotBatches - słownik {(nazwa_nowego_pliku, nazwa_osi_X, nazwa_osi_Y): [lista_nazw_plików_do_przeczytania]}. Domyślnie {} dla None.
                 Pliki tutaj zawarte już istnieją.
             avgPlotBatches - słownik uśrednionych plików csv {(nazwa_nowego_pliku, nazwa_osi_X, nazwa_osi_Y): [lista_nazw_plików_do_przeczytania]}. 
@@ -1882,6 +1882,7 @@ class Data(SaveClass, BaseMainClass, BaseLogicClass):
     def setEpochLoop(self, metadata: 'Metadata'):
         epochHelper = EpochDataContainer()
         epochHelper.statistics.logFolder = metadata.stream.root
+        epochHelper.statistics.rootInputFolder = metadata.stream.root
         epochHelper.trainTotalNumber = 0
         epochHelper.testTotalNumber = 0
         epochHelper.addNormalMode()
@@ -1926,19 +1927,19 @@ class Data(SaveClass, BaseMainClass, BaseLogicClass):
         self.__afterEpochLoop__(helperEpoch=self.epochHelper, model=model, dataMetadata=dataMetadata, modelMetadata=modelMetadata, metadata=metadata, smoothing=smoothing, smoothingMetadata=smoothingMetadata)
         self.__epochLoopExit__(helperEpoch=self.epochHelper, model=model, dataMetadata=dataMetadata, modelMetadata=modelMetadata, metadata=metadata, smoothing=smoothing, smoothingMetadata=smoothingMetadata)
 
-        a = metadata.stream.getRelativeFilePath('loopTrainTime')
-        b = metadata.stream.getRelativeFilePath('loopTestTime_normal')
-        c = metadata.stream.getRelativeFilePath('loopTestTime_smooothing')
+        a = metadata.stream.getFileName('loopTrainTime')
+        b = metadata.stream.getFileName('loopTestTime_normal')
+        c = metadata.stream.getFileName('loopTestTime_smooothing')
         self.epochHelper.statistics.plotBatches[('loopTimeTrain', 'liczba iteracji pętli treningowej', 'czas (s)')] = [a]
         self.epochHelper.statistics.plotBatches[('loopTimeTest', 'liczba iteracji pętli treningowej', 'czas (s)')] = [b, c]
 
-        a = metadata.stream.getRelativeFilePath('statLossTrain')
-        b = metadata.stream.getRelativeFilePath('statLossTest_normal')
-        c = metadata.stream.getRelativeFilePath('statLossTest_smooothing')
+        a = metadata.stream.getFileName('statLossTrain')
+        b = metadata.stream.getFileName('statLossTest_normal')
+        c = metadata.stream.getFileName('statLossTest_smooothing')
         self.epochHelper.statistics.plotBatches[('lossTrain', 'liczba iteracji pętli treningowej', 'strata modelu')] = [a]
         self.epochHelper.statistics.plotBatches[('lossTest', 'liczba iteracji pętli treningowej', 'strata modelu')] = [b, c]
 
-        a = metadata.stream.getRelativeFilePath('weightsSumTrain')
+        a = metadata.stream.getFileName('weightsSumTrain')
         self.epochHelper.statistics.plotBatches[('weightsSumTrain', 'liczba iteracji pętli treningowej', 'suma wag modelu')] = [a]
 
         self.resetEpochState()
@@ -2649,6 +2650,7 @@ def averageStatistics(statistics: list, filePaths: dict=None,
         fh.write(f" Time to complete the entire loop ({newStats.smthTestTimeUnits[0]}): {newStats.smthTestTimeLoop[0]:>3f}\n")
 
     newStats.logFolder = newOutLogFolder
+    newStats.rootInputFolder = newOutLogFolder
     newStats.plotBatches = filePaths
     newStats.rootInputFolder = newOutLogFolder
 
