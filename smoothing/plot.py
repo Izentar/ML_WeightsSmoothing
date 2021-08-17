@@ -7,6 +7,7 @@ def getParser():
     parser.add_argument('--yl', default='y', help='y label name')
     parser.add_argument('--to', default='.', help='folder to save')
     parser.add_argument('--startat', type=int, default=-10, help='where to start plot')
+    parser.add_argument('--endat', type=int, default=-1, help='where to end plot')
     parser.add_argument('--oname', default='weightsSumTrain', help='output file name')
     parser.add_argument('--dpi', type=int, default=300, help='dpi of the plot')
     parser.add_argument('--inchres', type=float, default=6.5, help='resolution in inches')
@@ -26,6 +27,8 @@ if(__name__ == '__main__'):
 
     paths = args.paths
     yl = args.yl
+    if(args.endat == -1):
+        args.endat = None
 
     if(args.swindow > 1):
         tmp = sf.Statistics.slidingWindow(fileNames=args.paths, runningAvgSize=args.swindow)
@@ -33,5 +36,7 @@ if(__name__ == '__main__'):
             paths = tmp
             yl = yl + ' (okno=' + str(args.swindow) + ')'
 
+
     sf.plot(filePath=paths, xlabel=args.xl, ylabel=yl, name=args.oname, plotInputRoot='.', plotsNames=args.pnames,
-        plotOutputRoot=args.to, fileFormat=".png", startAt=args.startat, dpi=args.dpi, resolutionInches=args.inchres, widthTickFreq=args.widthfreq)
+        plotOutputRoot=args.to, fileFormat=".png", startAt=args.startat, endAt=args.endat, dpi=args.dpi, 
+        resolutionInches=args.inchres, widthTickFreq=args.widthfreq)
