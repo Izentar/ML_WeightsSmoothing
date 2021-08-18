@@ -242,12 +242,12 @@ class RunningGeneralMeanWeights():
                     self.weightsDictAvg[key] = torch.clone(values).to(device, dtype=dtype).requires_grad_(False)
             self.N = 1
 
-        if(power > 1.0 or power < 1.0):
-            self.pow = self.__methodPow_
-            self.div = self.__methodDivGet_
-        elif(power == 1.0):
+        if(isinstance(power, int) and power == 1) or (isinstance(power, float) and power == 1.0):
             self.pow = self.__methodPow_1
             self.div = self.__methodDivGet_1
+        elif(power > 1.0 or power < 1.0):
+            self.pow = self.__methodPow_
+            self.div = self.__methodDivGet_
         else:
             raise Exception("Power cannot be negative: {}".format(power))
 
