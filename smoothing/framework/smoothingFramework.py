@@ -254,8 +254,14 @@ class RunningGeneralMeanWeights():
     def __methodPow_(self, key, arg):
         self.weightsDictAvg[key].mul_(self.N).add_(arg.pow(self.power)).div_(self.N + 1)
 
+    def _arithmRecurse(self, averaged_model_parameter, model_parameter, num_averaged):
+        # ta sama implementacja co domyślnie w pytorch w AveragedModel
+        return averaged_model_parameter + \
+            (model_parameter - averaged_model_parameter) / (num_averaged + 1)
+
     def __methodPow_1(self, key, arg):
-        self.weightsDictAvg[key].add_(arg)
+        self.weightsDictAvg[key].detach().copy_(self._arithmRecurse(averaged_model_parameter=self.weightsDictAvg[key].detach(),
+            model_parameter=arg, num_averaged=self.N))
 
     def __methodDivGet_(self):
         tmpDict = {}
@@ -266,7 +272,7 @@ class RunningGeneralMeanWeights():
     def __methodDivGet_1(self):
         tmpDict = {}
         for key, val in self.weightsDictAvg.items():
-            tmpDict[key] = val.div(self.N)
+            tmpDict[key] = torch.clone(self.weightsDictAvg[key].detach())
         return tmpDict
 
     def addWeights(self, weights: dict):
@@ -2831,7 +2837,9 @@ def checkForEmptyFile(filePath):
     return os.path.isfile(filePath) and os.path.getsize(filePath) > 0
 
 def plot(filePath: list, xlabel, ylabel, name = None, plotsNames: list = None, plotInputRoot = None, plotOutputRoot = None, fileFormat = '.svg', dpi = 900, widthTickFreq = 0.08, 
-    aspectRatio = 0.3, startAt = None, endAt= None, resolutionInches = 11.5, fontSize = 13):
+    aspectRatio = 0.3, 
+    startAt = None, endAt = None, highat = None, lowat = None, startScale = None, endScale = None, highScale = None, lowScale = None, 
+    resolutionInches = 11.5, fontSize = 13):
     """
     Rozmiar wyjściowej grafiki jest podana wzorem [resolutionInches; resolutionInches / aspectRatio]
     """
@@ -2864,9 +2872,57 @@ def plot(filePath: list, xlabel, ylabel, name = None, plotsNames: list = None, p
     if(plotsNames is not None and not plotsNames):
         plotsNames = None
 
+    if(aspectRatio <= 0):
+        Output.printBash("Could not create plot. Bad aspect ratio {}".format(aspectRatio), 'warn')
+        return
+
+    if(startAt is not None and endAt is not None and startAt >= endAt):
+        Output.printBash("Cannot plot any file. The startAt or endAt arguments do not follow the requirement [startAt < endAt]: \
+        startAt: {}; endAt: {}.".format(startAt, endAt), 'warn')
+        return
+
+    if(lowat is not None and highat is not None and lowat >= highat):
+        Output.printBash("Cannot plot any file. The lowat or highat arguments do not follow the requirement [lowat < highat]: \
+        lowat: {}; highat: {}.".format(lowat, highat), 'warn')
+        return
+        
+    def setBorder(axes, ytop, ybottom, startAt, endAt, startScale, endScale, highScale, lowScale):
+        xmin = startAt
+        xmax = endAt
+        ymin = ybottom
+        ymax = ytop
+
+        if(startAt is not None):
+            axes.set_xlim(xmin=startAt)
+        if(startScale is not None):
+            axes.set_xlim(xmin=axes.get_xlim()[0] * startScale)
+
+        if(endAt is not None):
+            axes.set_xlim(xmax=endAt)
+        if(endScale is not None):
+            axes.set_xlim(xmax=axes.get_xlim()[1] * endScale)
+
+        if(ybottom is not None):
+            axes.set_ylim(ymin=ybottom)
+        if(lowScale is not None):
+            axes.set_ylim(ymin=axes.get_ylim()[0] * lowScale)
+
+        if(ytop is not None):
+            axes.set_ylim(ymax=ytop)
+        if(highScale is not None):
+            axes.set_ylim(ymax=axes.get_ylim()[1] * highScale)
+
+        
     fp = []
     xleft, xright = [], []
     ybottom, ytop = [], []
+    dataStartAt = 0
+    dataEndAt = -1
+
+    if(startAt is not None and startAt > 0):
+        dataStartAt = startAt
+    if(endAt is not None and endAt < 0):
+        dataEndAt = endAt
 
     sampleMaxSize = 0
     ax = plt.gca()
@@ -2884,7 +2940,7 @@ def plot(filePath: list, xlabel, ylabel, name = None, plotsNames: list = None, p
         data = pd.read_csv(fn, header=None)
         if(len(data) > sampleMaxSize):
             sampleMaxSize = len(data)
-        plt.plot(data, label=os.path.basename(fn) if plotsNames is None else plotsNames[idx])
+        plt.plot(data[dataStartAt:dataEndAt], label=os.path.basename(fn) if plotsNames is None else plotsNames[idx])
 
         xleft2, xright2 = ax.get_xlim()
         xleft.append(xleft2)
@@ -2903,23 +2959,13 @@ def plot(filePath: list, xlabel, ylabel, name = None, plotsNames: list = None, p
     ytop = max(ytop)
     fig.set_size_inches(resolutionInches/aspectRatio, resolutionInches)
 
-    if(startAt is not None):
-        xleft = startAt
-
-    if(endAt is not None):
-        xright = endAt
-
-    if(xleft >= xright):
-        Output.printBash("Cannot plot any file. The startAt or endAt arguments do not follow the requirement [startAt < endAt]: \
-        xleft: {}; xright: {}.".format(xleft, xright), 'warn')
-        return
-
-    aspect = abs((xright-xleft)/(ybottom-ytop))*aspectRatio
+    #aspect = abs((xright-xleft)/(ybottom-ytop))*aspectRatio
+    #fig.figaspect(ratio)
     #ax.set_aspect(aspect)
+    setBorder(axes=ax, ytop=highat, ybottom=lowat, startAt=startAt, endAt=endAt, 
+        startScale = startScale, endScale = endScale, highScale = highScale, lowScale = lowScale)
     tmp = sampleMaxSize / widthTickFreq
-    ax.xaxis.set_ticks(numpy.arange(xleft, xright, (sampleMaxSize*widthTickFreq)*aspectRatio))
-    ax.set_xlim(xmin=xleft)
-    ax.set_xlim(xmax=xright)
+    ax.xaxis.set_ticks(numpy.arange(ax.get_xlim()[0], ax.get_xlim()[1], (sampleMaxSize*widthTickFreq)*aspectRatio))
     plt.legend(fontsize=fontSize)
     plt.xlabel(xlabel=xlabel, fontsize=fontSize)
     plt.ylabel(ylabel=ylabel, fontsize=fontSize)
