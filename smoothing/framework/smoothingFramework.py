@@ -593,14 +593,22 @@ class Timer(SaveClass):
         self.modelTimeSum = 0.0
         self.modelTimeCount = 0
 
-    def start(self, cudaSynchronize=True):
+    def start(self, cudaDevice, cudaSynchronize=True):
+        """
+            Jeżeli cudaSynchronize == True, to należy podać cudaDevice. cudaDevice może być None.
+            cudaDevice dla cudaSynchronize == False nie jest brane pod uwagę, dowolna wartość.
+        """
         if(cudaSynchronize):
-            torch.cuda.synchronize()
+            torch.cuda.synchronize(device=cudaDevice)
         self.timeStart = time.perf_counter()
 
-    def end(self, cudaSynchronize=True):
+    def end(self, cudaDevice, cudaSynchronize=True):
+        """
+            Jeżeli cudaSynchronize == True, to należy podać cudaDevice. cudaDevice może być None.
+            cudaDevice dla cudaSynchronize == False nie jest brane pod uwagę, dowolna wartość.
+        """
         if(cudaSynchronize):
-            torch.cuda.synchronize()
+            torch.cuda.synchronize(device=cudaDevice)
         self.timeEnd = time.perf_counter()
 
     def getDiff(self):
@@ -1097,8 +1105,10 @@ class Data_Metadata(SaveClass, BaseMainClass):
         return False
 
 class Model_Metadata(SaveClass, BaseMainClass):
-    def __init__(self):
+    def __init__(self, device = 'cuda:0'):
         super().__init__()
+        self.device = device
+        self.useCuda = False if device == 'cpu' else True
 
     def _getstate__(self):
         return self.__dict__.copy()
@@ -1115,9 +1125,16 @@ class Model_Metadata(SaveClass, BaseMainClass):
     def canUpdate(self = None):
         return False
 
+    def __strAppend__(self):
+        tmp_str = super().__strAppend__()
+        tmp_str += ('Model device :\t{}\n'.format(self.device))
+        return tmp_str
+
 class Smoothing_Metadata(SaveClass, BaseMainClass):
-    def __init__(self):
+    def __init__(self, device='cpu'):
         super().__init__()
+        self.device = device
+        self.useCuda = False if device == 'cpu' else True
 
     def _getstate__(self):
         return self.__dict__.copy()
@@ -1134,7 +1151,10 @@ class Smoothing_Metadata(SaveClass, BaseMainClass):
     def canUpdate(self = None):
         return False
 
-
+    def __strAppend__(self):
+        tmp_str = super().__strAppend__()
+        tmp_str += ('Device:\t{}\n'.format(self.device))
+        return tmp_str
 
 class TrainDataContainer():
     """
@@ -1658,7 +1678,7 @@ class Data(SaveClass, BaseMainClass, BaseLogicClass):
         self.__beforeTrainLoop__(helperEpoch=helperEpoch, helper=self.trainHelper, model=model, dataMetadata=dataMetadata, modelMetadata=modelMetadata, metadata=metadata, smoothing=smoothing, smoothingMetadata=smoothingMetadata)
         metadata.stream.print("Starting train batch at: {}".format(startNumb), "debug:0")
 
-        self.trainHelper.loopTimer.start()
+        self.trainHelper.loopTimer.start(cudaDevice=smoothingMetadata.device, cudaSynchronize=smoothingMetadata.useCuda)
         for batch, (inputs, labels) in enumerate(self.trainloader):
             if(batch < startNumb): # already iterated
                 continue
@@ -1682,11 +1702,11 @@ class Data(SaveClass, BaseMainClass, BaseLogicClass):
             self.__beforeTrain__(helperEpoch=helperEpoch, helper=self.trainHelper, model=model, dataMetadata=dataMetadata, modelMetadata=modelMetadata, metadata=metadata, smoothing=smoothing, smoothingMetadata=smoothingMetadata)
 
             self.trainHelper.timer.clearTime()
-            self.trainHelper.timer.start()
+            self.trainHelper.timer.start(cudaDevice=smoothingMetadata.device, cudaSynchronize=smoothingMetadata.useCuda)
             
             self.__train__(helperEpoch=helperEpoch, helper=self.trainHelper, model=model, dataMetadata=dataMetadata, modelMetadata=modelMetadata, metadata=metadata, smoothing=smoothing, smoothingMetadata=smoothingMetadata)
 
-            self.trainHelper.timer.end()
+            self.trainHelper.timer.end(cudaDevice=smoothingMetadata.device, cudaSynchronize=smoothingMetadata.useCuda)
             if(helperEpoch.currentLoopTimeAlias is None and warnings()):
                 Output.printBash("Alias for test loop file was not set. Variable helperEpoch.currentLoopTimeAlias may be set" +
                 " as:\n\t'loopTestTime_normal'\n\t'loopTestTime_smooothing'\n\t'loopTrainTime'\n", 'warn')
@@ -1718,7 +1738,7 @@ class Data(SaveClass, BaseMainClass, BaseLogicClass):
             correct += torch.argmax(self.trainHelper.outputs, dim=1).eq(self.trainHelper.labels.data).cpu().sum()
             
 
-        self.trainHelper.loopTimer.end()
+        self.trainHelper.loopTimer.end(cudaDevice=smoothingMetadata.device, cudaSynchronize=smoothingMetadata.useCuda)
         self.trainHelper.loopTimer.addToStatistics()
         self.trainHelper.loopEnded = True
 
@@ -1815,7 +1835,7 @@ class Data(SaveClass, BaseMainClass, BaseLogicClass):
         self.__beforeTestLoop__(helperEpoch=helperEpoch, helper=self.testHelper, model=model, dataMetadata=dataMetadata, modelMetadata=modelMetadata, metadata=metadata, smoothing=smoothing, smoothingMetadata=smoothingMetadata)
 
         with torch.no_grad():
-            self.testHelper.loopTimer.start()
+            self.testHelper.loopTimer.start(cudaDevice=smoothingMetadata.device, cudaSynchronize=smoothingMetadata.useCuda)
             for batch, (inputs, labels) in enumerate(self.testloader):
                 if(batch < startNumb): # already iterated
                     continue
@@ -1835,9 +1855,9 @@ class Data(SaveClass, BaseMainClass, BaseLogicClass):
                 self.__beforeTest__(helperEpoch=helperEpoch, helper=self.testHelper, model=model, dataMetadata=dataMetadata, modelMetadata=modelMetadata, metadata=metadata, smoothing=smoothing, smoothingMetadata=smoothingMetadata)
 
                 self.testHelper.timer.clearTime()
-                self.testHelper.timer.start()
+                self.testHelper.timer.start(cudaDevice=smoothingMetadata.device, cudaSynchronize=smoothingMetadata.useCuda)
                 self.__test__(helperEpoch=helperEpoch, helper=self.testHelper, model=model, dataMetadata=dataMetadata, modelMetadata=modelMetadata, metadata=metadata, smoothing=smoothing, smoothingMetadata=smoothingMetadata)
-                self.testHelper.timer.end()
+                self.testHelper.timer.end(cudaDevice=smoothingMetadata.device, cudaSynchronize=smoothingMetadata.useCuda)
                 if(helperEpoch.currentLoopTimeAlias is None and warnings()):
                     Output.printBash("Alias for test loop file was not set. Variable helperEpoch.currentLoopTimeAlias may be set" +
                     " as:\n\t'loopTestTime_normal'\n\t'loopTestTime_smooothing'\n\t'loopTrainTime'\n", 'warn')
@@ -1848,7 +1868,7 @@ class Data(SaveClass, BaseMainClass, BaseLogicClass):
                 self.testHelper.predSizeSum += labels.size(0)
                 self.__afterTest__(helperEpoch=helperEpoch, helper=self.testHelper, model=model, dataMetadata=dataMetadata, modelMetadata=modelMetadata, metadata=metadata, smoothing=smoothing, smoothingMetadata=smoothingMetadata)
 
-            self.testHelper.loopTimer.end()
+            self.testHelper.loopTimer.end(cudaDevice=smoothingMetadata.device, cudaSynchronize=smoothingMetadata.useCuda)
             self.testHelper.loopTimer.addToStatistics()
             self.testHelper.loopEnded = True
 

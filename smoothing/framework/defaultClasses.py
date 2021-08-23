@@ -36,13 +36,12 @@ class DefaultWeightDecay():
 # model classes
 class DefaultModel_Metadata(sf.Model_Metadata):
     def __init__(self, lossFuncDataDict=None, optimizerDataDict=None,
-        device = 'cuda:0'):
+        **kwargs):
         """
             lossFuncDataDict - domyślnie {} dla None
             optimizerDataDict - domyślnie {} dla None
         """
-        super().__init__()
-        self.device = device
+        super().__init__(**kwargs)
         self.lossFuncDataDict = lossFuncDataDict if lossFuncDataDict is not None else {}
         self.optimizerDataDict = optimizerDataDict if optimizerDataDict is not None else {}
 
@@ -52,7 +51,6 @@ class DefaultModel_Metadata(sf.Model_Metadata):
 
     def __strAppend__(self):
         tmp_str = super().__strAppend__()
-        tmp_str += ('Model device :\t{}\n'.format(self.device))
         tmp_str += ('Loss function name:\t{}\n'.format(str(type(self.loss_fn))))
         tmp_str += ('Loss function values:\n{}\n'.format(self.lossFuncDataDict))
         tmp_str += ('Optimizer name:\t{}\n'.format(str(type(self.optimizer))))
@@ -194,7 +192,7 @@ class _SmoothingOscilationBase_Metadata(sf.Smoothing_Metadata):
             weightThresholdMode - podobnie jak dla 'lossThresholdMode', tylko z zastosowaniem do uśrednionych wag modelu
         """
 
-        super().__init__()
+        super().__init__(device=device)
 
         if(lossThresholdMode != 'rel' and lossThresholdMode != 'abs'):
             raise Exception("Unknown loss threshold mode. Used: {}. Can choose from: 'rel', 'abs'".format(lossThresholdMode))
@@ -203,7 +201,6 @@ class _SmoothingOscilationBase_Metadata(sf.Smoothing_Metadata):
         if(not isinstance(startAt, int) or startAt < 1):
             raise Exception("Bad startAt argument. Used: {}. Can be only of type int and startAt >= 1".format(startAt))
 
-        self.device = device
         self.weightSumContainerSize = weightSumContainerSize
         self.lossContainerSize = lossContainerSize
         self.batchPercentMaxStart = batchPercentMaxStart
@@ -237,7 +234,6 @@ class _SmoothingOscilationBase_Metadata(sf.Smoothing_Metadata):
         tmp_str += ('Loss threshold mode:\t{}\n'.format(self.lossThresholdMode))
         tmp_str += ('Weight threshold mode:\t{}\n'.format(self.weightThresholdMode))
 
-        tmp_str += ('Device:\t{}\n'.format(self.device))
         return tmp_str
 
 class _Test_SmoothingOscilationBase_Metadata(_SmoothingOscilationBase_Metadata):
@@ -1069,11 +1065,11 @@ class DefaultData(sf.Data):
             self.trainHelper.timer.clearTime()
             self.trainHelper.loopTimer.clearTime()
 
-            self.trainHelper.loopTimer.start()
-            self.trainHelper.timer.start()
+            self.trainHelper.loopTimer.start(cudaDevice=smoothingMetadata.device, cudaSynchronize=smoothingMetadata.useCuda)
+            self.trainHelper.timer.start(cudaDevice=smoothingMetadata.device, cudaSynchronize=smoothingMetadata.useCuda)
             torch.optim.swa_utils.update_bn(loader=self.trainloader, model=smoothing.getSWAModel(), device=modelMetadata.device)
-            self.trainHelper.timer.end()
-            self.trainHelper.loopTimer.end()
+            self.trainHelper.timer.end(cudaDevice=smoothingMetadata.device, cudaSynchronize=smoothingMetadata.useCuda)
+            self.trainHelper.loopTimer.end(cudaDevice=smoothingMetadata.device, cudaSynchronize=smoothingMetadata.useCuda)
 
             self.trainHelper.timer.addToStatistics()
             self.trainHelper.loopTimer.addToStatistics()
