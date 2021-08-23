@@ -493,14 +493,12 @@ class _SmoothingOscilationBase(sf.Smoothing):
 class DefaultSmoothingSimpleMean_Metadata(sf.Smoothing_Metadata):
     def __init__(self, device = 'cpu',
         batchPercentStart = 0.8):
-        super().__init__()
+        super().__init__(device=device)
 
-        self.device = device
         self.batchPercentStart = batchPercentStart # dla 50000 / 32 ~= 1500, 50000 / 16 ~= 3000
 
     def __strAppend__(self):
         tmp_str = super().__strAppend__()
-        tmp_str += ('Device:\t{}\n'.format(self.device))
         tmp_str += ('Number of batches after smoothing on:\t{}\n'.format(self.batchPercentStart))
         return tmp_str
 
@@ -903,13 +901,11 @@ class DefaultSmoothingOscilationWeightedMean(_SmoothingOscilationBase):
 
 class DefaultPytorchAveragedSmoothing_Metadata(sf.Smoothing_Metadata):
     def __init__(self, device = 'cpu', smoothingStartPercent = 0.8):
-        super().__init__()
-        self.device = device
+        super().__init__(device=device)
         self.smoothingStartPercent = smoothingStartPercent
 
     def __strAppend__(self):
         tmp_str = super().__strAppend__()
-        tmp_str += ('Device:\t{}\n'.format(str(self.device)))
         tmp_str += ('Smoothing start percent:\t{}\n'.format(str(self.smoothingStartPercent)))
         return tmp_str
 
