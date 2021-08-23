@@ -2108,7 +2108,7 @@ class SchedulerContainer():
         if( (isinstance(shtypes, list) and self.schedType in shtypes) or self.schedType == shtypes):
             for epochStep, scheduler, metric in self.schedulers:
                 if(self._schedulerStep(epochNumb=epochNumb, epochStep=epochStep)):
-                    if(metric):
+                    if(metric): # jeżeli podano, że chce się użyć metryki, metric != metrics
                         scheduler.step(metrics=metrics)
                     else:
                         scheduler.step()

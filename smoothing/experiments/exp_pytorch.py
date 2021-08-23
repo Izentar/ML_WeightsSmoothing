@@ -35,7 +35,7 @@ def getParser():
     parser.add_argument('--model', default=VGG, choices=[VGG, WRESNET, DENSENET], 
         help='model type (default {})'.format(WRESNET))
     parser.add_argument('--teststep', type=int, default=10, help='A number specifying for which multiples of epochs to call the test')
-    parser.add_argument('--dev', default='cuda:0', choices=['cpu', 'cuda:0'], type=str, help='Device of the model. Choose where to \
+    parser.add_argument('--dev', default='cuda:0', choices=['cpu', 'cuda:0', 'cuda:1'], type=str, help='Device of the model. Choose where to \
         store model weights.')
     parser.add_argument('--test', help='debug / test mode', action='store_true')
     parser.add_argument('--debug', help='debug / test mode', action='store_true')
@@ -71,7 +71,7 @@ def getParser():
     parser.add_argument('--smsoftstart', default=0.02, type=float, help='when to enable smoothing, it does not mean it will start calculating average weights ([0;1])')
     parser.add_argument('--smhardend', default=0.99, type=float, help='when to end smoothing and training definitely ([0;1])')
     
-    parser.add_argument('--smdev', default='cuda:0', choices=['cpu', 'cuda:0'], type=str, help='Device of the smoothing algorithm. Choose where to \
+    parser.add_argument('--smdev', default='cuda:0', choices=['cpu', 'cuda:0', 'cuda:1'], type=str, help='Device of the smoothing algorithm. Choose where to \
         store averaged weights.')
     parser.add_argument('--smstartAt', default=1, type=int, help='')
     parser.add_argument('--smlossWarmup', default=293, type=int, help='')
@@ -240,7 +240,7 @@ def createScheduler(args, optimizer):
             threshold=args.threshold, min_lr=args.minlr, cooldown=args.cooldown)
     else:
         raise Exception()
-    return sched, True
+    return sched, True # MultiplicativeLR może przyjąć, ale nic z tym nie robi
 
 def createSmScheduler(args, optimizer):
     smsched = None

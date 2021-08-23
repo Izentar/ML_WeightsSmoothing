@@ -170,7 +170,8 @@ class _SmoothingOscilationBase_Metadata(sf.Smoothing_Metadata):
         lossContainerSize=195):
         """
             device - urządzenie na którym ma działać wygładzanie
-            weightSumContainerSize - wielkość kontenera dla przechowywania sumy wag.
+            weightSumContainerSize - wielkość bufora dla przechowywania sumy wag oraz jednocześnie wielkość kontenera
+                dla przechowywania wyników odchyleń standardowych obliczonych z poprzedniego bufora.
             lossContainerSize - rozmiar kontenera, który trzyma N ostatnich strat modelu.
             batchPercentMaxStart - po ilu maksymalnie iteracjach wygładzanie powinno zostać włączone. Wartość w przedziale [0; 1], gdzie
                 większa wskazuje na większą liczbę wykonanych iteracji.
@@ -651,7 +652,7 @@ class DefaultSmoothingOscilationGeneralizedMean(_SmoothingOscilationBase):
 
 # oscilation moving mean
 class DefaultSmoothingOscilationEWMA_Metadata(_SmoothingOscilationBase_Metadata):
-    def __init__(self, movingAvgParam = 0.27, **kwargs):
+    def __init__(self, movingAvgParam = 0.005, **kwargs):
 
         super().__init__(**kwargs)
 
