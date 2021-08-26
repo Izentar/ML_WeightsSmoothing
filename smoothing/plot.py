@@ -50,6 +50,6 @@ if(__name__ == '__main__'):
 
     sf.plot(filePath=paths, xlabel=args.xl, ylabel=yl, name=args.oname, plotInputRoot='.', plotsNames=args.pnames,
         plotOutputRoot=args.to, fileFormat=".png", startAt=args.startat, endAt=args.endat, dpi=args.dpi, 
-        resolutionInches=args.inchres, widthTickFreq=args.widthfreq, aspectRatio=args.aspectratio, highat=args.highat, 
-        lowat=args.lowat, fontSize=args.fontsize,
+        resolutionInches=args.inchres, widthTickFreq=args.widthfreq, aspectRatio=args.aspectratio, highAt=args.highat, 
+        lowAt=args.lowat, fontSize=args.fontsize,
         startScale=args.startscale, endScale=args.endscale, highScale=args.highscale, lowScale=args.lowscale)

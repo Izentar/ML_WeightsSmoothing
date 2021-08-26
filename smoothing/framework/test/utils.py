@@ -6,6 +6,7 @@ import torch
 
 sf.StaticData.LOG_FOLDER = './framework/test/dump/'
 sf.StaticData.MAX_DEBUG_LOOPS = 50
+sf.CURRENT_STAT_PATH = sf.StaticData.LOG_FOLDER
 
 def testCmpPandas(obj_1, name_1, obj_2, name_2 = None):
     if(name_2 is None):

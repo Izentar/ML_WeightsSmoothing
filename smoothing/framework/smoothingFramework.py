@@ -23,14 +23,24 @@ import numpy
 
 from typing import Union
 
+# zmienne pomocnicze dla całego programu. Ich wartość na początku działania programu nie może się zmienić.
 SAVE_AND_EXIT_FLAG = False
-CURRENT_STAT = None
+CURRENT_STAT = None # aktualna klasa statystyk, używana przy terminate.
+CURRENT_STAT_PATH = None # dla testów ustawia się na folder dump
+DETERMINISTIC = False
 
 def registerStat(stat):
+    """
+        Rejestracja aktualnej klasy statystyk. Przydatne przy nagłym wyjściu programu.
+    """
     global CURRENT_STAT
     CURRENT_STAT = stat
 
 def clearStat():
+    """
+        Usuwa z tymczasowej zmiennej wskazanie na obiekt statystyk. Po tym momencie w przypadku nagłego zakończenia
+        programu klasa statystyk nie zostanie zapisana.
+    """
     global CURRENT_STAT
     CURRENT_STAT = None
 
@@ -42,26 +52,37 @@ def saveWorkAndExit(signumb, frame):
 
 def terminate(signumb, frame):
     global CURRENT_STAT
+    global CURRENT_STAT_PATH
     Output.printBash('Catched signal: ' + str(signumb) + ". Terminating program.", 'info')
     if(CURRENT_STAT is not None):
         Output.printBash('Saving statistics', 'info')
-        CURRENT_STAT.saveSelf(name="stat_exit")
+        CURRENT_STAT.saveSelf(name="stat_exit", path=CURRENT_STAT_PATH)
     exit(2)
 
 def enabledDeterminism():
-    return bool(StaticData.DETERMINISTIC)
+    """
+        Sprawdza, czy program został uruchomiony w trybie deterministycznym.
+        Ten tryb uruchamia się za pomocą funkcji useDeterministic.
+    """
+    global DETERMINISTIC
+    return bool(DETERMINISTIC)
 
 def enabledSaveAndExit():
+    """
+        Sprawdza, czy program powinien zakończyć działanie oraz zapisać potrzebne obiekty.
+        Ten tryb uruchamia się za pomocą sugnału SIGQUIT (Ctrl + \).
+    """
     return bool(SAVE_AND_EXIT_FLAG)
 
 signal.signal(signal.SIGQUIT, saveWorkAndExit) # Ctrl + \
 
 signal.signal(signal.SIGINT, terminate)
 
-#reproducibility https://pytorch.org/docs/stable/generated/torch.use_deterministic_algorithms.html#torch.use_deterministic_algorithms
+# reproducibility https://pytorch.org/docs/stable/generated/torch.use_deterministic_algorithms.html#torch.use_deterministic_algorithms
 # set in environment CUBLAS_WORKSPACE_CONFIG=':4096:2' or CUBLAS_WORKSPACE_CONFIG=':16:8'
 def useDeterministic(torchSeed = 0, randomSeed = 0):
-    StaticData.DETERMINISTIC = True
+    global DETERMINISTIC
+    DETERMINISTIC = True
     torch.cuda.manual_seed(torchSeed)
     torch.cuda.manual_seed_all(torchSeed)
     torch.manual_seed(torchSeed)
@@ -74,9 +95,17 @@ def useDeterministic(torchSeed = 0, randomSeed = 0):
     os.environ['CUBLAS_WORKSPACE_CONFIG'] = ':16:8'
 
 def warnings():
+    """
+        Sprawdza, czy włączone jest wypisywanie ostrzeżeń do logów.
+    """
     return StaticData.FORCE_PRINT_WARNINGS or StaticData.PRINT_WARNINGS
 
 class StaticData:
+    """
+        Klasa przechowująca dane konfiguracyjne. 
+        Pozwala się w trakcie działania programu na zmianę ich wartości, jednak
+        nieumiejętna zmiana tychże wartości może spowodować późniejsze problemy.
+    """
     PATH = os.path.join(expanduser("~"), '.data', 'models')
     TMP_PATH = os.path.join(expanduser("~"), '.data', 'models', 'tmp')
     MODEL_SUFFIX = '.model'
@@ -96,21 +125,31 @@ class StaticData:
     IGNORE_IO_WARNINGS = False
     FORCE_DEBUG_PRINT = False
     TEST_MODE = False
-    DETERMINISTIC = False
     PRINT_WARNINGS = True
     FORCE_PRINT_WARNINGS = False
-    AT_EXIT_SAVE_STAT = True
     MAX_DEBUG_LOOPS = 71
     MAX_EPOCH_DEBUG_LOOPS = 3
 
 class SaveClass:
+    """
+        Klasa służąca do zapisywania oraz ładowania zapisanych obiektów.
+        Aby z niej skorzystać, najlepiej po niej odziedziczyć, zmieniając 
+    """
     def __init__(self):
         self.only_Key_Ingredients = None
-    """
-    Child class should implement its own trySave, getFileSuffix(self = None), canUpdate() methods.
-    """
+        """
+            Klasa dziedzicząca po niej powinna zaimplementować własną funkcję 
+                def trySave(self, onlyKeyIngredients = False, temporaryLocation = False):
+            Ponadto wymaga się zaimplementowania metod:
+                * def getFileSuffix(self = None) -> str:
+                * def canUpdate() -> bool
+        """
 
     def tryLoad(metadata, Class, classMetadataObj = None, temporaryLocation = False):
+        """
+            Metoda służąca do wczytania obiektu określonej klasy. Wymagane jest podanie typu obiektu
+            w zmiennej Class.
+        """
         suffix = Class.getFileSuffix()
         fileName = metadata.fileNameLoad
         path = None
@@ -134,6 +173,14 @@ class SaveClass:
         return None
 
     def trySave(self, metadata, suffix: str, onlyKeyIngredients = False, temporaryLocation = False) -> bool:
+        """
+            Metoda służąca do zapisu klasy, która dziedziczy po tej klasie.
+            Zaleca się zdefiniowanie jednej z dwóch funkcji:
+                def trySave(self, onlyKeyIngredients = False, temporaryLocation = False),
+                def trySave(self, metadata, onlyKeyIngredients = False, temporaryLocation = False)
+            która wywołuje tę funkcję z odpowiednimi parametrami, jak 
+                * suffix
+        """
         if(metadata.fileNameSave is None):
             Output.printBash(type(self).__name__ + ' save not enabled', 'info')
             return False
@@ -182,7 +229,13 @@ class BaseSampler:
         self.__dict__.update(state)
 
 class BaseMainClass:
-    def __strAppend__(self):
+    """
+        Klasa służąca do wpisywania wartości zmiennych zawartych w klasach pochodnych.
+        Wymaga przeciążenia metody 
+            def __strAppend__(self) -> str:
+        Klasę tą wykorzystuje się w klasach metadanych, które reprezentują dane klas pochodnych BaseMainClass.
+    """
+    def __strAppend__(self) -> str:
         return ""
 
     def __str__(self):
@@ -192,10 +245,20 @@ class BaseMainClass:
         return tmp_str
 
 class BaseLogicClass:
+    """
+        Klasa, którą dziedziczą inne klasy implementujące jakąć logikę działania. 
+        Jest to klasa wymagająca swojego odpowiednika metadanych, który dziedziczy po BaseMainClass.
+    """
     def createDefaultMetadataObj(self):
         raise Exception("Not implemented")
 
 class test_mode():
+    """
+        Klasa włączająca dla danego bloku tryb testowy.
+        Użycie:
+            with test_mode():
+                ...
+    """
     def __init__(self):
         self.prev = False
 
@@ -276,6 +339,9 @@ class RunningGeneralMeanWeights():
         return tmpDict
 
     def addWeights(self, weights: dict):
+        """
+            Dodaje do bufora wagi, z których następnie można wyciągnąć średnią.
+        """
         with torch.no_grad():
             if(not isinstance(weights, dict)):
                 weights = dict(weights)
@@ -289,12 +355,21 @@ class RunningGeneralMeanWeights():
 
     def getWeights(self, device: str=None):
         """
-            Zwraca uśrednione wagi, których nie można modyfikować.
+            Zwraca uśrednione wagi. Można je modyfikować, gdyż są to kopie wag z bufora.
         """
         return self.div()
 
 class CircularList():
+    """
+        Cykliczny bufor / lista. Może przechowywać ona wartości lub obiekty.
+        W przypadku obiektów, niektóre metody mogą nie zadziałać. 
+    """
     class CircularListIter():
+        """
+            Iterator dla cyklicznej listy. Dzięki takiej implementacji można iterować po 
+            cyklicznej liście jednoczeście.
+            Iteracja następuje od najstarszej wartości do najnowszej.
+        """
         def __init__(self, circularList):
             self.circularList = circularList
             self.__iter__()
@@ -321,6 +396,10 @@ class CircularList():
         self.arrayMax = maxCapacity
 
     def pushBack(self, value):
+        """
+            Dodaje na koniec listy cyklicznej wartość lub obiekt. 
+            Wstawiana wartość posiada największy indeks.
+        """
         if(self.arrayIndex < len(self.array)):
             del self.array[self.arrayIndex] # trzeba usunąć, inaczej insert zachowa w liście obiekt
         self.array.insert(self.arrayIndex, value)
@@ -330,6 +409,7 @@ class CircularList():
         """
             Zwraca średnią.
             Argument startAt mówi o tym, od którego momentu w kolejce należy liczyć średnią.
+            Najstarsza wartość ma indeks 0.
 
             Można jej użyć tylko do typów, które wspierają dodawanie, które
             powinny implementować metody __copy__(self) oraz __deepcopy__(self)
@@ -356,6 +436,9 @@ class CircularList():
         return tmpSum / l
 
     def getStdMean(self):
+        """
+            Zwraca tuple(std, mean) z całego cyklicznego bufora.
+        """
         return self.getStd(), self.getMean()
 
     def getMean(self):
@@ -369,6 +452,9 @@ class CircularList():
         self.arrayIndex = self.arrayIndex % self.arrayMax
 
     def reset(self):
+        """
+            Usuwa cały cykliczny bufor, zastępując go nowym.
+        """
         del self.array
         self.array = []
         self.arrayIndex = 0
@@ -380,19 +466,33 @@ class CircularList():
         return len(self.array)
 
     def get(self, idx):
+        """
+            Najstarsza wartość ma indeks 0.
+        """
         return self.array[(self.arrayIndex + idx) % self.arrayMax]
 
     def getMin(self):
+        """
+            Zwraca minimalną wartość / obiekt z całego bufora cyklicznego.
+        """
         return min(self.array)
     
     def getMax(self):
+        """
+            Zwraca maksymalną wartość / obiekt z całego bufora cyklicznego.
+        """
         return max(self.array)
 
 class MultiplicativeLR():
     """ 
-        startAt - wykonuje step() podaną ilość razy
+        Jest to scheduler, który zmienia learning rate w sposób liniowy.
     """
     def __init__(self, optimizer, gamma, startAt=0):
+        """ 
+            startAt - wykonuje step() podaną ilość razy. Wartość musi być większa od 0.
+            gamma - wartość o jaką learning rate ma zostać pomnożony.
+            optimizer - optymalizator, dla którego jest zmieniana learning rate.
+        """
         self.optimizer = optimizer
         self.gamma = gamma
         self.stepCount = 0 # liczba wykonanych wywołań step()
@@ -403,14 +503,19 @@ class MultiplicativeLR():
             self.step()
 
     def get_last_lr(self):
+        """
+            Zwraca learning rate optymalizatora.
+        """
         ret = []
         for gr in self.optimizer.param_groups:
             ret.append(gr['lr'])
         return ret
 
-    def step(self, metrics):
-        # metric is unused but needed for interface
-
+    def step(self, metrics = None):
+        """
+            Zmienia learning rate o wartość 
+                lr = lr * gamma
+        """
         for gr in self.optimizer.param_groups:
             gr['lr'] *= self.gamma
         self.stepCount += 1
@@ -418,8 +523,9 @@ class MultiplicativeLR():
 
 class Metadata(SaveClass, BaseMainClass):
     """
-        Klasa ta jest zmieniana w wywołaniach funckji.
+        Klasa ta może zmienić swój stan w kolejnych wywołaniach metod.
         Aby ją ponownie użyć należy wywołać resetOutput(), który zresetuje wszystkie dane dotyczące wyjścia modelu.
+        Służy głównie do trzymania informacji o ścieżkach logowania, plikach, strumieniach.
     """
     def __init__(self, fileNameSave=None, fileNameLoad=None, testFlag=False, trainFlag=False, debugInfo=False, modelOutput=None,
             debugOutput=None, stream=None, bashFlag=False, name=None, formatedOutput=None, logFolderSuffix=None, relativeRoot=None):
@@ -463,6 +569,9 @@ class Metadata(SaveClass, BaseMainClass):
         return tmp_str
 
     def onOff(arg):
+        """
+            Prosta funkcja, która tłumaczy zapisy on, True, off, False, true, false na wartości logiczne.
+        """
         if arg == 'on' or arg == 'True' or arg == 'true':
             return True
         elif arg == 'off' or arg == 'False' or arg == 'false':
@@ -580,12 +689,21 @@ class Metadata(SaveClass, BaseMainClass):
         return False
 
     def shouldTrain(self):
+        """
+            Sprawdza, czy faza treningowa powinna zostać wykonana.
+        """
         return bool(self.trainFlag)
 
     def shouldTest(self):
+        """
+            Sprawdza, czy faza testowa powinna zostać wykonana.
+        """
         return bool(self.testFlag)
 
 class Timer(SaveClass):
+    """
+        Klasa służąca do odliczania czasu. Umożliwia synchroniację rdzeni CUDA.
+    """
     def __init__(self):
         super().__init__()
         self.timeStart = None
@@ -602,7 +720,7 @@ class Timer(SaveClass):
             torch.cuda.synchronize(device=cudaDevice)
         self.timeStart = time.perf_counter()
 
-    def end(self, cudaDevice, cudaSynchronize=True):
+    def end(self, cudaDevice: str, cudaSynchronize=True):
         """
             Jeżeli cudaSynchronize == True, to należy podać cudaDevice. cudaDevice może być None.
             cudaDevice dla cudaSynchronize == False nie jest brane pod uwagę, dowolna wartość.
@@ -612,12 +730,19 @@ class Timer(SaveClass):
         self.timeEnd = time.perf_counter()
 
     def getDiff(self):
+        """
+            Zwraca różnicę czasów końca oraz startu.
+        """
         if(self.timeStart is not None and self.timeEnd is not None):
             return self.timeEnd - self.timeStart
         Output.printBash("Could not get time difference.", 'warn')
         return None
 
     def addToStatistics(self):
+        """
+            Metoda dodająca do wewnętrznych statystyk wartość z self.getDiff().
+            Powinno się ją wywoływać po self.end(...).
+        """
         tmp = self.getDiff()
         if(tmp is not None):
             self.modelTimeSum += self.getDiff()
@@ -626,25 +751,45 @@ class Timer(SaveClass):
             Output.printBash("Timer could not be added to statistics.", 'warn')
 
     def getTimeSum(self):
+        """
+            Metoda zwraca sumę czasów zapisanych w wewnętrznych statystykach.
+        """
         return self.modelTimeSum
 
     def clearTime(self):
+        """
+            Metoda czyści dane zapisane przez start() oraz end().
+            Nie czyści ona statystyk.
+        """ 
         self.timeStart = None
         self.timeEnd = None
 
     def clearStatistics(self):
+        """
+            Metoda czyści tylko statystyki.
+            Nie czyści danych zapisanych przez start() oraz end().
+        """
         self.modelTimeSum = 0.0
         self.modelTimeCount = 0
         
     def getAverage(self):
+        """
+            Metoda zwraca średnią arytmetyczną z zapisanych wewnętrznych statystyk.
+        """
         if(self.modelTimeCount != 0):
             return self.modelTimeSum / self.modelTimeCount
         return None
 
     def getCount(self):
+        """
+            Metoda zwraca liczbę różnic czasów zapisanych w wewnętrznych statystykach.
+        """
         return self.modelTimeCount
 
     def getUnits(self):
+        """
+            Metoda zwraca jednostkę czasu w jakiej podaje się różnice czasów. 
+        """
         return "s"
 
     def __getstate__(self):
@@ -675,7 +820,9 @@ class Timer(SaveClass):
 
 class Output(SaveClass):
     """
-    Instancja tego obiektu odpowiada instancji jednego folderu, w którym będą się znajdowały wszystkie otwarte pliki.
+        Instancja tego obiektu odpowiada instancji jednego folderu, w którym będą się znajdowały wszystkie otwarte pliki,
+        przy wykorzystaniu sposobu zapisu tego obiektu.
+        Każdy folder zawiera w nazwie datę jego utworzenia oraz ustalony przez użytkownika sufiks.
     """
     class FileHandler():
         def __init__(self, root, pathName, mode, OType):
@@ -782,6 +929,18 @@ class Output(SaveClass):
         self.aliasToFH[alias] = fh
 
     def open(self, metadata, outputType: str, alias: str = None, pathName: str = None):
+        """
+            outputType - typ pliku, w jakim zostaną zapisane dane. Typ pliku determinuje jego sufiks. 
+            Można mieć wiele plików o tym samym typie. Wyjątkiem jest typ 'bash', który zapisuje dane na standardowe wyjście.
+            Jeden z typów:
+                * debug
+                * model
+                * bash
+                * formatedLog
+            alias - alias dla danego pliku.
+            pathName - nazwa pliku, który ma zostać stworzony. W tej zmiennej można zawrzeć również śceiżkę względną do folderu relativeRoot.
+            Jeżeli foldery na ścieżce nie istnieją, zostaną one stworzone.
+        """
         if((outputType != 'debug' and outputType != 'model' and outputType != 'bash' and outputType != 'formatedLog') or outputType is None):
             if(warnings()):
                 Output.printBash("Unknown command in open for Output class.", 'warn')
@@ -823,11 +982,19 @@ class Output(SaveClass):
             return True
     
     def setLogFolder(self):
+        """
+            Tworzy folder logowania na podstawie folderSuffix oraz relativeRoot podanych przy inicjalizacji obiektu.
+            Jednocześnie ustawia zmienną wewnętrzą root na ten folder.
+        """
         if(self.root is None):
             self.root = Output.createLogFolder(folderSuffix=self.folderSuffix, relativeRoot=self.relativeRoot)[0]
         return self.root
 
-    def createLogFolder(folderSuffix, relativeRoot = None):
+    def createLogFolder(folderSuffix, relativeRoot = None) -> str:
+        """
+            Zwraca nazwę nowo stworzonego folderu. Wszsytkie foldery są tworzone
+            względem folderu w zmiennej StaticData.LOG_FOLDER.
+        """
         dt_string = datetime.now().strftime("%d.%m.%Y_%H-%M-%S_")
         prfx = folderSuffix if folderSuffix is not None else ""
         path = None
@@ -839,12 +1006,6 @@ class Output(SaveClass):
             path = os.path.join(StaticData.LOG_FOLDER, str(dt_string) + prfx)
             pathRel = os.path.join(str(dt_string) + prfx)
         Path(path).mkdir(parents=True, exist_ok=False)
-        return path, pathRel
-
-    def tryCreateFolder(relativeRoot):
-        path = os.path.join(StaticData.LOG_FOLDER, relativeRoot)
-        pathRel = os.path.join(relativeRoot)
-        Path(path).mkdir(parents=True, exist_ok=True)
         return path, pathRel
 
     def getTimeStr():
@@ -866,10 +1027,18 @@ class Output(SaveClass):
             Output.printBash("Unrecognized mode in Output.printBash method. Printing without prefix.", 'warn')
         return prefix
 
-    def write(self, arg, alias: list = None, ignoreWarnings = False, end = '', mode: str = None):
+    def write(self, arg, alias: list = None, ignoreWarnings = False, end = '', mode: str = None) -> None:
         """
-        Przekazuje argument do wszystkich możliwych, aktywnych strumieni wyjściowych.\n
-        Na końcu argumentu nie daje znaku nowej linii.
+            Przekazuje argument do wszystkich możliwych, aktywnych strumieni wyjściowych.\n
+            Na końcu argumentu nie daje znaku nowej linii.
+            mode - sufiks przed wiadomością:
+                * info - INFO
+                * debug - DEBUG
+                * warn - WARNING
+                * err - ERROR
+            end - znak na końcu wiadomości.
+            ignoreWarnings - nie wypisuje ostrzeżenia o braku danego aliasu.
+
         """
         if(alias == 'debug' and self.debugDisabled):
             return
@@ -893,7 +1062,7 @@ class Output(SaveClass):
                     self.printBash("Output alias for 'write / print' not found: '{}'".format(al), 'warn')
                     self.printBash(str(al) + " " + str(self.aliasToFH.keys()), 'warn')
                 
-    def print(self, arg, alias: list = None, ignoreWarnings = False, mode: str = None):
+    def print(self, arg, alias: list = None, ignoreWarnings = False, mode: str = None) -> None:
         """
         Przekazuje argument do wszystkich możliwych, aktywnych strumieni wyjściowych.\n
         Na końcu argumentu dodaje znak nowej linii.
@@ -927,6 +1096,9 @@ class Output(SaveClass):
             del fh
 
     def flushAll(self):
+        """
+            Wykonuje flush dla wszystkich otwartych plików.
+        """
         for _, fh in self.aliasToFH.items():
             fh.flush()
         sys.stdout.flush()
@@ -953,6 +1125,9 @@ class Output(SaveClass):
         print(prefix, arg)
 
 class DefaultMethods():
+    """
+        Klasa służąca do przechowywania tylko domyślnych metod o małym znaczeniu.
+    """
     def printLoss(metadata, helper, alias: list = None):
         """
         Potrzebuje:\n
@@ -980,11 +1155,11 @@ class DefaultMethods():
 
 class LoopsState():
     """
-    Klasa służy do zapamiętania stanu pętli treningowych oraz testowych, niezależnie od kolejności ich wywołania.
-    Kolejność wywoływania pętli treningowych oraz testowych powinna być niezmienna między wczytywaniami, 
-    inaczej program nie zagwarantuje tego, która pętla powinna zostać wznowiona.
-    Pomysł bazuje na zapisywaniu oraz wczytywaniu klasy, bez których metody błędnie zadziałają.
-    Nie można użyć tej klasy do sprawdzania wykonania danej pętli w jednym wywołaniu programu. Wymaga to zapisu oraz wczytania klasy.
+        Klasa służy do zapamiętania stanu pętli treningowych oraz testowych, niezależnie od kolejności ich wywołania.
+        Kolejność wywoływania pętli treningowych oraz testowych powinna być niezmienna między wczytywaniami, 
+        inaczej program nie zagwarantuje tego, która pętla powinna zostać wznowiona.
+        Pomysł bazuje na zapisywaniu oraz wczytywaniu klasy, bez których metody błędnie zadziałają.
+        Nie można użyć tej klasy do sprawdzania wykonania danej pętli w jednym wywołaniu programu. Wymaga to zapisu oraz wczytania klasy.
     """
     def __init__(self):
         self.numbArray = []
@@ -1046,6 +1221,10 @@ class LoopsState():
 
 
 class Data_Metadata(SaveClass, BaseMainClass):
+    """
+        Klasa konfiguracyjna przechowująca dane odnośnie pewnego zbioru danych. Klasa zbioru danych 
+        korzysta z instancji tej klasy.
+    """
     def __init__(self, worker_seed = 841874, train = True, download = True, pin_memoryTrain = False, pin_memoryTest = False,
             epoch = 1, batchTrainSize = 4, batchTestSize = 4, howOftenPrintTrain = 2000):
         super().__init__()
@@ -1105,6 +1284,9 @@ class Data_Metadata(SaveClass, BaseMainClass):
         return False
 
 class Model_Metadata(SaveClass, BaseMainClass):
+    """
+        Klasa konfiguracyjna przechowująca dane odnośnie pewnego modelu.
+    """
     def __init__(self, device = 'cuda:0'):
         super().__init__()
         self.device = device
@@ -1131,6 +1313,9 @@ class Model_Metadata(SaveClass, BaseMainClass):
         return tmp_str
 
 class Smoothing_Metadata(SaveClass, BaseMainClass):
+    """
+        Klasa konfiguracyjna przechowująca dane odnośnie pewnego obiektu wygładzania.
+    """
     def __init__(self, device='cpu'):
         super().__init__()
         self.device = device
@@ -1158,7 +1343,8 @@ class Smoothing_Metadata(SaveClass, BaseMainClass):
 
 class TrainDataContainer():
     """
-    trainHelper
+        Klasa pomocnicza, która zachowuje dane pomiędzy wywołaniami odnośnie treningu modelu.
+        Pojawia się ona w zmiennej trainHelper.
     """
     def __init__(self):
         self.size = None
@@ -1177,7 +1363,8 @@ class TrainDataContainer():
 
 class TestDataContainer():
     """
-    testHelper
+        Klasa pomocnicza, która zachowuje dane pomiędzy wywołaniami odnośnie testu modelu.
+        Pojawia się ona w zmiennej testHelper.
     """
     def __init__(self):
         self.size = None
@@ -1201,7 +1388,10 @@ class TestDataContainer():
 
 class EpochDataContainer():
     """
-    epochHelper
+        Klasa pomocnicza, która zachowuje dane pomiędzy wywołaniami odnośnie epok.
+        Pojawia się ona w zmiennej epochHelper.
+        Ponadto posiada ona obiekt 'statistics', do której można zapisywać dane zwracane na koniec
+        przejścia wszystkich epok.
     """
     def __init__(self):
         self.epochNumber = 0
@@ -1231,7 +1421,9 @@ class EpochDataContainer():
 
 class Statistics():
     """
-    Klasa zwracana przez metodę epochLoop.
+        Statystyki wywołania. Posiada ona szereg pól, w których zawarte są informacje o logach oraz poszczególnych 
+        zmiennych po przejściu treningu oraz testów walidacyjnych.
+        Posiada metody potrzebne do jej zapisu jak i odczytu.
     """
     def __init__(self, logFolder = None, plotBatches = None, avgPlotBatches = None, rootInputFolder = None,
             trainLoopTimerSum = None, testLoopTimerSum = None, 
@@ -1375,7 +1567,11 @@ class Statistics():
             self.smthCorrectRatio = setAndCheckList(smthCorrectRatio)
         '''
 
-    def averageOneFile(fileName, runningAvgSize, outputFolder = None, inputFolder = None):
+    def averageOneFile(fileName: str, runningAvgSize: int, outputFolder: str = None, inputFolder: str = None) -> str:
+        """
+            Metoda uśrednia wartości dla jednego pliku, przechodząc po nim ruchomym oknem.
+            Zwraca nazwę nowego pliku połączoną ze zmienną 'outputFolder'.
+        """
         # add '.avg' to the name of the file
         whereDot = fileName.rfind(".")
         avg = ".avg"
@@ -1398,7 +1594,12 @@ class Statistics():
                 fileAvgH.write(str(circularList.getAverage()) + '\n')
         return avgFileName
 
-    def slidingWindow(fileNames: list, runningAvgSize, outputFolder = None, inputFolder = None):     
+    def slidingWindow(fileNames: list, runningAvgSize, outputFolder = None, inputFolder = None) -> list:     
+        """
+            Metoda iteruje po wszsytkich podanych plikach 'fileNames', aby je pojedynczo uśrednić.
+            Na końcu zwraca listę nowo stworzonych, uśrednionych plików wraz z ich względnymi nazwami 
+            folderów, o ile takie istnieją.
+        """
         if(runningAvgSize > 1):
             avgFileNames = []
             for fileName in fileNames:
@@ -1407,8 +1608,13 @@ class Statistics():
             return avgFileNames
         return None
 
-    def printPlots(self, fileFormat = '.png', dpi = 900, widthTickFreq = 0.08, aspectRatio = 0.3,
-    startAt = None, resolutionInches = 11.5, runningAvgSize=1):
+    def printPlots(self, runningAvgSize=1, **kwargs):
+        """
+            Metoda na podstawie danych zawartych w tym obiekcie rysuje wykresy.
+            Foldery dla wykresów oraz nazwy osi brane są z instancji tego obiektu.
+
+            kwargs - argumenty dla funckji plot()
+        """
         for (name, xlabel, ylabel), val in self.plotBatches.items():
             if(val is None):
                 Output.printBash("Some of the files to plot were not properly created. Instance ignored. Method Statistics.printPlots", 'warn')
@@ -1423,14 +1629,11 @@ class Statistics():
                 self.avgPlotBatches[idx] = out
 
                 plot(filePath=self.avgPlotBatches[idx], xlabel=xlabel, ylabel=ylabel, name=avgName, 
-                    plotInputRoot=self.rootInputFolder, plotOutputRoot=self.logFolder, 
-                    fileFormat=fileFormat, dpi=dpi, widthTickFreq=widthTickFreq,
-                    aspectRatio=aspectRatio, startAt=startAt, resolutionInches=resolutionInches)
+                    plotInputRoot=self.rootInputFolder, plotOutputRoot=self.logFolder, **kwargs)
             
             elif(runningAvgSize > 0):
                 plot(filePath=val, xlabel=xlabel, ylabel=ylabel, name=name, plotInputRoot=self.rootInputFolder, 
-                    plotOutputRoot=self.logFolder, fileFormat=fileFormat, dpi=dpi, widthTickFreq=widthTickFreq,
-                    aspectRatio=aspectRatio, startAt=startAt, resolutionInches=resolutionInches)
+                    plotOutputRoot=self.logFolder, **kwargs)
             else:
                 raise Exception("Wrong parametr. Running average size must be greater than 0. Get: {}".format(runningAvgSize))
 
@@ -1686,7 +1889,7 @@ class Data(SaveClass, BaseMainClass, BaseLogicClass):
             self.trainHelper.inputs = inputs
             self.trainHelper.labels = labels
             self.trainHelper.batchNumber = batch
-            if(SAVE_AND_EXIT_FLAG):
+            if(enabledSaveAndExit()):
                 metadata.stream.print("Triggered SAVE_AND_EXIT_FLAG.", "debug:0")
                 self.__trainLoopExit__(helperEpoch=helperEpoch, helper=self.trainHelper, model=model, dataMetadata=dataMetadata, modelMetadata=modelMetadata, metadata=metadata, smoothing=smoothing, smoothingMetadata=smoothingMetadata)
                 self.trainLoopTearDown()
@@ -1843,7 +2046,7 @@ class Data(SaveClass, BaseMainClass, BaseLogicClass):
                 self.testHelper.labels = labels
                 self.testHelper.batchNumber = batch
 
-                if(SAVE_AND_EXIT_FLAG):
+                if(enabledSaveAndExit()):
                     self.__testLoopExit__(helperEpoch=helperEpoch, helper=self.testHelper, model=model, dataMetadata=dataMetadata, modelMetadata=modelMetadata, metadata=metadata, smoothing=smoothing, smoothingMetadata=smoothingMetadata)
                     self.testLoopTearDown()
                     return
@@ -1945,7 +2148,7 @@ class Data(SaveClass, BaseMainClass, BaseLogicClass):
 
             model.schedulerStep(epochNumb=ep, metadata=metadata, shtypes=self.epochHelper.modes, metrics=self.epochHelper.statistics.testLossSum[-1]) # get lasts sum of losses
 
-            if(SAVE_AND_EXIT_FLAG):
+            if(enabledSaveAndExit()):
                 self.__epochLoopExit__(helperEpoch=self.epochHelper, model=model, dataMetadata=dataMetadata, modelMetadata=modelMetadata, metadata=metadata, smoothing=smoothing, smoothingMetadata=smoothingMetadata)
                 self.epochLoopTearDown()
                 return
@@ -2692,13 +2895,17 @@ def printClassToLog(metadata, *obj):
         if(o is not None):
             metadata.stream.print(str(o), where)
 
-def prettyStr(d, indent=0):
+def prettyStr(d, indent=0) -> str:
+    """
+        Formatuje dany obiekt według konwencji json.
+    """
     return str(json.dumps(d, indent=2))
 
 def runObjs(metadataObj, dataMetadataObj, modelMetadataObj, smoothingMetadataObj, smoothingObj, dataObj, modelObj, folderLogNameSuffix = None, 
     folderRelativeRoot = None, logData: dict=None):
     """
-        Przygotowuje logi, zapisuje do logów metadane klas oraz uruchamia pętlę epochy. 
+        Domyślna funkcja służąca do uruchomienia eksperymentu.
+        Przygotowuje logi, zapisuje do logów metadane klas oraz uruchamia pętlę epok. 
     """
     metadataObj.prepareOutput()
 
@@ -2788,10 +2995,11 @@ def modelRun(Metadata_Class, Data_Metadata_Class, Model_Metadata_Class, Smoothin
     return stat
 
 #########################################
-# other functions
+# inne funkcje
 def cloneTorchDict(weights: dict, toDevice = None):
     """
-        Kopiuje podane tensory oraz je zwraca. Jednocześnie można sprecyzować docelowe urządzenie.
+        Kopiuje podane tensory do słownika oraz je zwraca. Jednocześnie można sprecyzować docelowe urządzenie.
+        Zmienna weights nie musi być typu dict, wystarczy, że można po niej iterować oraz, że posiada parę (key, val).
     """
     newDict = dict()
     if(isinstance(weights, dict)):
@@ -2818,7 +3026,7 @@ def moveToDevice(weights: dict, toDevice):
 
 def sumAllWeights(weights):
     """
-    Oblicza sumę wszyskich wartości bezwzględnych odstarczonych wag.
+        Oblicza sumę wszyskich wartości bezwzględnych dostarczonych wag.
     """
     with torch.no_grad():
         sumArray = []
@@ -2843,25 +3051,46 @@ def trySelectCUDA(device, metadata):
         'debug')
     return device
 
-def selectCPU(device, metadata):
-    device = 'cpu'
-    if(metadata.debugInfo):
-        Output.printBash('Using {} torch CUDA device version\nCUDA avaliable: {}\nCUDA selected: False'.format(torch.version.cuda, torch.cuda.is_available()),
-        'debug')
-    return device
-
 def checkForEmptyFile(filePath):
     """
         Sprawdza, czy dla podanej ścieżki plik istnieje i czy nie jest on pusty.
     """
     return os.path.isfile(filePath) and os.path.getsize(filePath) > 0
 
-def plot(filePath: list, xlabel, ylabel, name = None, plotsNames: list = None, plotInputRoot = None, plotOutputRoot = None, fileFormat = '.svg', dpi = 900, widthTickFreq = 0.08, 
-    aspectRatio = 0.3, 
-    startAt = None, endAt = None, highat = None, lowat = None, startScale = None, endScale = None, highScale = None, lowScale = None, 
+def plot(filePath: list, xlabel, ylabel, name = None, plotsNames: list = None, plotInputRoot = None, plotOutputRoot = None, 
+    fileFormat = '.png', dpi = 900, widthTickFreq = 0.08, aspectRatio = 0.3, 
+    startAt: float = None, endAt: float = None, highAt: float = None, lowAt: float = None, 
+    startScale: float = None, endScale: float = None, highScale: float = None, lowScale: float = None, 
     resolutionInches = 11.5, fontSize = 13):
     """
-    Rozmiar wyjściowej grafiki jest podana wzorem [resolutionInches; resolutionInches / aspectRatio]
+        Generuje plik wykresu, który może zawierać wiele wykresów.
+        Rozmiar wyjściowej grafiki jest podana wzorem [resolutionInches; resolutionInches / aspectRatio]
+
+        filePath - ścieżki do wykresów
+        name - nazwa wyjściowego pliku. Jeżeli None, to wykres zostanie pokazany, zamiast zapisany.
+        plotsNames - nazwy, które pojawią się na wykresie oraz będą odpowiadały plikom z filePath. Jeżeli nie podano lub None w liście, 
+            to nazwa danego wykreu będzie nazwą pliku z którego ją zaczerpnięto.
+
+        resolutionInches - rozmiar wykresu. Jest to jego wymiar w przeliczeniu na centymetry. Jest to inna własność niż dpi.
+        widthTickFreq - jak często na osi X powinny pojawiać się wartości [0; 1]
+        dpi - rozdzielczość. Nie wpływa na proporcje wykresu, jedynie jego ostrość (i rozmiar pliku).
+        aspectRatio - proprcje szerokość - resolutionInches/aspectRatio, wysokość - resolutionInches
+        fontSize - rozmiar wszystkich czcionek na wykresie.
+        fileFormat - typ wykresu [.png, .svg] itp.
+
+        startAt - gdzie wykres na osi X ma się zacząć. Może to być pozytywna lub negatywna wartość. Musi być mniejsze od startAt != None.
+        endAt - gdzie wykres na osi X ma się skończyć. Może to być pozytywna lub negatywna wartość. Musi być większe od endAt != None.
+        highAt - górna granica na osi Y. Musi być większe od lowAt != None.
+        lowAt - dolna granica na osi Y. Musi być mniejsze od highAt != None.
+
+        *Scale - tego typu zmienne są przydatne, kiedy nie ustawia się zmiennyc htypu *At, a mimo to chce się
+        mieć szerszy lub wyższy wykres. Przykładowo matplotlib działa tak, że wysokość wykresu daje mniej więcej 
+        na wartość największej wartości w danych.
+
+        startScale - skalowana lewa granica osi X.
+        endScale - skalowana prawa granica osi X.
+        highScale - skalowana górna granica osi Y.
+        lowScale - skalowana dolna granica osi Y.
     """
     if(test_mode().isActive()):
         print("\nPlot parameters")
@@ -2901,9 +3130,9 @@ def plot(filePath: list, xlabel, ylabel, name = None, plotsNames: list = None, p
         startAt: {}; endAt: {}.".format(startAt, endAt), 'warn')
         return
 
-    if(lowat is not None and highat is not None and lowat >= highat):
-        Output.printBash("Cannot plot any file. The lowat or highat arguments do not follow the requirement [lowat < highat]: \
-        lowat: {}; highat: {}.".format(lowat, highat), 'warn')
+    if(lowAt is not None and highAt is not None and lowAt >= highAt):
+        Output.printBash("Cannot plot any file. The lowAt or highAt arguments do not follow the requirement [lowAt < highAt]: \
+        lowAt: {}; highAt: {}.".format(lowAt, highAt), 'warn')
         return
         
     def setBorder(axes, ytop, ybottom, startAt, endAt, startScale, endScale, highScale, lowScale):
@@ -2960,7 +3189,11 @@ def plot(filePath: list, xlabel, ylabel, name = None, plotsNames: list = None, p
         data = pd.read_csv(fn, header=None)
         if(len(data) > sampleMaxSize):
             sampleMaxSize = len(data)
-        plt.plot(data[dataStartAt:dataEndAt], label=os.path.basename(fn) if plotsNames is None else plotsNames[idx])
+
+        plotLabel = os.path.basename(fn)
+        if(plotsNames is not None and plotsNames[idx] is not None):
+            plotLabel = plotsNames[idx]
+        plt.plot(data[dataStartAt:dataEndAt], label=plotLabel)
 
         xleft2, xright2 = ax.get_xlim()
         xleft.append(xleft2)
@@ -2982,7 +3215,7 @@ def plot(filePath: list, xlabel, ylabel, name = None, plotsNames: list = None, p
     #aspect = abs((xright-xleft)/(ybottom-ytop))*aspectRatio
     #fig.figaspect(ratio)
     #ax.set_aspect(aspect)
-    setBorder(axes=ax, ytop=highat, ybottom=lowat, startAt=startAt, endAt=endAt, 
+    setBorder(axes=ax, ytop=highAt, ybottom=lowAt, startAt=startAt, endAt=endAt, 
         startScale = startScale, endScale = endScale, highScale = highScale, lowScale = lowScale)
     tmp = sampleMaxSize / widthTickFreq
     ax.xaxis.set_ticks(numpy.arange(ax.get_xlim()[0], ax.get_xlim()[1], (sampleMaxSize*widthTickFreq)*aspectRatio))

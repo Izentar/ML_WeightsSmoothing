@@ -15,6 +15,9 @@ class ConfigClass():
 
 
 class DefaultWeightDecay():
+    """
+        Klasa generująca kolejne wagi dla średniej ważonej. Wagi zaczynają się zawsze od 1.
+    """
     def __init__(self, weightDecay = 1.1):
         self.weightDecay = weightDecay
 
@@ -38,8 +41,8 @@ class DefaultModel_Metadata(sf.Model_Metadata):
     def __init__(self, lossFuncDataDict=None, optimizerDataDict=None,
         **kwargs):
         """
-            lossFuncDataDict - domyślnie {} dla None
-            optimizerDataDict - domyślnie {} dla None
+            lossFuncDataDict - domyślnie {} dla None. Dodatkowe dane dotyczące modelu.
+            optimizerDataDict - domyślnie {} dla None. Dodatkowe dane dotyczące optymalizatora lub optymalizatorów dla danego modelu.
         """
         super().__init__(**kwargs)
         self.lossFuncDataDict = lossFuncDataDict if lossFuncDataDict is not None else {}
@@ -61,61 +64,6 @@ class DefaultModel_Metadata(sf.Model_Metadata):
             tmp_str += ('Not found\n')
         tmp_str += ('Optimizer provided data:\n{}\n'.format((self.optimizerDataDict)))
         return tmp_str
-
-class DefaultModelSimpleConv(sf.Model):
-    """
-    Z powodu jego prostoty i słabych wyników zaleca się go używać podczas testowania sieci.
-    """
-    def __init__(self, modelMetadata):
-        super().__init__(modelMetadata=modelMetadata)
-
-        self.conv1 = nn.Conv2d(3, 6, 5)
-        self.pool = nn.MaxPool2d(2, 2)
-        self.conv2 = nn.Conv2d(6, 16, 5)
-        self.avgpool = nn.AdaptiveAvgPool2d((6, 6))
-        self.linear1 = nn.Linear(16*6*6, 212)
-        self.linear2 = nn.Linear(212, 120)
-        self.linear3 = nn.Linear(120, 84)
-        self.linear4 = nn.Linear(84, 10)
-
-        #self.loss_fn = nn.CrossEntropyLoss()
-        #self.optimizer = optim.SGD(self.getNNModelModule().parameters(), lr=modelMetadata.learning_rate, momentum=modelMetadata.momentum)
-        #self.optimizer = optim.AdamW(self.parameters(), lr=modelMetadata.learning_rate)
-        
-        self.__initializeWeights__()
-
-    def forward(self, x):
-        x = self.pool(F.hardswish(self.conv1(x)))
-        x = self.pool(F.hardswish(self.conv2(x)))
-        # 16 * 212 * 212 może zmienić rozmiar tensora na [1, 16 * 212 * 212] co nie zgadza się z rozmiarem batch_number 1 != 16. Wtedy należy dać [-1, 212 * 212] = [16, 212 * 212]
-        # ogółem ta operacja nie jest bezpieczna przy modyfikacji danych.
-        #x = x.view(x.size(0), -1)   
-        x = self.avgpool(x)
-        print(x.size())
-        x = x.view(x.size(0), -1)   
-        print(x.size())
-        x = F.hardswish(self.linear1(x))
-        x = F.hardswish(self.linear2(x))
-        x = F.hardswish(self.linear3(x))
-        x = self.linear4(x)
-        return x
-
-    def __update__(self, modelMetadata):
-        self.getNNModelModule().to(modelMetadata.device)
-        #self.optimizer = optim.SGD(self.getNNModelModule().parameters(), lr=modelMetadata.learning_rate, momentum=modelMetadata.momentum)
-
-    def __initializeWeights__(self):
-        for m in self.modules():
-            if(isinstance(m, (nn.Conv2d, nn.ConvTranspose2d, nn.BatchNorm2d))):
-                nn.init.kaiming_normal_(m.weight, mode='fan_out', nonlinearity='relu')
-                if m.bias is not None:
-                    nn.init.constant_(m.bias, 0)
-            elif(isinstance(m, nn.Linear)):
-                nn.init.normal_(m.weight, 0, 0.01)
-                nn.init.constant_(m.bias, 0)
-
-    def createDefaultMetadataObj(self):
-        return DefaultModel_Metadata()
 
 class DefaultModelPredef(sf.PredefinedModel):
     def __init__(self, obj, modelMetadata, name):
@@ -1270,7 +1218,7 @@ if(__name__ == '__main__'):
 
     #sf.useDeterministic()
     #sf.modelDetermTest(sf.Metadata, DefaultData_Metadata, DefaultModel_Metadata, DefaultData, VGG16Model, DefaultSmoothingSimpleMean)
-    stat = sf.modelRun(sf.Metadata, DefaultData_Metadata, DefaultModel_Metadata, DefaultDataMNIST, DefaultModel, DefaultSmoothingSimpleMean, obj)
+    #stat = sf.modelRun(sf.Metadata, DefaultData_Metadata, DefaultModel_Metadata, DefaultDataMNIST, DefaultModel, DefaultSmoothingSimpleMean, obj)
 
     #plt.plot(stat.trainLossArray)
     #plt.xlabel('Train index')
