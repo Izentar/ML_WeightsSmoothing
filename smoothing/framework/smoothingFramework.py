@@ -75,7 +75,8 @@ def enabledSaveAndExit():
     """
     return bool(SAVE_AND_EXIT_FLAG)
 
-signal.signal(signal.SIGQUIT, saveWorkAndExit) # Ctrl + \
+if os.name != 'nt':
+    signal.signal(signal.SIGQUIT, saveWorkAndExit) # Ctrl + \
 
 signal.signal(signal.SIGINT, terminate)
 
@@ -107,8 +108,8 @@ class StaticData:
         Pozwala się w trakcie działania programu na zmianę ich wartości, jednak
         nieumiejętna zmiana tychże wartości może spowodować późniejsze problemy.
     """
-    PATH = os.path.join(expanduser("~"), '.data', 'models')
-    TMP_PATH = os.path.join(expanduser("~"), '.data', 'models', 'tmp')
+    PATH = os.path.join(expanduser("~"), 'dataSmoothing', 'models')
+    TMP_PATH = os.path.join(expanduser("~"), 'dataSmoothing', 'models', 'tmp')
     MODEL_SUFFIX = '.model'
     METADATA_SUFFIX = '.metadata'
     DATA_SUFFIX = '.data'
@@ -120,7 +121,7 @@ class StaticData:
     PYTORCH_AVERAGED_MODEL_SUFFIX = '.pyavgmmd'
     SMOOTHING_METADATA_SUFFIX = '.smthmd'
     NAME_CLASS_METADATA = 'Metadata'
-    DATA_PATH = os.path.join(expanduser("~"), '.data')
+    DATA_PATH = os.path.join(expanduser("~"), 'dataSmoothing')
     PREDEFINED_MODEL_SUFFIX = '.pdmodel'
     LOG_FOLDER = os.path.join('.', 'savedLogs')
     IGNORE_IO_WARNINGS = False
@@ -2802,7 +2803,7 @@ def averageStatistics(statistics: list, filePaths: dict=None, outputRelativeRoot
         for index, ffile in enumerate(flattedFilePaths): # iteruj po wszystkich plikach z danego folderu
             openPath = os.path.join(st.logFolder, ffile)
             config.append(openPath)
-            addToBuffer(fileToOpen=openPath, flattedNewVals=flattedNewVals, index=index)
+            addToBuffer(fileToOpen=openPath, newVals=flattedNewVals, index=index)
 
         # dodaj do statystyk sumy
         addLast(tmp_testLossSum, st.testLossSum, True)

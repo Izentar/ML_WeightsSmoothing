@@ -6,6 +6,11 @@ Obecny folder jest folderem nadrzędnym. Po uruchomieniu skryptu znajdą się w 
 * savedLogs - folder w którym zostaną zapamiętane logi wywołania programu. Posiada on hierarchiczną strukturę.
 * bash.log - przekierowane standardowe wyjście wywoływanego skryptu smoothing/tasks.sh.
 
+Wymaga się zainstalowania poniższych bibliotek:
+* pip3 install torch==1.9.0+cu102 torchvision==0.10.0+cu102 torchaudio===0.9.0 -f https://download.pytorch.org/whl/torch_stable.html
+* pip install pandas
+* python -m pip install matplotlib
+
 
 Istnieją 2 sposoby wywołania programu:
 1. Uruchomienie przygotowanego przez użytkownika skryptu. <br>
@@ -20,7 +25,7 @@ UWAGA
 W zależności od miejsca wywołania skryptu savedLogs pojawią się w danym miejscu.
 
 
-Program wymaga stworzenia w katalogu domowym folderu .data z uwagi na konieczność pobrania oraz zapisywania wag stworzonych modelów.
+Program wymaga stworzenia w katalogu domowym folderu dataSmoothing z uwagi na konieczność pobrania oraz zapisywania wag stworzonych modelów.
 Zaleca się stworzenie dla tego folderu dowiązanie symboliczne lub inne podobne działanie w celu wybrania odpowiednio dużego nośnika na zapis.
 Jeden model potrafi ważyć ponad 0.5 GB, a dane treningowe oraz walidacyjne od 100 MB do 2 GB.
 Domyślnie, jeżeli użytkownik nie posiada tego folderu, zostanie on stworzony automatycznie w jego katalogu domowym.

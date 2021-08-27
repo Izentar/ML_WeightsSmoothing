@@ -4,6 +4,7 @@ import torch.optim as optim
 import torch.nn as nn
 import torch.nn.functional as F
 import torchvision.transforms as transforms
+from framework.models.simpleModel import DefaultModelSimpleConv
 
 from framework import smoothingFramework as sf
 

@@ -11,3 +11,6 @@ dump/
 *.zip
 *.tar
 savedBash
+second
+second/*
+*.png

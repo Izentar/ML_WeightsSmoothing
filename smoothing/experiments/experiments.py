@@ -47,5 +47,5 @@ def printAvgStats(stat, metadataRoot, **kwargs):
         root = metadataRoot
     else:
         raise Exception("Unknown data type: {}".format(type(metadataRoot)))
-    avgStats = sf.averageStatistics(stat, relativeRootFolder=root)
+    avgStats = sf.averageStatistics(stat, outputRelativeRootFolder=root)
     avgStats.printPlots(**kwargs)
