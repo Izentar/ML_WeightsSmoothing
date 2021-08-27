@@ -1,0 +1,1 @@
+Folder ten posiada implementacje modeli. Więcej informacji znajduje się w poszczególnych plikach modeli.
