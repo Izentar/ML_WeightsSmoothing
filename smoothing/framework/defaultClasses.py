@@ -1,17 +1,16 @@
 import torch
 import torchvision
 import torch.optim as optim
-from framework import smoothingFramework as sf
-import matplotlib.pyplot as plt
-import torchvision.transforms as transforms
 import torch.nn as nn
 import torch.nn.functional as F
-import torchvision.models as models
-import os
+import torchvision.transforms as transforms
+
+from framework import smoothingFramework as sf
+
 import math
 
 class ConfigClass():
-    STD_NAN = 1e+10 # standard value if NaN
+    STD_NAN_BIG = 1e+10 # standardowa, duża wartość w przypadku, gdy funkcja (przykładowo std) zwróci NaN
 
 
 class DefaultWeightDecay():
@@ -105,7 +104,7 @@ class DisabledSmoothing(sf.Smoothing):
     def createDefaultMetadataObj(self):
         return DisabledSmoothing_Metadata()
 
-# oscilation base
+# oscillation base
 class _SmoothingOscilationBase_Metadata(sf.Smoothing_Metadata):
     def __init__(self, 
         device = 'cpu',
@@ -533,7 +532,7 @@ class DefaultSmoothingSimpleMean(sf.Smoothing):
     def createDefaultMetadataObj(self):
         return DefaultSmoothingSimpleMean_Metadata()
 
-# oscilation generalized mean
+# oscillation generalized mean
 class DefaultSmoothingOscilationGeneralizedMean_Metadata(_SmoothingOscilationBase_Metadata):
     def __init__(self, generalizedMeanPower = 1.0, **kwargs):
 
@@ -592,7 +591,7 @@ class DefaultSmoothingOscilationGeneralizedMean(_SmoothingOscilationBase):
     def createDefaultMetadataObj(self):
         return DefaultSmoothingOscilationGeneralizedMean_Metadata()
 
-# oscilation moving mean
+# oscillation moving mean
 class DefaultSmoothingOscilationEWMA_Metadata(_SmoothingOscilationBase_Metadata):
     def __init__(self, movingAvgParam = 0.005, **kwargs):
 
@@ -681,7 +680,7 @@ class DefaultSmoothingOscilationEWMA(_SmoothingOscilationBase):
 
 
 
-# oscilation weighted mean
+# oscillation weighted mean
 smoothingEndCheckTypeDict = [
     'std',
     'wgsum'
@@ -827,7 +826,7 @@ class DefaultSmoothingOscilationWeightedMean(_SmoothingOscilationBase):
         
         std = torch.std(torch.Tensor(sumOfDiff))
         if(std.isnan()):
-            return torch.tensor(ConfigClass.STD_NAN)
+            return torch.tensor(ConfigClass.STD_NAN_BIG)
         return std
 
     def __isSmoothingGoodEnough__std(self, helperEpoch, helper, model, dataMetadata, modelMetadata, metadata, smoothingMetadata):
@@ -915,14 +914,13 @@ class DefaultData_Metadata(sf.Data_Metadata):
             startTestAtEpoch = [*range(3)] # wywoła testy tylko dla pierwszych 3 epochy [0, 1, 2]
             startTestAtEpoch = -1 # inaczej [*range(epoch)]
     """
-    def __init__(self, worker_seed = 8418748, download = True, pin_memoryTrain = False, pin_memoryTest = False,
-        epoch = 1, batchTrainSize = 16, batchTestSize = 16, startTestAtEpoch=-1, 
-        howOftenPrintTrain = 2000, testShuffle=True, trainShuffle=True, 
+    def __init__(self,
+        startTestAtEpoch=-1, 
+        testShuffle=True, trainShuffle=True, 
         trainSampler=None, testSampler=None, trainLoaderWorkers=2, testLoaderWorkers=2,
-        transformTrain=None, transformTest=None):
+        transformTrain=None, transformTest=None, **kwargs):
 
-        super().__init__(worker_seed = worker_seed, train = True, download = download, pin_memoryTrain = pin_memoryTrain, pin_memoryTest = pin_memoryTest,
-            epoch = epoch, batchTrainSize = batchTrainSize, batchTestSize = batchTestSize, howOftenPrintTrain = howOftenPrintTrain)
+        super().__init__(**kwargs)
 
         self.trainSampler = trainSampler
         self.testSampler = testSampler
@@ -930,7 +928,6 @@ class DefaultData_Metadata(sf.Data_Metadata):
         self.trainShuffle = trainShuffle
         self.trainLoaderWorkers = trainLoaderWorkers
         self.testLoaderWorkers = testLoaderWorkers
-
 
         # default values
         self.transformTrain = transformTrain if transformTrain is not None else transforms.Compose([
@@ -949,9 +946,6 @@ class DefaultData_Metadata(sf.Data_Metadata):
             self.startTestAtEpoch = [*range(epoch + 1)]
         else:
             self.startTestAtEpoch = startTestAtEpoch # list of epoches where the test should be called
-
-        # batch size * howOftenPrintTrain
-        self.howOftenPrintTrain = howOftenPrintTrain
 
     def __strAppend__(self):
         tmp_str = super().__strAppend__()
@@ -1179,6 +1173,8 @@ def run(data, model, smoothing, metadataObj, modelMetadata, dataMetadata, smooth
     rootFolder = None, startPrintAt = -10, logData=None, **kwargs):
     """
         Funckja przygotowuje do wywołania eksperymentu. Na końcu działania funkcja tworzy wykresy.
+        Można w niej użyć jedynie klas zaimplementowanych w tym pliku. Użycie innych obiektów spowoduje błąd.
+        Tyczy się to modelu, danych oraz klas wygładzania.
     """
 
     dataType = __checkClassExistence(checkedMap=DataMap, obj=data)
@@ -1209,22 +1205,4 @@ def run(data, model, smoothing, metadataObj, modelMetadata, dataMetadata, smooth
     statistics.printPlots(startAt=startPrintAt, **kwargs)
 
     return statistics
-
-
-
-if(__name__ == '__main__'):
-    torch.backends.cudnn.benchmark = True
-    obj = models.alexnet(pretrained=True)
-
-    #sf.useDeterministic()
-    #sf.modelDetermTest(sf.Metadata, DefaultData_Metadata, DefaultModel_Metadata, DefaultData, VGG16Model, DefaultSmoothingSimpleMean)
-    #stat = sf.modelRun(sf.Metadata, DefaultData_Metadata, DefaultModel_Metadata, DefaultDataMNIST, DefaultModel, DefaultSmoothingSimpleMean, obj)
-
-    #plt.plot(stat.trainLossArray)
-    #plt.xlabel('Train index')
-    #plt.ylabel('Loss')
-    #plt.show()
-
-
-
 

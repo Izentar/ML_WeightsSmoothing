@@ -16,6 +16,12 @@ import torch.nn.functional as F
 import torchvision.models as models
 import os
 
+"""
+    Skrypt służący do ponownego uśrednienia logów. 
+    Przyjmuje on ścieżki do zapisanych obiektów statystyk klasy sf.Statistics, z których
+    czerpie informacje o plikach csv. Pliki z tą samą nazwą są uśredniane do jednego pliku.
+"""
+
 def average(paths):
     stats = []
     for p in paths:

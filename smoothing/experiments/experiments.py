@@ -22,16 +22,23 @@ def printException(ex, types):
         ), 'err')
     sf.Output.printBash("Full traceback:\n{}".format(traceback.format_exc()), 'err')
 
-def printStats(stat, metadata, startAt = -10, fileFormat='.svg', dpi=900):
+def printStats(stat, metadata, **kwargs):
+    """
+        Deprecated
+    """
     for st in stat:
         st.printPlots(startAt=startAt)
 
     avgStats = sf.averageStatistics(stat, relativeRootFolder=metadata.relativeRoot)
-    avgStats.printPlots(startAt=startAt, **kwargs)
+    avgStats.printPlots(**kwargs)
 
-def printAvgStats(stat, metadataRoot, startAt = -10, runningAvgSize=1, **kwargs):
+def printAvgStats(stat, metadataRoot, **kwargs):
     """
-        metadataRoot - obiekt metadaty lub folder nadrzędny w którym zostaną zapisane logi. Jeżeli folder nie istnieje, zostanie stworzony.
+        Funkcja służy do wykonania uśredniania statystyk oraz rysowania wykresów z uśrednionych statystyk.
+        metadataRoot - obiekt metadaty lub folder nadrzędny w którym zostaną zapisane logi. 
+            Jeżeli folder nie istnieje, zostanie stworzony. W przypadku obiektu metadanych, logi zostaną zapisane zgodnie
+            ze ścieżkami zawartymi w tym obiekcie.
+        kwargs - argumenty dla rysowania wykresów
     """
     root = None
     if(isinstance(metadataRoot, sf.Metadata)):
@@ -41,4 +48,4 @@ def printAvgStats(stat, metadataRoot, startAt = -10, runningAvgSize=1, **kwargs)
     else:
         raise Exception("Unknown data type: {}".format(type(metadataRoot)))
     avgStats = sf.averageStatistics(stat, relativeRootFolder=root)
-    avgStats.printPlots(startAt=startAt, runningAvgSize=runningAvgSize, **kwargs)
+    avgStats.printPlots(**kwargs)

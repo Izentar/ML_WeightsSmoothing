@@ -1,11 +1,16 @@
 from framework import smoothingFramework as sf
 import argparse
 
+"""
+    Plik służy do rysowania wykresów na podstawie plików csv. 
+    Pliki te muszą zawierać jedynie kolejne dane oddzielone od siebie nową linią.
+"""
+
 def getParser():
     parser = argparse.ArgumentParser(description='PyTorch Classification Training', add_help=True)
     parser.add_argument('--xl', default='x', help='x label name')
     parser.add_argument('--yl', default='y', help='y label name')
-    parser.add_argument('--to', default='.', help='folder to save')
+    parser.add_argument('--to', default='.', help='folder where to save plots and files')
     parser.add_argument('--oname', default='weightsSumTrain', help='output file name')
     parser.add_argument('--dpi', type=int, default=300, help='dpi of the plot')
     parser.add_argument('--inchres', type=float, default=6.5, help='resolution in inches')
@@ -42,7 +47,7 @@ if(__name__ == '__main__'):
         args.endat = None
 
     if(args.swindow > 1):
-        tmp = sf.Statistics.slidingWindow(fileNames=args.paths, runningAvgSize=args.swindow)
+        tmp = sf.Statistics.slidingWindow(fileNamesWithPaths=args.paths, runningAvgSize=args.swindow, outputFolder=args.to, getBaseNameFile=True)
         if(tmp is not None):
             paths = tmp
             yl = yl + ' (okno=' + str(args.swindow) + ')'

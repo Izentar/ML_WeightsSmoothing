@@ -4,6 +4,7 @@ import torchvision.transforms as transforms
 import torch.nn as nn
 import torch.nn.functional as F
 import torch.optim as optim
+
 import os, sys, getopt
 from os.path import expanduser
 import signal
@@ -511,7 +512,7 @@ class MultiplicativeLR():
             ret.append(gr['lr'])
         return ret
 
-    def step(self, metrics = None):
+    def step(self):
         """
             Zmienia learning rate o wartość 
                 lr = lr * gamma
@@ -1226,7 +1227,7 @@ class Data_Metadata(SaveClass, BaseMainClass):
         korzysta z instancji tej klasy.
     """
     def __init__(self, worker_seed = 841874, train = True, download = True, pin_memoryTrain = False, pin_memoryTest = False,
-            epoch = 1, batchTrainSize = 4, batchTestSize = 4, howOftenPrintTrain = 2000):
+            epoch = 1, batchTrainSize = 64, batchTestSize = 64):
         super().__init__()
 
         # default values:
@@ -1239,9 +1240,6 @@ class Data_Metadata(SaveClass, BaseMainClass):
         self.epoch = epoch
         self.batchTrainSize = batchTrainSize
         self.batchTestSize = batchTestSize
-
-        # print = batch size * howOftenPrintTrain
-        self.howOftenPrintTrain = howOftenPrintTrain
 
     def tryPinMemoryTrain(self, metadata, modelMetadata):
         if(torch.cuda.is_available()):
@@ -1265,7 +1263,6 @@ class Data_Metadata(SaveClass, BaseMainClass):
         tmp_str += ('Batch train size:\t{}\n'.format(self.batchTrainSize))
         tmp_str += ('Batch test size:\t{}\n'.format(self.batchTestSize))
         tmp_str += ('Number of epochs:\t{}\n'.format(self.epoch))
-        tmp_str += ('How often print:\t{}\n'.format(self.howOftenPrintTrain))
         return tmp_str
 
     def _getstate__(self):
@@ -1434,7 +1431,7 @@ class Statistics():
             smthLossRatio = None, smthCorrectRatio = None, smthTestLossSum = None, smthTestCorrectSum = None, smthPredSizeSum = None):
         """
             logFolder - folder wyjściowy dla zapisywanych logów. Może być None.
-            plotBatches - słownik {(nazwa_nowego_pliku, nazwa_osi_X, nazwa_osi_Y): [lista_nazw_plików_do_przeczytania]}. Domyślnie {} dla None.
+            plotBatches - słownik {(nazwa_nowego_pliku, nazwa_osi_X, nazwa_osi_Y): [lista_nazw_plików_do_przeczytania_dla_jednego_wykresu]}. Domyślnie {} dla None.
                 Pliki tutaj zawarte już istnieją.
             avgPlotBatches - słownik uśrednionych plików csv {(nazwa_nowego_pliku, nazwa_osi_X, nazwa_osi_Y): [lista_nazw_plików_do_przeczytania]}. 
                 Domyślnie {} dla None. Pliki tutaj zawarte już istnieją.
@@ -1567,23 +1564,31 @@ class Statistics():
             self.smthCorrectRatio = setAndCheckList(smthCorrectRatio)
         '''
 
-    def averageOneFile(fileName: str, runningAvgSize: int, outputFolder: str = None, inputFolder: str = None) -> str:
+    def averageOneFile(fileNameWithPath: str, runningAvgSize: int, outputFolder: str = None, inputFolder: str = None, 
+        getBaseNameFile = False) -> str:
         """
             Metoda uśrednia wartości dla jednego pliku, przechodząc po nim ruchomym oknem.
             Zwraca nazwę nowego pliku połączoną ze zmienną 'outputFolder'.
+
+            getBaseNameFile - wybiera nazwę pliku ze ścieżki 'fileNameWithPath'
         """
         # add '.avg' to the name of the file
-        whereDot = fileName.rfind(".")
+        whereDot = fileNameWithPath.rfind(".")
         avg = ".avg"
-        avgFileName = fileName[:whereDot] + avg + fileName[whereDot:]
+        avgFileName = fileNameWithPath[:whereDot] + avg + fileNameWithPath[whereDot:]
 
         avgFileFolderName = avgFileName
+        if(getBaseNameFile):
+            avgFileFolderName = os.path.basename(avgFileFolderName)
         if(outputFolder is not None):
-            avgFileFolderName = os.path.join(outputFolder, avgFileName)
+            avgFileFolderName = os.path.join(outputFolder, avgFileFolderName)
 
-        folder_fileName = fileName
+        folder_fileName = fileNameWithPath
         if(inputFolder is not None):
-            folder_fileName = os.path.join(inputFolder, fileName)
+            folder_fileName = os.path.join(inputFolder, fileNameWithPath)
+
+        if(checkForEmptyFile(avgFileFolderName)):
+            Output.printBash("averageOneFile - file '{}' exist. The file will be overwritten".format(avgFileFolderName), 'warn')
 
         with open(avgFileFolderName, 'w') as fileAvgH, \
                 open(folder_fileName, 'r') as fileH:
@@ -1594,17 +1599,16 @@ class Statistics():
                 fileAvgH.write(str(circularList.getAverage()) + '\n')
         return avgFileName
 
-    def slidingWindow(fileNames: list, runningAvgSize, outputFolder = None, inputFolder = None) -> list:     
+    def slidingWindow(fileNamesWithPaths: list, runningAvgSize, **kwargs) -> list:     
         """
-            Metoda iteruje po wszsytkich podanych plikach 'fileNames', aby je pojedynczo uśrednić.
+            Metoda iteruje po wszsytkich podanych plikach 'fileNamesWithPaths', aby je pojedynczo uśrednić.
             Na końcu zwraca listę nowo stworzonych, uśrednionych plików wraz z ich względnymi nazwami 
             folderów, o ile takie istnieją.
         """
         if(runningAvgSize > 1):
             avgFileNames = []
-            for fileName in fileNames:
-                avgFileNames.append(Statistics.averageOneFile(fileName=fileName, runningAvgSize=runningAvgSize, 
-                    outputFolder=outputFolder, inputFolder=inputFolder))
+            for fileNameWithPath in fileNamesWithPaths:
+                avgFileNames.append(Statistics.averageOneFile(fileNameWithPath=fileNameWithPath, runningAvgSize=runningAvgSize, **kwargs))
             return avgFileNames
         return None
 
@@ -1622,7 +1626,7 @@ class Statistics():
             if(runningAvgSize > 1):
                 avgName = name + ".avg"
                 newylabel = ylabel
-                out = Statistics.slidingWindow(fileNames=val, runningAvgSize=runningAvgSize, outputFolder=self.logFolder, inputFolder=self.rootInputFolder)
+                out = Statistics.slidingWindow(fileNamesWithPaths=val, runningAvgSize=runningAvgSize, outputFolder=self.logFolder, inputFolder=self.rootInputFolder)
                 if(out is not None):
                     newylabel = newylabel + ' (okno=' + str(runningAvgSize) + ')'
                 idx = (avgName, xlabel, newylabel)
@@ -2664,17 +2668,17 @@ def commandLineArg(metadata, dataMetadata, modelMetadata, argv, enableLoad = Tru
 
     return metadata, False
 
-def averageStatistics(statistics: list, filePaths: dict=None, 
-    relativeRootFolder = None,
-    dpi = 900, widthTickFreq = 0.08, aspectRatio = 0.3, startAt = None, resolutionInches = 11.5, outputFolderNameSuffix = None):
+def averageStatistics(statistics: list, filePaths: dict=None, outputRelativeRootFolder = None, outputFolderNameSuffix = None) -> Statistics:
     """
-        Funkcja dla podanych logów w formacie csv uśrednia je. Logi muszą być w odpowiednim formacie, czyli:
+        Funkcja dla podanych logów w formacie csv uśrednia je oraz zwraca obiekt statystyk. Logi muszą być w odpowiednim formacie, czyli:
             - jeden plik jest przeznaczony dla jednego rodzaju danych w formacie liczby, zapisywanych kolejnych
                 liniach
             - plik nie może zawierać innych danych oprócz liczby, która zostanie przedstawiona w formacie
                 zmiennoprzecinkowym
 
-        statistics - lista obiektów typu Statistics. To z nich będą pobierane 
+        statistics - lista obiektów typu Statistics. To z nich będą pobierane dane. Powinny one reprezentować to samo zjawisko.
+            Funkcja uśrednia wartości względem danego indeksu z csv. Przykładowo, podając kilka powtórzeń tego samego eksperymentu, 
+            funkcja zwraca uśrednioną klasę statystyk.
 
         filePaths - wartość domyślna dla None - dict = {
             ('loopTestTime', 'liczba iteracji pętli treningowej', 'czas (s)') : ['loopTestTime_normal.csv', 'loopTestTime_smooothing.csv'], 
@@ -2683,10 +2687,15 @@ def averageStatistics(statistics: list, filePaths: dict=None,
             ('lossTrain', 'liczba iteracji pętli treningowej', 'strata modelu') : ['statLossTrain.csv'], 
             ('weightsSumTrain', 'liczba iteracji pętli treningowej', 'suma wag modelu') : ['weightsSumTrain.csv']}
 
-            Zmienna służy do grupowania kilku plików do jednego wykresu. 
-            Przykładowo, domyślnie wykres loopTestTime będzie zawierał dane z loopTestTime_normal.csv oraz loopTestTime_smooothing.csv.
-            Klucz - nazwa nowego plik oraz nazwy jego osi.
-            Wartości - nazwy plików, które znajdą się na podanym w kluczu wykresie.
+            Zmienna ta przechowuje dane odnośnie plików csv. W nowo stworzonej klasie statystyk ta struktura
+            jest do niej kopiowana bez zmian. Funkcja tworzy nowy folder, w którym pliki zawarte w listach tej zmiennej są zapisywane. 
+            
+            Nowy, uśredniony plik tworzony jest na podstawie wszystkich plików o tej samej nazwie. 
+            Jeżeli któryś z plików danej kategorii nie istnieje lub jest pusty, to domyślnymi jego wartościami będą 0.0. 
+
+        outputRelativeRootFolder - folder w którym zostaną zapisane uśrednione logi. Jeżeli None, to folder zostanie stworzony 
+            względem folderu w zmiennej StaticData.LOG_FOLDER. Zaleca się go podanie.
+        outputFolderNameSuffix - sufiks nowego folderu. Jeżeli None, to przyjmuje wartość 'averaging_files'
     """
     if(outputFolderNameSuffix is None):
         outputFolderNameSuffix = "averaging_files"
@@ -2724,9 +2733,34 @@ def averageStatistics(statistics: list, filePaths: dict=None,
         if(toDiv == 0 or toDiv == 0.0):
             return default
         return va / toDiv
+    
+    def removeDuplicates(seq: list):
+        seen = set()
+        seen_add = seen.add
+        return [x for x in seq if not (x in seen or seen_add(x))]
 
+    def addToBuffer(fileToOpen, newVals, index):
+        with open(fileToOpen) as fh:
+            badSize = False
+            rows = [float(l.rstrip("\n")) for l in fh] # wczytaj liczby do listy
+
+            if(len(rows) < len(newVals[index])): # jeżeli trzeba rozszerzyć bufor rows
+                rows = rows + [0.0 for _ in range(len(newVals[index]) - len(rows))]
+                badSize = True
+            if(len(rows) > len(newVals[index])): # jeżeli trzeba rozszerzyć bufor newVals[index]
+                newVals[index] = newVals[index] + [0.0 for _ in range(len(rows) - len(newVals[index]))]
+                badSize = True
+            # else len == len: OK
+
+            # dodaj do bufora
+            newVals[index] = list(map(operator.add, rows, newVals[index]))
+            
+            if(badSize):
+                Output.printBash("averageStatistics - one of the files have bad size: {}".format(fileToOpen), 'warn')
+    
+    
     flattedNewVals = []
-    config = []
+    config = [] # lista plików wziętych pod uwagę wraz ze ścieżkami
     flattedFilePaths = []
     tmp_testLossSum = []
     tmp_testCorrectSum = []
@@ -2755,25 +2789,20 @@ def averageStatistics(statistics: list, filePaths: dict=None,
     tmp_smthAvgTestTimeLoopCount = 0
     tmp_smthTestTimeUnits   = None
 
+    # potrzebne są tylko informacje odnośnie samych plików
     for f in filePaths.values():
         flattedFilePaths += f
 
-    for index in range(len(flattedFilePaths)):
+    flattedFilePaths = removeDuplicates(flattedFilePaths)
+
+    for _ in range(len(flattedFilePaths)):
         flattedNewVals.append([])
 
-    for st in statistics:
-        # przechodź kolejno po wszystkich folderach
-        for index, files in enumerate(flattedFilePaths):
-            # iteruj po wszystkich plikach z danego folderu
-            openPath = os.path.join(st.logFolder, files)
+    for st in statistics: # przechodź kolejno po wszystkich folderach z obiektu statystyk
+        for index, ffile in enumerate(flattedFilePaths): # iteruj po wszystkich plikach z danego folderu
+            openPath = os.path.join(st.logFolder, ffile)
             config.append(openPath)
-            with open(openPath) as fh:
-                rows = [float(l.rstrip("\n")) for l in fh]
-                if(len(rows) < len(flattedNewVals[index])):
-                    rows = rows + [0.0 for item in range(len(flattedNewVals[index]) - len(rows))]
-                if(len(rows) > len(flattedNewVals[index])):
-                    flattedNewVals[index] = flattedNewVals[index] + [0.0 for item in range(len(rows) - len(flattedNewVals[index]))]
-                flattedNewVals[index] = list(map(operator.add, rows, flattedNewVals[index]))
+            addToBuffer(fileToOpen=openPath, flattedNewVals=flattedNewVals, index=index)
 
         # dodaj do statystyk sumy
         addLast(tmp_testLossSum, st.testLossSum, True)
@@ -2832,7 +2861,7 @@ def averageStatistics(statistics: list, filePaths: dict=None,
         smthTestTimeUnits=tmp_smthTestTimeUnits
     )
 
-    newOutLogFolder = Output.createLogFolder(folderSuffix=outputFolderNameSuffix, relativeRoot=relativeRootFolder)[0]
+    newOutLogFolder = Output.createLogFolder(folderSuffix=outputFolderNameSuffix, relativeRoot=outputRelativeRootFolder)[0]
     
 
     # podziel
@@ -2842,8 +2871,8 @@ def averageStatistics(statistics: list, filePaths: dict=None,
 
     
     # zapisz uśrednione wyniki do odpowiednich logów
-    for index, files in enumerate(flattedFilePaths):
-        with open(os.path.join(newOutLogFolder, files), "w") as fh:
+    for index, ffile in enumerate(flattedFilePaths):
+        with open(os.path.join(newOutLogFolder, ffile), "w") as fh:
             for obj in flattedNewVals[index]:
                 fh.write(str(obj) + "\n")
         

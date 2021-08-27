@@ -5,10 +5,8 @@ import torchvision
 import torch.optim as optim
 import torch.optim.lr_scheduler as scheduler
 import torch.nn as nn
-import torch.nn.functional as F
 import torchvision.transforms as transforms
 import torchvision.models as models
-import torchvision.models.resnet as modResnet
 
 from framework import smoothingFramework as sf
 from framework import defaultClasses as dc
@@ -17,8 +15,6 @@ from framework.models.densenet import DenseNet
 from framework.models.vgg import vgg19_bn
 from framework.models.wideResNet import WideResNet
 
-import numpy as np
-import math
 import argparse
 import sys
 
@@ -73,32 +69,32 @@ def getParser():
     
     parser.add_argument('--smdev', default='cuda:0', choices=['cpu', 'cuda:0', 'cuda:1'], type=str, help='Device of the smoothing algorithm. Choose where to \
         store averaged weights.')
-    parser.add_argument('--smstartAt', default=1, type=int, help='')
-    parser.add_argument('--smlossWarmup', default=293, type=int, help='')
-    parser.add_argument('--smlossPatience', default=293, type=int, help='')
-    parser.add_argument('--smlossThreshold', default=1e-4, type=float, help='')
-    parser.add_argument('--smweightWarmup', default=150, type=int, help='')
-    parser.add_argument('--smweightPatience', default=150, type=int, help='')
-    parser.add_argument('--smweightThreshold', default=1e-4, type=float, help='')
-    parser.add_argument('--smlossThresholdMode', default='rel', choices=['rel', 'abs'], type=str, help='')
-    parser.add_argument('--smweightThresholdMode', default='rel', choices=['rel', 'abs'], type=str, help='')
+    parser.add_argument('--smstartAt', default=1, type=int, help='at what epoch start smoothing. After that model will be checked for oscillations.')
+    parser.add_argument('--smlossWarmup', default=293, type=int, help='number of iterations of the training loop before start checking oscillation of the model loss.')
+    parser.add_argument('--smlossPatience', default=293, type=int, help='number of training loop iterations of the model loss without improvements')
+    parser.add_argument('--smlossThreshold', default=1e-4, type=float, help='parameter denoting the magnitude of the change in the model loss against which it can be considered as better than the best remembered loss.')
+    parser.add_argument('--smweightWarmup', default=150, type=int, help='number of iterations of the training loop before start checking oscillation of the model smoothed weights.')
+    parser.add_argument('--smweightPatience', default=150, type=int, help='number of training loop iterations of the model smoothed weights without improvements')
+    parser.add_argument('--smweightThreshold', default=1e-4, type=float, help='parameter denoting the magnitude of the change in the model smoothed weights against which it can be considered as better than the best remembered smoothed weights.')
+    parser.add_argument('--smlossThresholdMode', default='rel', choices=['rel', 'abs'], type=str, help="mode of the loss threshold. 'abs' - metric < best  * (1 - threshold); 'rel' - metric < best - threshold;")
+    parser.add_argument('--smweightThresholdMode', default='rel', choices=['rel', 'abs'], type=str, help="mode of the loss threshold. 'abs' - metric [<, >] [bestMin, bestMax]  * (1 - threshold); 'rel' - metric [<, >] [bestMin, bestMax] - threshold;")
 
 
-    parser.add_argument('--smlosscontainer', default=195, type=int, help='')
+    parser.add_argument('--smlosscontainer', default=195, type=int, help='size of the cyclic loss container.')
     parser.add_argument('--smweightsumcontsize', default=100, type=int, help='the size of the sum container')
     parser.add_argument('--smmovingparam', default=0.05, type=float, help='moving parameter for the moving mean')
     parser.add_argument('--smgeneralmeanpow', default=1.0, type=float, help='the power of general mean')
     parser.add_argument('--smschedule', type=int, nargs='+', default=[],
-        help='Invoke SWALR scheduler at these epochs.')
-    parser.add_argument('--smlr', default=0.01, type=float, help='value that SWALR schedule sets as learning rate')
-    parser.add_argument('--smoffsched', action='store_true', help='choose if smoothing scheduler should be created')
-    parser.add_argument('--smannealEpochs', default=5, type=int, help='')
+        help='refers to SWALR scheduler. Invoke SWALR scheduler at these epochs.')
+    parser.add_argument('--smlr', default=0.01, type=float, help='refers to SWALR scheduler. Value of the learning rate')
+    parser.add_argument('--smoffsched', action='store_true', help='choose if smoothing scheduler should be created. If flag was used, it means True.')
+    parser.add_argument('--smannealEpochs', default=5, type=int, help="refers to SWALR scheduler. Over how many epochs the learning rate should strive for the designated value.")
 
-    parser.add_argument('--factor', default=0.1, type=float, help='')
-    parser.add_argument('--patience', default=6, type=int, help='')
-    parser.add_argument('--threshold', default=0.0001, type=float, help='')
-    parser.add_argument('--minlr', default=0.0, type=float, help='')
-    parser.add_argument('--cooldown', default=25, type=int, help='')
+    parser.add_argument('--factor', default=0.1, type=float, help='refers to ReduceLROnPlateau scheduler.')
+    parser.add_argument('--patience', default=6, type=int, help='refers to ReduceLROnPlateau scheduler.')
+    parser.add_argument('--threshold', default=0.0001, type=float, help='refers to ReduceLROnPlateau scheduler.')
+    parser.add_argument('--minlr', default=0.0, type=float, help='refers to ReduceLROnPlateau scheduler.')
+    parser.add_argument('--cooldown', default=25, type=int, help='refers to ReduceLROnPlateau scheduler.')
 
 
     return parser
@@ -233,14 +229,17 @@ def createOptimizer(args, model, optimizerDataDict):
 
 def createScheduler(args, optimizer):
     sched = None
+    metric = False
+
     if(args.sched == 'multiplic'):
         sched = sf.MultiplicativeLR(optimizer, gamma=args.gamma)
     elif(args.sched == 'adapt'):
         sched = optim.lr_scheduler.ReduceLROnPlateau(optimizer, mode='min', factor=args.factor, patience=args.patience, 
             threshold=args.threshold, min_lr=args.minlr, cooldown=args.cooldown)
+        metric = True
     else:
         raise Exception()
-    return sched, True # MultiplicativeLR może przyjąć, ale nic z tym nie robi
+    return sched, metric
 
 def createSmScheduler(args, optimizer):
     smsched = None
