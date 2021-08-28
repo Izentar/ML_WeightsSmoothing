@@ -1,7 +1,11 @@
 import sys, os
 from pathlib import Path
 
-sys.path.append(str(Path(__file__).parents[1]))
+newDir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+sys.path.append(newDir)
+# zmień working directory na inny folder.
+os.chdir(newDir)
+#print(os.getcwd())
 
 from framework import smoothingFramework as sf
 import traceback

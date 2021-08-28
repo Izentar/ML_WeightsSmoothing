@@ -713,22 +713,20 @@ class Timer(SaveClass):
         self.modelTimeSum = 0.0
         self.modelTimeCount = 0
 
-    def start(self, cudaDevice, cudaSynchronize=True):
+    def start(self, cudaDeviceSynch: str = None):
         """
-            Jeżeli cudaSynchronize == True, to należy podać cudaDevice. cudaDevice może być None.
-            cudaDevice dla cudaSynchronize == False nie jest brane pod uwagę, dowolna wartość.
+            cudaSynchronize - urządzenie CUDA, które ma zostać zsynchronizowane.
         """
-        if(cudaSynchronize):
-            torch.cuda.synchronize(device=cudaDevice)
+        if(cudaDeviceSynch is not None and cudaDeviceSynch != 'cpu'):
+            torch.cuda.synchronize(device=cudaDeviceSynch)
         self.timeStart = time.perf_counter()
 
-    def end(self, cudaDevice: str, cudaSynchronize=True):
+    def end(self, cudaDeviceSynch: str = None):
         """
-            Jeżeli cudaSynchronize == True, to należy podać cudaDevice. cudaDevice może być None.
-            cudaDevice dla cudaSynchronize == False nie jest brane pod uwagę, dowolna wartość.
+            cudaSynchronize - urządzenie CUDA, które ma zostać zsynchronizowane.
         """
-        if(cudaSynchronize):
-            torch.cuda.synchronize(device=cudaDevice)
+        if(cudaDeviceSynch is not None and cudaDeviceSynch != 'cpu'):
+            torch.cuda.synchronize(device=cudaDeviceSynch)
         self.timeEnd = time.perf_counter()
 
     def getDiff(self):
@@ -1886,7 +1884,7 @@ class Data(SaveClass, BaseMainClass, BaseLogicClass):
         self.__beforeTrainLoop__(helperEpoch=helperEpoch, helper=self.trainHelper, model=model, dataMetadata=dataMetadata, modelMetadata=modelMetadata, metadata=metadata, smoothing=smoothing, smoothingMetadata=smoothingMetadata)
         metadata.stream.print("Starting train batch at: {}".format(startNumb), "debug:0")
 
-        self.trainHelper.loopTimer.start(cudaDevice=smoothingMetadata.device, cudaSynchronize=smoothingMetadata.useCuda)
+        self.trainHelper.loopTimer.start(cudaDeviceSynch=smoothingMetadata.device)
         for batch, (inputs, labels) in enumerate(self.trainloader):
             if(batch < startNumb): # already iterated
                 continue
@@ -1910,11 +1908,11 @@ class Data(SaveClass, BaseMainClass, BaseLogicClass):
             self.__beforeTrain__(helperEpoch=helperEpoch, helper=self.trainHelper, model=model, dataMetadata=dataMetadata, modelMetadata=modelMetadata, metadata=metadata, smoothing=smoothing, smoothingMetadata=smoothingMetadata)
 
             self.trainHelper.timer.clearTime()
-            self.trainHelper.timer.start(cudaDevice=smoothingMetadata.device, cudaSynchronize=smoothingMetadata.useCuda)
+            self.trainHelper.timer.start(cudaDeviceSynch=smoothingMetadata.device)
             
             self.__train__(helperEpoch=helperEpoch, helper=self.trainHelper, model=model, dataMetadata=dataMetadata, modelMetadata=modelMetadata, metadata=metadata, smoothing=smoothing, smoothingMetadata=smoothingMetadata)
 
-            self.trainHelper.timer.end(cudaDevice=smoothingMetadata.device, cudaSynchronize=smoothingMetadata.useCuda)
+            self.trainHelper.timer.end(cudaDeviceSynch=smoothingMetadata.device)
             if(helperEpoch.currentLoopTimeAlias is None and warnings()):
                 Output.printBash("Alias for test loop file was not set. Variable helperEpoch.currentLoopTimeAlias may be set" +
                 " as:\n\t'loopTestTime_normal'\n\t'loopTestTime_smooothing'\n\t'loopTrainTime'\n", 'warn')
@@ -1946,7 +1944,7 @@ class Data(SaveClass, BaseMainClass, BaseLogicClass):
             correct += torch.argmax(self.trainHelper.outputs, dim=1).eq(self.trainHelper.labels.data).cpu().sum()
             
 
-        self.trainHelper.loopTimer.end(cudaDevice=smoothingMetadata.device, cudaSynchronize=smoothingMetadata.useCuda)
+        self.trainHelper.loopTimer.end(cudaDeviceSynch=smoothingMetadata.device)
         self.trainHelper.loopTimer.addToStatistics()
         self.trainHelper.loopEnded = True
 
@@ -2043,7 +2041,7 @@ class Data(SaveClass, BaseMainClass, BaseLogicClass):
         self.__beforeTestLoop__(helperEpoch=helperEpoch, helper=self.testHelper, model=model, dataMetadata=dataMetadata, modelMetadata=modelMetadata, metadata=metadata, smoothing=smoothing, smoothingMetadata=smoothingMetadata)
 
         with torch.no_grad():
-            self.testHelper.loopTimer.start(cudaDevice=smoothingMetadata.device, cudaSynchronize=smoothingMetadata.useCuda)
+            self.testHelper.loopTimer.start(cudaDeviceSynch=smoothingMetadata.device)
             for batch, (inputs, labels) in enumerate(self.testloader):
                 if(batch < startNumb): # already iterated
                     continue
@@ -2063,9 +2061,9 @@ class Data(SaveClass, BaseMainClass, BaseLogicClass):
                 self.__beforeTest__(helperEpoch=helperEpoch, helper=self.testHelper, model=model, dataMetadata=dataMetadata, modelMetadata=modelMetadata, metadata=metadata, smoothing=smoothing, smoothingMetadata=smoothingMetadata)
 
                 self.testHelper.timer.clearTime()
-                self.testHelper.timer.start(cudaDevice=smoothingMetadata.device, cudaSynchronize=smoothingMetadata.useCuda)
+                self.testHelper.timer.start(cudaDeviceSynch=smoothingMetadata.device)
                 self.__test__(helperEpoch=helperEpoch, helper=self.testHelper, model=model, dataMetadata=dataMetadata, modelMetadata=modelMetadata, metadata=metadata, smoothing=smoothing, smoothingMetadata=smoothingMetadata)
-                self.testHelper.timer.end(cudaDevice=smoothingMetadata.device, cudaSynchronize=smoothingMetadata.useCuda)
+                self.testHelper.timer.end(cudaDeviceSynch=smoothingMetadata.device)
                 if(helperEpoch.currentLoopTimeAlias is None and warnings()):
                     Output.printBash("Alias for test loop file was not set. Variable helperEpoch.currentLoopTimeAlias may be set" +
                     " as:\n\t'loopTestTime_normal'\n\t'loopTestTime_smooothing'\n\t'loopTrainTime'\n", 'warn')
@@ -2076,7 +2074,7 @@ class Data(SaveClass, BaseMainClass, BaseLogicClass):
                 self.testHelper.predSizeSum += labels.size(0)
                 self.__afterTest__(helperEpoch=helperEpoch, helper=self.testHelper, model=model, dataMetadata=dataMetadata, modelMetadata=modelMetadata, metadata=metadata, smoothing=smoothing, smoothingMetadata=smoothingMetadata)
 
-            self.testHelper.loopTimer.end(cudaDevice=smoothingMetadata.device, cudaSynchronize=smoothingMetadata.useCuda)
+            self.testHelper.loopTimer.end(cudaDeviceSynch=smoothingMetadata.device)
             self.testHelper.loopTimer.addToStatistics()
             self.testHelper.loopEnded = True
 
@@ -2254,7 +2252,7 @@ class Smoothing(SaveClass, BaseMainClass, BaseLogicClass):
         else:
             return {}
 
-    def __isSmoothingGoodEnough__(self, helperEpoch, helper, model, dataMetadata, modelMetadata, metadata, smoothingMetadata):
+    def __isSmoothingGoodEnough__(self, helperEpoch, helper, model, dataMetadata, modelMetadata, metadata, smoothingMetadata) -> bool:
         """
             Zostaje wywołane tylko wtedy, gdy w danej iteracji pętli pomyślnie wywołano wygładzanie (__call__)
         """
@@ -3264,6 +3262,8 @@ def plot(filePath: list, xlabel, ylabel, name = None, plotsNames: list = None, p
         return
     plt.show()
 
+def isCuda(device):
+    return device if device != 'cpu' else None
 
 #########################################
 # test   

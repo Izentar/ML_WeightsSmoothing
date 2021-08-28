@@ -8,17 +8,18 @@ sf.StaticData.LOG_FOLDER = './framework/test/dump/'
 sf.StaticData.MAX_DEBUG_LOOPS = 50
 sf.CURRENT_STAT_PATH = sf.StaticData.LOG_FOLDER
 
-def testCmpPandas(obj_1, name_1, obj_2, name_2 = None):
-    if(name_2 is None):
-        pd.testing.assert_frame_equal(pd.DataFrame([{name_1: obj_1}]), pd.DataFrame([{name_1: obj_2}]))
-    else:
-        pd.testing.assert_frame_equal(pd.DataFrame([{name_1: obj_1}]), pd.DataFrame([{name_2: obj_2}]))
-
 
 class Utils(unittest.TestCase):
     """
     Utility class
     """
+
+    def cmpPandas(self, obj_1, name_1, obj_2, name_2 = None):
+        if(name_2 is None):
+            pd.testing.assert_frame_equal(pd.DataFrame([{name_1: obj_1}]), pd.DataFrame([{name_1: obj_2}]))
+        else:
+            pd.testing.assert_frame_equal(pd.DataFrame([{name_1: obj_1}]), pd.DataFrame([{name_2: obj_2}]))
+
     def compareArraysTensorNumpy(self, iterator, numpyArray: list):
         if(len(numpyArray) == 0):
             test = False
@@ -31,7 +32,7 @@ class Utils(unittest.TestCase):
             if(idx >= len(numpyArray)):
                 self.fail("Arrays size not equals.") 
             ar = ar.detach().numpy()
-            testCmpPandas(ar, 'array', numpyArray[idx])
+            self.cmpPandas(ar, 'array', numpyArray[idx])
             idx += 1
 
     def compareDictToNumpy(self, iterator, numpyDict: dict):
@@ -49,7 +50,7 @@ class Utils(unittest.TestCase):
             if(key not in numpyDict):
                 self.fail("Dictionary key not found.") 
             ar = ar.detach().numpy()
-            testCmpPandas(ar, 'array', numpyDict[key])
+            self.cmpPandas(ar, 'array', numpyDict[key])
             idx += 1
 
     def compareDictTensorToTorch(self, iterator, torchDict: dict):
@@ -66,7 +67,7 @@ class Utils(unittest.TestCase):
                 self.fail("Arrays size not equals.") 
             if(key not in torchDict):
                 self.fail("Dictionary key not found.") 
-            testCmpPandas(ar.detach().numpy(), 'array', torchDict[key].detach().numpy())
+            self.cmpPandas(ar.detach().numpy(), 'array', torchDict[key].detach().numpy())
             idx += 1
             
     def setWeightDict(self, w, b):

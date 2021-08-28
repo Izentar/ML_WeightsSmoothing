@@ -164,7 +164,6 @@ class _SmoothingOscilationBase_Metadata(sf.Smoothing_Metadata):
         self.lossThresholdMode = lossThresholdMode
         self.weightThresholdMode = weightThresholdMode
 
-    
     def __strAppend__(self):
         tmp_str = super().__strAppend__()
         tmp_str += ('Size of the weight sum container:\t{}\n'.format(self.weightSumContainerSize))
@@ -243,7 +242,7 @@ class _SmoothingOscilationBase(sf.Smoothing):
             metadata.stream.print("Reached alwaysOn smoothing state. Average losses are: mean: {}; \tstd: {};\tbest: {}\nSmoothing scheduler enabled.".format(
                 mean, std, self.bestLoss), ['debug:0', 'model:0'])
 
-    def _canComputeWeights(self, helper, helperEpoch, dataMetadata, smoothingMetadata, metadata):
+    def _canComputeWeights(self, helper, helperEpoch, dataMetadata, smoothingMetadata, metadata) -> bool:
         """
             Algorytm:
                 - jeżeli wygładzanie jest włączone, zwraca True
@@ -269,7 +268,7 @@ class _SmoothingOscilationBase(sf.Smoothing):
         std, mean = self.lossContainer.getStdMean()
         tmp = helper.loss.item()
 
-        if(self._cmpLoss_isBetter(metric=mean, smoothingMetadata=smoothingMetadata)):
+        if(self.cmpLoss_isLower(metric=mean, smoothingMetadata=smoothingMetadata)):
             self.badLossCount = 0
             self.bestLoss = mean
             metadata.stream.print("Loss count reset. Best {}".format(self.bestLoss), 'debug:0')
@@ -298,30 +297,28 @@ class _SmoothingOscilationBase(sf.Smoothing):
         smWg = self.__getSmoothedWeights__(smoothingMetadata=smoothingMetadata, metadata=metadata)
         return sf.sumAllWeights(smWg)
 
-    def _smoothingGoodEnoughCheck(self, val, smoothingMetadata):
-        # TODO
-        ret = bool(val < smoothingMetadata.weightsEpsilon)
-        if(ret):
-            # jeżeli dotknięto soft margin, to zwróć True w przypadku jego przekroczenia. Inaczej False oraz zwiększ licznik.
-            if(smoothingMetadata.softMarginAdditionalLoops >= self.goodEnoughCounter):
-                self.goodEnoughCounter += 1
-                return False
-            return True
-        return False
-
-    def _cmpLoss_isBetter(self, metric, smoothingMetadata):
+    def cmpLoss_isLower(self, metric, smoothingMetadata):
+        """
+            metric: float, smoothingMetadata.lossThreshold: float, 
+            smoothingMetadata.lossThresholdMode: ['rel', 'abs'], smoothingMetadata.lossThreshold: float,
+            self.bestLoss: float
+        """
         if(smoothingMetadata.lossThresholdMode == 'rel'):
             return metric < self.bestLoss * (1. - smoothingMetadata.lossThreshold)
         else:
             return metric < self.bestLoss - smoothingMetadata.lossThreshold
 
-    def _cmpWeightSum_isBetter(self, metric, smoothingMetadata):
+    def cmpWeightSum_isWider(self, metric, smoothingMetadata) -> bool:
         """
             Porównuje metrykę wraz z obliczoną różnicą. Można to wyobrazić jako prostokątne pudełko, w którym wyznaczamy
             minimum oraz maksimum archiwalnych wartości std. Jego długość, to rozmiar bufora, a wysokość, to różnica między abs(max - min.
             Bufor ten służy jedynie do przetrzymywania wartości.
             Algorytm zwraca True, jeżeli znajdzie takie wartości, które są wyżej lub niżej względem wyznaczonego prostokątu.
             Jednocześnie prostokąt będzie się zwiększał, zmniejszał wraz z wartościami w buforze.
+
+            metric: float, smoothingMetadata.weightThreshold: float, 
+            smoothingMetadata.weightThresholdMode: ['rel', 'abs'], smoothingMetadata.weightThreshold: float,
+            self.weightContainerStd
         """
         minimum = self.weightContainerStd.getMin()
         maximum = self.weightContainerStd.getMax()
@@ -341,7 +338,7 @@ class _SmoothingOscilationBase(sf.Smoothing):
     def getLossCount(self):
         return len(self.lossContainer)
 
-    def __isSmoothingGoodEnough__(self, helperEpoch, helper, model, dataMetadata, modelMetadata, metadata, smoothingMetadata):
+    def __isSmoothingGoodEnough__(self, helperEpoch, helper, model, dataMetadata, modelMetadata, metadata, smoothingMetadata) -> bool:
         """
         Sprawdza jak bardzo wygładzone wagi różnią się od siebie w kolejnych iteracjach.
         Jeżeli różnica będzie wystarczająco mała i można zakończyć wygładzanie, metoda zwróci True. W przeciwnym wypadku zwraca False.
@@ -384,14 +381,14 @@ class _SmoothingOscilationBase(sf.Smoothing):
             metadata.stream.print("Weight mean: " + str(mean), 'debug:0')
             metadata.stream.print("Weight std: " + str(std), 'debug:0')
 
-            if(self._cmpWeightSum_isBetter(metric=std, smoothingMetadata=smoothingMetadata)):
+            if(self.cmpWeightSum_isWider(metric=std, smoothingMetadata=smoothingMetadata)):
                 self.badWeightCount = 0
                 metadata.stream.print("Weight count reset.", 'debug:0')
             else:
                 self.badWeightCount += 1
                 metadata.stream.print("Weight count increase.", 'debug:0')
 
-            # dodaj dopiero na końcu, aby wynik operacji _cmpWeightSum_isBetter nie brał pod uwagę nowej wartości
+            # dodaj dopiero na końcu, aby wynik operacji cmpWeightSum_isWider nie brał pod uwagę nowej wartości
             self.weightContainerStd.pushBack(std) 
 
             if(self.badWeightCount > smoothingMetadata.weightPatience):
@@ -658,9 +655,10 @@ class DefaultSmoothingOscilationEWMA(_SmoothingOscilationBase):
         '''
         super().__setDictionary__(smoothingMetadata=smoothingMetadata, dictionary=dictionary)
         with torch.no_grad():
-            for key, values in dictionary:
+            for key, values in (dictionary.items() if isinstance(dictionary, dict) else dictionary):
                 # ważne jest, aby skopiować początkowe wagi, a nie stworzyć tensor zeros_like
-                # w przeciwnym wypadku średnia będzie dawała bardzo złe wyniki
+                # w przeciwnym wypadku średnia będzie dawała bardzo złe wyniki z tego powodu, że
+                # początkowe S we wzorze EWMA będzie zerowe.
                 self.weightsSum[key] = torch.clone(values).to(smoothingMetadata.device, dtype=self.dataType).requires_grad_(False)
 
     def __getstate__(self):
@@ -687,7 +685,7 @@ smoothingEndCheckTypeDict = [
     'wgsum'
 ]
 class DefaultSmoothingOscilationWeightedMean_Metadata(_SmoothingOscilationBase_Metadata):
-    def __init__(self, weightIter = None, weightsArraySize=20, smoothingEndCheckType='std', **kwargs):
+    def __init__(self, weightIter = None, weightsArraySize=20, smoothingEndCheckType='wgsum', **kwargs):
         """
             weightIter - domyślna wartość DefaultWeightDecay() przy None
         """
@@ -712,12 +710,12 @@ class DefaultSmoothingOscilationWeightedMean_Metadata(_SmoothingOscilationBase_M
         return tmp_str
 
 class Test_DefaultSmoothingOscilationWeightedMean_Metadata(DefaultSmoothingOscilationWeightedMean_Metadata, _Test_SmoothingOscilationBase_Metadata):
-    def __init__(self, weightIter = None, weightsArraySize=20, smoothingEndCheckType='std', **kwargs):
+    def __init__(self, **kwargs):
         """
             weightIter - domyślna wartość DefaultWeightDecay() przy None
         """
 
-        super().__init__(weightIter=weightIter, weightsArraySize=weightsArraySize, smoothingEndCheckType=smoothingEndCheckType, **kwargs)
+        super().__init__(**kwargs)
 
 class DefaultSmoothingOscilationWeightedMean(_SmoothingOscilationBase):
     """
@@ -748,9 +746,7 @@ class DefaultSmoothingOscilationWeightedMean(_SmoothingOscilationBase):
 
         self.weightsArray = sf.CircularList(smoothingMetadata.weightsArraySize) 
 
-        if(smoothingMetadata.smoothingEndCheckType == 'std'):
-            self.isSmoothingGoodEnoughMethod = DefaultSmoothingOscilationWeightedMean.__isSmoothingGoodEnough__std
-        elif(smoothingMetadata.smoothingEndCheckType == 'wgsum'):
+        if(smoothingMetadata.smoothingEndCheckType == 'wgsum'):
             self.isSmoothingGoodEnoughMethod = _SmoothingOscilationBase.__isSmoothingGoodEnough__
         else:
             raise Exception("Unknown type of smoothingEndCheckType: {}".format(smoothingMetadata.smoothingEndCheckType))
@@ -830,19 +826,6 @@ class DefaultSmoothingOscilationWeightedMean(_SmoothingOscilationBase):
             return torch.tensor(ConfigClass.STD_NAN_BIG)
         return std
 
-    def __isSmoothingGoodEnough__std(self, helperEpoch, helper, model, dataMetadata, modelMetadata, metadata, smoothingMetadata):
-        # TODO sprawdzić
-        if(self.countWeights > 0):
-            self.divisionCounter += 1
-            smWg = self.__getSmoothedWeights__(smoothingMetadata=smoothingMetadata, metadata=metadata)
-            stdDev = self._sumWeightsToArrayStd(smoothedWeights=smWg)
-
-            metadata.stream.print("Standard deviation:" + str(stdDev), 'debug:0')
-            metadata.stream.print("Standard deviation bool: " + str(bool(stdDev < smoothingMetadata.weightsEpsilon)), 'debug:0')
-            
-            return self._smoothingGoodEnoughCheck(val=stdDev, smoothingMetadata=smoothingMetadata)
-        return False
-
 
 
 # pytorch SWA model implementation
@@ -916,12 +899,12 @@ class DefaultData_Metadata(sf.Data_Metadata):
             startTestAtEpoch = -1 # inaczej [*range(epoch)]
     """
     def __init__(self,
-        startTestAtEpoch=-1, 
+        startTestAtEpoch=-1, epoch=1,
         testShuffle=True, trainShuffle=True, 
         trainSampler=None, testSampler=None, trainLoaderWorkers=2, testLoaderWorkers=2,
         transformTrain=None, transformTest=None, **kwargs):
 
-        super().__init__(**kwargs)
+        super().__init__(epoch=epoch, **kwargs)
 
         self.trainSampler = trainSampler
         self.testSampler = testSampler
@@ -1004,11 +987,11 @@ class DefaultData(sf.Data):
             self.trainHelper.timer.clearTime()
             self.trainHelper.loopTimer.clearTime()
 
-            self.trainHelper.loopTimer.start(cudaDevice=smoothingMetadata.device, cudaSynchronize=smoothingMetadata.useCuda)
-            self.trainHelper.timer.start(cudaDevice=smoothingMetadata.device, cudaSynchronize=smoothingMetadata.useCuda)
-            torch.optim.swa_utils.update_bn(loader=self.trainloader, model=smoothing.getSWAModel(), device=modelMetadata.device)
-            self.trainHelper.timer.end(cudaDevice=smoothingMetadata.device, cudaSynchronize=smoothingMetadata.useCuda)
-            self.trainHelper.loopTimer.end(cudaDevice=smoothingMetadata.device, cudaSynchronize=smoothingMetadata.useCuda)
+            self.trainHelper.loopTimer.start(cudaDeviceSynch=smoothingMetadata.device)
+            self.trainHelper.timer.start(cudaDeviceSynch=smoothingMetadata.device)
+            torch.optim.swa_utils.update_bn(loader=self.trainloader, model=smoothing.getSWAModel(), device=smoothingMetadata.device)
+            self.trainHelper.timer.end(cudaDeviceSynch=smoothingMetadata.device)
+            self.trainHelper.loopTimer.end(cudaDeviceSynch=smoothingMetadata.device)
 
             self.trainHelper.timer.addToStatistics()
             self.trainHelper.loopTimer.addToStatistics()

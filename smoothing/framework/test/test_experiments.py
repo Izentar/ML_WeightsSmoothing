@@ -67,7 +67,7 @@ class Test_RunExperiment(unittest.TestCase):
 
             obj = models.alexnet()
             smoothingMetadata = dc.Test_DefaultSmoothingOscilationEWMA_Metadata(movingAvgParam=0.1, device='cuda:0',
-                weightSumContainerSize=3, weightSumContainerSizeStartAt=1, lossContainer=20, lossContainerDelayedStartAt=10)
+                weightSumContainerSize=3, lossContainer=20)
             modelMetadata = dc.DefaultModel_Metadata(lossFuncDataDict={}, optimizerDataDict=optimizerDataDict, device='cuda:0')
 
             data = dc.DefaultDataMNIST(dataMetadata)
@@ -93,8 +93,8 @@ class Test_RunExperiment(unittest.TestCase):
 
             obj = models.alexnet()
             smoothingMetadata = dc.Test_DefaultSmoothingOscilationWeightedMean_Metadata(weightIter=dc.DefaultWeightDecay(1.05), device='cpu', 
-                epsilon=1e-5, hardEpsilon=1e-7, weightsEpsilon=1e-6, weightSumContainerSize=3, weightSumContainerSizeStartAt=1, 
-                lossContainer=20, lossContainerDelayedStartAt=10)
+                epsilon=1e-5, hardEpsilon=1e-7, weightsEpsilon=1e-6, weightSumContainerSize=3, 
+                lossContainer=20)
             modelMetadata = dc.DefaultModel_Metadata(lossFuncDataDict={}, optimizerDataDict=optimizerDataDict, device='cuda:0')
 
             data = dc.DefaultDataMNIST(dataMetadata)
@@ -167,7 +167,7 @@ class Test_RunExperiment(unittest.TestCase):
 
             obj = models.alexnet()
             smoothingMetadata = dc.Test_DefaultSmoothingOscilationGeneralizedMean_Metadata(epsilon=1e-5, hardEpsilon=1e-6, weightsEpsilon=1e-5,
-                weightSumContainerSize=3, weightSumContainerSizeStartAt=1, lossContainer=20, lossContainerDelayedStartAt=10, device='cuda:0')
+                weightSumContainerSize=3, lossContainer=20, device='cuda:0')
             modelMetadata = dc.DefaultModel_Metadata(lossFuncDataDict={}, optimizerDataDict=optimizerDataDict, device='cuda:0')
 
             data = dc.DefaultDataMNIST(dataMetadata)
@@ -192,7 +192,7 @@ class Test_RunExperiment(unittest.TestCase):
 
             obj = models.alexnet()
             smoothingMetadata = dc.Test_DefaultSmoothingOscilationGeneralizedMean_Metadata(epsilon=1e-5, hardEpsilon=1e-6, weightsEpsilon=1e-5,
-                weightSumContainerSize=3, weightSumContainerSizeStartAt=1, lossContainer=20, lossContainerDelayedStartAt=10, device='cuda:0')
+                weightSumContainerSize=3, lossContainer=20, device='cuda:0')
             modelMetadata = dc.DefaultModel_Metadata(lossFuncDataDict={}, optimizerDataDict=optimizerDataDict, device='cuda:0')
 
             data = dc.DefaultDataCIFAR10(dataMetadata)
@@ -217,7 +217,7 @@ class Test_RunExperiment(unittest.TestCase):
 
             obj = models.alexnet()
             smoothingMetadata = dc.Test_DefaultSmoothingOscilationGeneralizedMean_Metadata(epsilon=1e-5, hardEpsilon=1e-6, weightsEpsilon=1e-5,
-                weightSumContainerSize=3, weightSumContainerSizeStartAt=1, lossContainer=20, lossContainerDelayedStartAt=10, device='cuda:0')
+                weightSumContainerSize=3, lossContainer=20, device='cuda:0')
             modelMetadata = dc.DefaultModel_Metadata(lossFuncDataDict={}, optimizerDataDict=optimizerDataDict, device='cuda:0')
 
             data = dc.DefaultDataCIFAR100(dataMetadata)
@@ -242,7 +242,7 @@ class Test_RunExperiment(unittest.TestCase):
 
             obj = models.alexnet()
             smoothingMetadata = dc.Test_DefaultSmoothingOscilationGeneralizedMean_Metadata(epsilon=1e-5, hardEpsilon=1e-6, weightsEpsilon=1e-5,
-                weightSumContainerSize=3, weightSumContainerSizeStartAt=1, lossContainer=20, lossContainerDelayedStartAt=10, device='cuda:0')
+                weightSumContainerSize=3, lossContainer=20, device='cuda:0')
             modelMetadata = dc.DefaultModel_Metadata(lossFuncDataDict={}, optimizerDataDict=optimizerDataDict, device='cuda:0')
 
             data = dc.DefaultDataEMNIST(dataMetadata)
@@ -279,7 +279,7 @@ class Test_RunExperiment(unittest.TestCase):
             optimizerDataDict={"learning_rate":1e-3, "momentum":0.9}
 
             smoothingMetadata = dc.Test_DefaultSmoothingOscilationGeneralizedMean_Metadata(epsilon=1e-5, hardEpsilon=1e-6, weightsEpsilon=1e-5,
-                weightSumContainerSize=3, weightSumContainerSizeStartAt=1, lossContainer=20, lossContainerDelayedStartAt=10, device='cuda:0')
+                weightSumContainerSize=3, lossContainer=20, device='cuda:0')
             modelMetadata = dc.DefaultModel_Metadata(lossFuncDataDict={}, optimizerDataDict=optimizerDataDict, device='cuda:0')
 
             data = dc.DefaultDataMNIST(dataMetadata)
