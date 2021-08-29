@@ -6,7 +6,8 @@ os.chdir(os.path.dirname(os.path.abspath(__file__)))
 
 from framework.test.test_DefaultClasses import *
 from framework.test.test_smoothingFramework import *
-#from framework.test.test_experiments import *
+from framework.test.test_experiments import *
+
 import unittest
 
 
