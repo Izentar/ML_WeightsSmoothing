@@ -1,12 +1,4 @@
-import sys, os
-from pathlib import Path
-
-newDir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-sys.path.append(newDir)
-# zmień working directory na inny folder.
-os.chdir(newDir)
-#print(os.getcwd())
-
+import sys
 from framework import smoothingFramework as sf
 import traceback
 
@@ -15,9 +7,6 @@ for i, arg in enumerate(sys.argv):
         sf.StaticData.TEST_MODE = True
 
 ##############################################################
-
-def setupWorkingDir():
-    os.chdir(Path(__file__).parents[1])
 
 def printException(ex, types):
     exc_type, exc_obj, exc_tb = sys.exc_info()

@@ -1,4 +1,4 @@
-import experiments as experiments
+from experiments import experiments
 
 import torch
 import torchvision
@@ -16,7 +16,7 @@ from framework.models.vgg import vgg19_bn
 from framework.models.wideResNet import WideResNet
 
 import argparse
-import sys
+import sys, os
 
 VGG = "vgg19_bn"
 DENSENET = "densenet"
@@ -99,18 +99,11 @@ def getParser():
 
     return parser
 
-def createSmoothing(args, model):
-    smoothing = None
+def createSmoothingMetadata(args):
     smoothingMetadata = None
-
-    index = 0
-    if(sf.test_mode.isActive()):
-        index = 1
 
     if(args.smoothing == "disabled"):
         smoothingMetadata = dc.DisabledSmoothing_Metadata()
-        smoothing = dc.DisabledSmoothing(smoothingMetadata)
-
     elif(args.smoothing == "pytorch"):
         if(sf.test_mode.isActive()):
             if(args.testarg):
@@ -119,8 +112,6 @@ def createSmoothing(args, model):
                 smoothingMetadata = dc.Test_DefaultPytorchAveragedSmoothing_Metadata(device=args.smdev)    
         else:
             smoothingMetadata = dc.DefaultPytorchAveragedSmoothing_Metadata(device=args.smdev, smoothingStartPercent=args.smstart)
-        smoothing = dc.DefaultPytorchAveragedSmoothing(smoothingMetadata=smoothingMetadata, model=model)
-
     elif(args.smoothing == "ewma"):
         if(sf.test_mode.isActive()):
             if(args.testarg):
@@ -141,9 +132,6 @@ def createSmoothing(args, model):
                 lossContainerSize=args.smlosscontainer, lossWarmup=args.smlossWarmup, weightWarmup=args.smweightWarmup,
                 weightSumContainerSize=args.smweightsumcontsize,
                 movingAvgParam=args.smmovingparam)
-
-        smoothing = dc.DefaultSmoothingOscilationEWMA(smoothingMetadata)
-
     elif(args.smoothing == "generMean"):
         if(sf.test_mode.isActive()):
             if(args.testarg):
@@ -164,8 +152,6 @@ def createSmoothing(args, model):
                 lossContainerSize=args.smlosscontainer, lossWarmup=args.smlossWarmup, weightWarmup=args.smweightWarmup,
                 weightSumContainerSize=args.smweightsumcontsize,
                 generalizedMeanPower=args.smgeneralmeanpow)
-        smoothing = dc.DefaultSmoothingOscilationGeneralizedMean(smoothingMetadata)
-
     elif(args.smoothing == "simplemean"):
         if(sf.test_mode.isActive()):
             if(args.testarg):
@@ -174,6 +160,21 @@ def createSmoothing(args, model):
                 smoothingMetadata = dc.Test_DefaultSmoothingSimpleMean_Metadata(device=args.smdev)
         else:
             smoothingMetadata = dc.DefaultSmoothingSimpleMean_Metadata(device=args.smdev, batchPercentStart=args.smstart)
+    return smoothingMetadata
+
+def createSmoothing(args, model):
+    smoothing = None
+    smoothingMetadata = createSmoothingMetadata(args)
+
+    if(args.smoothing == "disabled"):
+        smoothing = dc.DisabledSmoothing(smoothingMetadata)
+    elif(args.smoothing == "pytorch"):
+        smoothing = dc.DefaultPytorchAveragedSmoothing(smoothingMetadata=smoothingMetadata, model=model)
+    elif(args.smoothing == "ewma"):
+        smoothing = dc.DefaultSmoothingOscilationEWMA(smoothingMetadata)
+    elif(args.smoothing == "generMean"):
+        smoothing = dc.DefaultSmoothingOscilationGeneralizedMean(smoothingMetadata)
+    elif(args.smoothing == "simplemean"):
         smoothing = dc.DefaultSmoothingSimpleMean(smoothingMetadata)
     else:
         raise Exception("Unknown smoothing type")
@@ -190,7 +191,7 @@ def createData(args, dataMetadata):
         raise Exception()
     return data
 
-def createModel(args, modelMetadata):
+def createModel(args, modelMetadata, otherData):
     obj = None
     if(args.model == VGG):
         obj = vgg19_bn(num_classes=otherData["num_classes"])
@@ -253,10 +254,41 @@ def validateArgs(args):
     if(args.sched == 'adapt' and args.teststep != 1):
         raise Exception("Bad combination for '{}' and '{}'.".format(args.sched, args.teststep))
 
-if(__name__ == '__main__'):
-    args = getParser().parse_args()
-    print("Arguments passed:\n{}".format(args))
+def createDataMetadata(args):
+    CIFAR10_normalize = transforms.Normalize(mean=(0.4914, 0.4822, 0.4465), std=(0.2023, 0.1994, 0.2010))
+    CIFAR100_normalize = transforms.Normalize(mean=(0.5070,  0.4865,  0.4409), std=(0.2673,  0.2564,  0.2761))
 
+    dataMetadata = dc.DefaultData_Metadata(pin_memoryTest=False, pin_memoryTrain=False, epoch=args.epochs,
+        batchTrainSize=128, batchTestSize=100, startTestAtEpoch=list(range(0, args.epochs+args.teststep + 1, args.teststep)) + [1], 
+        transformTrain=transforms.Compose([
+            transforms.RandomCrop(32, padding=4),
+            #transforms.ColorJitter(),
+            transforms.RandomHorizontalFlip(),
+            #transforms.RandomVerticalFlip(),
+            #torchvision.transforms.GaussianBlur(5),
+            transforms.ToTensor(),
+            CIFAR10_normalize if args.dataset == 'CIFAR10' else CIFAR100_normalize,
+            #Cutout(n_holes=1, length=5)
+        ]),
+        transformTest=transforms.Compose([
+            transforms.ToTensor(),
+            CIFAR10_normalize if args.dataset == 'CIFAR10' else CIFAR100_normalize
+        ]))
+
+    return dataMetadata
+
+def createModelMetadata(args):
+    optimizerDataDict={
+        "learning_rate":args.lr,
+        "momentum":args.momentum, 
+        "weight_decay":args.weight_decay, 
+        "nesterov":True}
+    modelMetadata = dc.DefaultModel_Metadata(device=args.dev, lossFuncDataDict={}, optimizerDataDict=optimizerDataDict)
+
+    return modelMetadata, optimizerDataDict
+
+def main(args, raiseExc = False):
+    print("Arguments passed:\n{}".format(args))
     validateArgs(args)
 
     otherData = {
@@ -275,33 +307,9 @@ if(__name__ == '__main__'):
         "Adam_param": "learning_rate weight-decay"
     }
 
-    CIFAR10_normalize = transforms.Normalize(mean=(0.4914, 0.4822, 0.4465), std=(0.2023, 0.1994, 0.2010))
-    CIFAR100_normalize = transforms.Normalize(mean=(0.5070,  0.4865,  0.4409), std=(0.2673,  0.2564,  0.2761))
-
     metadata = sf.Metadata(testFlag=True, trainFlag=True, debugInfo=True)
-    dataMetadata = dc.DefaultData_Metadata(pin_memoryTest=False, pin_memoryTrain=False, epoch=args.epochs,
-        batchTrainSize=128, batchTestSize=100, startTestAtEpoch=list(range(0, args.epochs+args.teststep + 1, args.teststep)) + [1], 
-        transformTrain=transforms.Compose([
-            transforms.RandomCrop(32, padding=4),
-            #transforms.ColorJitter(),
-            transforms.RandomHorizontalFlip(),
-            #transforms.RandomVerticalFlip(),
-            #torchvision.transforms.GaussianBlur(5),
-            transforms.ToTensor(),
-            CIFAR10_normalize if args.dataset == 'CIFAR10' else CIFAR100_normalize,
-            #Cutout(n_holes=1, length=5)
-        ]),
-        transformTest=transforms.Compose([
-            transforms.ToTensor(),
-            CIFAR10_normalize if args.dataset == 'CIFAR10' else CIFAR100_normalize
-        ]))
-    optimizerDataDict={
-        "learning_rate":args.lr,
-        "momentum":args.momentum, 
-        "weight_decay":args.weight_decay, 
-        "nesterov":True}
-    modelMetadata = dc.DefaultModel_Metadata(device=args.dev, lossFuncDataDict={}, optimizerDataDict=optimizerDataDict)
-
+    dataMetadata = createDataMetadata(args)
+    modelMetadata, optimizerDataDict = createModelMetadata(args)
 
     types = (args.model, 'predefModel', args.dataset, args.smoothing, args.optim)
     try:
@@ -309,7 +317,7 @@ if(__name__ == '__main__'):
         rootFolder = otherData["prefix"] + sf.Output.getTimeStr() + ''.join(x + "_" for x in types)
 
         for r in range(args.loops):
-            obj, model = createModel(args, modelMetadata)
+            obj, model = createModel(args=args, modelMetadata=modelMetadata, otherData=otherData)
             optimizer = createOptimizer(args, model=model, optimizerDataDict=optimizerDataDict)
             sched, schedMetric = createScheduler(args, optimizer)
             smsched, smschedMetric = createSmScheduler(args, optimizer)
@@ -338,4 +346,10 @@ if(__name__ == '__main__'):
         experiments.printAvgStats(stats, metadata, runningAvgSize=args.savgwindow, fileFormat='.png', dpi=300, 
             resolutionInches=6.5, widthTickFreq=0.15)
     except Exception as ex:
-        experiments.printException(ex, types)
+        experiments.printException(ex=ex, types=types)
+        if(raiseExc):
+            raise Exception()
+
+if(__name__ == '__main__'):
+    args = getParser().parse_args()
+    main(args=args)

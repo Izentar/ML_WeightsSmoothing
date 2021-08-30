@@ -858,7 +858,8 @@ class DefaultPytorchAveragedSmoothing(sf.Smoothing):
         super().__call__(helperEpoch=helperEpoch, helper=helper, model=model, dataMetadata=dataMetadata, modelMetadata=modelMetadata, metadata=metadata, smoothingMetadata=smoothingMetadata)
 
         if(helperEpoch.trainTotalNumber > (smoothingMetadata.smoothingStartPercent * helperEpoch.maxTrainTotalNumber)
-            and (helper.batchNumber + 1) * dataMetadata.batchTrainSize >= helper.size): # na końcu treningu dla danej epoki
+                and (helper.batchNumber + 1) * dataMetadata.batchTrainSize >= helper.size): # aby rozpocząć wygładzanie na końcu treningu 
+                                                                                            # dla danej epoki, musi być >=
             self._firstSetup(helperEpoch=helperEpoch)
             metadata.stream.print("Update AveragedModel parameters", "debug:0")
             self.swaModel.update_parameters(model.getNNModelModule())

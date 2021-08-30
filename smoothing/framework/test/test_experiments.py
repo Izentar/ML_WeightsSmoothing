@@ -11,15 +11,24 @@ from framework.test import utils as ut
 import torchvision.models as models
 import torchvision.transforms as transforms
 
+import gc
+
 """
     Sprawdź jedynie występowanie błędów składni oraz wywołania metod / funkcji.
     Nie wykonuje żadnych konkretnych porównań.
+
+    Decprecated, jego zastępcą jest skrypt test_parser_exp.py
 """
 
 class Test_RunExperiment(unittest.TestCase):
     RESIZE_TO = 64
 
     def setUp(self):
+        # czyszczeie pamięci
+        torch.cuda.empty_cache()
+        gc.collect()
+        print("cuda_allocated: %d Mb".format(torch.cuda.memory_allocated()))
+
         self.MNIST_normalize = transforms.Normalize(mean=(0.5, 0.5, 0.5), std=(0.5, 0.5, 0.5))
         self.trainTrans = transforms.Compose([
             transforms.Resize(Test_RunExperiment.RESIZE_TO),
@@ -56,6 +65,10 @@ class Test_RunExperiment(unittest.TestCase):
             self.MNIST_normalize
         ])
     
+class Test_movingMean_MNIST_predefModel_alexnet(Test_RunExperiment):
+    def setUp(self):
+        super().setUp()
+
     def test_experiment_movingMean_MNIST_predefModel_alexnet(self):
         with sf.test_mode():
             modelName = "alexnet"
@@ -80,7 +93,10 @@ class Test_RunExperiment(unittest.TestCase):
             stat=dc.run(metadataObj=metadata, data=data, model=model, smoothing=smoothing, optimizer=optimizer, lossFunc=loss_fn,
                 modelMetadata=modelMetadata, dataMetadata=dataMetadata, smoothingMetadata=smoothingMetadata)
     
-    
+class Test_weightedMean_MNIST_predefModel_alexnet(Test_RunExperiment):
+    def setUp(self):
+        super().setUp()
+
     def test_experiment_weightedMean_MNIST_predefModel_alexnet(self):
         with sf.test_mode():
             modelName = "alexnet"
@@ -104,7 +120,12 @@ class Test_RunExperiment(unittest.TestCase):
 
             stat=dc.run(metadataObj=metadata, data=data, model=model, smoothing=smoothing, optimizer=optimizer, lossFunc=loss_fn,
                 modelMetadata=modelMetadata, dataMetadata=dataMetadata, smoothingMetadata=smoothingMetadata)
-    
+
+class Test_borderline_MNIST_predefModel_alexnet(Test_RunExperiment):
+    def setUp(self):
+        super().setUp()
+        
+class Test_borderline_MNIST_predefModel_alexnet(Test_RunExperiment):
     def test_experiment_borderline_MNIST_predefModel_alexnet(self):
         with sf.test_mode():
             modelName = "alexnet"
@@ -129,6 +150,10 @@ class Test_RunExperiment(unittest.TestCase):
             stat=dc.run(metadataObj=metadata, data=data, model=model, smoothing=smoothing, optimizer=optimizer, lossFunc=loss_fn,
                 modelMetadata=modelMetadata, dataMetadata=dataMetadata, smoothingMetadata=smoothingMetadata)
 
+    def setUp(self):
+        super().setUp()
+
+class Test_borderline_MNIST_predefModel_wide_resnet(Test_RunExperiment):
     def test_experiment_borderline_MNIST_predefModel_wide_resnet(self):
         with sf.test_mode():
             modelName = "wide_resnet"
@@ -153,6 +178,10 @@ class Test_RunExperiment(unittest.TestCase):
             stat=dc.run(metadataObj=metadata, data=data, model=model, smoothing=smoothing, optimizer=optimizer, lossFunc=loss_fn,
                 modelMetadata=modelMetadata, dataMetadata=dataMetadata, smoothingMetadata=smoothingMetadata)
     
+    def setUp(self):
+        super().setUp()
+
+class Test_generalizedMean_MNIST_predefModel_alexnet(Test_RunExperiment):
     def test_experiment_generalizedMean_MNIST_predefModel_alexnet(self):
         with sf.test_mode():
             modelName = "alexnet"
@@ -177,6 +206,10 @@ class Test_RunExperiment(unittest.TestCase):
             stat=dc.run(metadataObj=metadata, data=data, model=model, smoothing=smoothing, optimizer=optimizer, lossFunc=loss_fn,
                 modelMetadata=modelMetadata, dataMetadata=dataMetadata, smoothingMetadata=smoothingMetadata)
     
+    def setUp(self):
+        super().setUp()
+
+class Test_generalizedMean_CIFAR10_predefModel_alexnet(Test_RunExperiment):
     def test_experiment_generalizedMean_CIFAR10_predefModel_alexnet(self):
         with sf.test_mode():
             modelName = "alexnet"
@@ -201,6 +234,10 @@ class Test_RunExperiment(unittest.TestCase):
             stat=dc.run(metadataObj=metadata, data=data, model=model, smoothing=smoothing, optimizer=optimizer, lossFunc=loss_fn,
                 modelMetadata=modelMetadata, dataMetadata=dataMetadata, smoothingMetadata=smoothingMetadata)
     
+    def setUp(self):
+        super().setUp()
+
+class Test_generalizedMean_CIFAR100_predefModel_alexnet(Test_RunExperiment):
     def test_experiment_generalizedMean_CIFAR100_predefModel_alexnet(self):
         with sf.test_mode():
             modelName = "alexnet"
@@ -225,6 +262,10 @@ class Test_RunExperiment(unittest.TestCase):
             stat=dc.run(metadataObj=metadata, data=data, model=model, smoothing=smoothing, optimizer=optimizer, lossFunc=loss_fn,
                 modelMetadata=modelMetadata, dataMetadata=dataMetadata, smoothingMetadata=smoothingMetadata)
 
+    def setUp(self):
+        super().setUp()
+
+class Test_generalizedMean_EMNIST_predefModel_alexnet(Test_RunExperiment):
     def test_experiment_generalizedMean_EMNIST_predefModel_alexnet(self):
         with sf.test_mode():
             modelName = "alexnet"
@@ -249,6 +290,10 @@ class Test_RunExperiment(unittest.TestCase):
             stat=dc.run(metadataObj=metadata, data=data, model=model, smoothing=smoothing, optimizer=optimizer, lossFunc=loss_fn,
                 modelMetadata=modelMetadata, dataMetadata=dataMetadata, smoothingMetadata=smoothingMetadata)
     
+    def setUp(self):
+        super().setUp()
+
+class Test_generalizedMean_MNIST_SimpleModel(Test_RunExperiment):
     def test_experiment_generalizedMean_MNIST_SimpleModel(self):
         with sf.test_mode():
             modelName = "alexnet"
@@ -285,6 +330,10 @@ class Test_RunExperiment(unittest.TestCase):
             stat=dc.run(metadataObj=metadata, data=data, model=model, smoothing=smoothing, optimizer=optimizer, lossFunc=loss_fn,
                 modelMetadata=modelMetadata, dataMetadata=dataMetadata, smoothingMetadata=smoothingMetadata)
     
+    def setUp(self):
+        super().setUp()
+
+class Test_pytorchSWA_CIFAR10_SimpleModel(Test_RunExperiment):
     def test_experiment_pytorchSWA_CIFAR10_SimpleModel(self):
         with sf.test_mode():
             modelName = "simpleConv"
@@ -307,7 +356,7 @@ class Test_RunExperiment(unittest.TestCase):
 
             stat=dc.run(metadataObj=metadata, data=data, model=model, smoothing=smoothing, optimizer=optimizer, lossFunc=loss_fn,
                 modelMetadata=modelMetadata, dataMetadata=dataMetadata, smoothingMetadata=smoothingMetadata)
-    
+
 
 
 if __name__ == '__main__':

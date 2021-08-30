@@ -2,6 +2,8 @@ import torch
 import torchvision
 import torch.optim as optim
 from framework import smoothingFramework as sf
+import torch.nn as nn
+import torch.nn.functional as F
 
 
 class DefaultModelSimpleConv(sf.Model):

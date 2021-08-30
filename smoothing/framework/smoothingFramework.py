@@ -123,7 +123,7 @@ class StaticData:
     NAME_CLASS_METADATA = 'Metadata'
     DATA_PATH = os.path.join(expanduser("~"), 'dataSmoothing')
     PREDEFINED_MODEL_SUFFIX = '.pdmodel'
-    LOG_FOLDER = os.path.join('.', 'savedLogs')
+    LOG_FOLDER = os.path.join('.', 'savedLogs') 
     IGNORE_IO_WARNINGS = False
     FORCE_DEBUG_PRINT = False
     TEST_MODE = False
@@ -1343,7 +1343,7 @@ class TrainDataContainer():
         Pojawia się ona w zmiennej trainHelper.
     """
     def __init__(self):
-        self.size = None
+        self.size = None # rozmiar dataset
         self.timer = None
         self.loopTimer = None
 
@@ -1363,7 +1363,7 @@ class TestDataContainer():
         Pojawia się ona w zmiennej testHelper.
     """
     def __init__(self):
-        self.size = None
+        self.size = None # rozmiar dataset
         self.timer = None
         self.loopTimer = None
 
@@ -1828,10 +1828,10 @@ class Data(SaveClass, BaseMainClass, BaseLogicClass):
         # run smoothing
         helper.smoothingSuccess = smoothing(helperEpoch=helperEpoch, helper=helper, model=model, dataMetadata=dataMetadata, modelMetadata=modelMetadata, smoothingMetadata=smoothingMetadata, metadata=metadata)
 
-    def setTrainLoop(self, model: 'Model', modelMetadata: 'Model_Metadata', metadata: 'Metadata'):
+    def setTrainLoop(self, model: 'Model', modelMetadata: 'Model_Metadata', dataMetadata: 'dataMetadata', metadata: 'Metadata'):
         helper = TrainDataContainer()
         metadata.prepareOutput()
-        helper.size = len(self.trainloader.dataset)
+        helper.size = (StaticData.MAX_DEBUG_LOOPS * dataMetadata.batchTrainSize if test_mode.isActive() else len(self.trainloader.dataset))
         helper.timer = Timer()
         helper.loopTimer = Timer()
         helper.loss = None 
@@ -1878,7 +1878,7 @@ class Data(SaveClass, BaseMainClass, BaseLogicClass):
             return # loop already ended. This state can occur when framework was loaded from file.
 
         if(self.trainHelper is None): # jeżeli nie było wznowione; nowe wywołanie
-            self.trainHelper = self.setTrainLoop(model=model, modelMetadata=modelMetadata, metadata=metadata)
+            self.trainHelper = self.setTrainLoop(model=model, modelMetadata=modelMetadata, dataMetadata=dataMetadata, metadata=metadata)
         
         self.trainHelper.loopTimer.clearTime()
         self.__beforeTrainLoop__(helperEpoch=helperEpoch, helper=self.trainHelper, model=model, dataMetadata=dataMetadata, modelMetadata=modelMetadata, metadata=metadata, smoothing=smoothing, smoothingMetadata=smoothingMetadata)
@@ -1967,10 +1967,10 @@ class Data(SaveClass, BaseMainClass, BaseLogicClass):
         helper.pred = model.getNNModelModule()(helper.inputs)
         helper.test_loss = model.__getLossFun__()(helper.pred, helper.labels).item()
 
-    def setTestLoop(self, model: 'Model', modelMetadata: 'Model_Metadata', metadata: 'Metadata'):
+    def setTestLoop(self, model: 'Model', modelMetadata: 'Model_Metadata', dataMetadata: 'dataMetadata', metadata: 'Metadata'):
         helper = TestDataContainer()
         metadata.prepareOutput()
-        helper.size = len(self.testloader.dataset)
+        helper.size = (StaticData.MAX_DEBUG_LOOPS * dataMetadata.batchTestSize if test_mode.isActive() else len(self.testloader.dataset))
         helper.test_loss, helper.test_correct = 0, 0
         helper.timer = Timer()
         helper.loopTimer = Timer()
@@ -2034,7 +2034,7 @@ class Data(SaveClass, BaseMainClass, BaseLogicClass):
             return # loop already ended. This state can occur when framework was loaded from file.
         
         if(self.testHelper is None): # jeżeli nie było wznowione; nowe wywołanie
-            self.testHelper = self.setTestLoop(model=model, modelMetadata=modelMetadata, metadata=metadata)
+            self.testHelper = self.setTestLoop(model=model, modelMetadata=modelMetadata, dataMetadata=dataMetadata, metadata=metadata)
 
         self.testHelper.loopTimer.clearTime()
         #torch.cuda.empty_cache()
@@ -2300,9 +2300,16 @@ class Smoothing(SaveClass, BaseMainClass, BaseLogicClass):
 class SchedulerContainer():
     def __init__(self, schedType: str, importance: int):
         """
-            importance - in what order to call objects of type SchedulerContainer. 
-                The greater the value, the more important the object is.
-                When step() is called successfully, other objects of type SchedulerContainer will not be called.
+            W tym obiekcie może mieścić się wiele schedulerów, które posiadają tą samą wartość 'schedType' oraz 'importance'.
+            Po wywołaniu step(), wszystkie schedulery znajdujące się w tym obiekcie zostaną wywołane, jeżeli spełnią określone warunki,
+            w tym zgodność z ich typem oraz numerem epoki.
+            Wywołanie schedulera jest oznaczone określonym komentarzem w logu 'model:0'.
+            Trzeba zaznaczyć, iż sam scheduler nie zawsze musi zmieniać wartość learning rate, dlatego wywołanie go nie 
+            jest równoznaczne ze zmianą tego parametru.
+
+            importance - w jakiej kolejności wywołać obiekty typu SchedulerContainer
+            Im większa wartość, tym bardziej ważny jest dany obiekt. Interpretacja tego parametru nie jest zależna od tej klasy.
+            Stosuje się ją wraz z klasą SchedulerManager.
         """
         if(schedType != 'smoothing' and schedType != 'normal'):
             raise Exception("Scheduler type can only be 'smoothing' or 'normal'.")
@@ -2318,9 +2325,10 @@ class SchedulerContainer():
     def getImportance(self):
         return self.importance
 
-    def add(self, schedule: list, scheduler, metric):
+    def add(self, schedule: list, scheduler, metric: bool):
         """
-            metric - jeżeli krok przyjmuje metrykę, czyli zsumowaną stratę dla wykonanego treningu modelu
+            metric - czy podany scheduler przyjmuje metrykę. Jest ono podane jako scheduler.step(metrics=metrics). 
+            schedule - dla jakich epok wywołać dany scheduler
         """
         self.schedulers.append((schedule, scheduler, metric))
         return self
@@ -2331,6 +2339,10 @@ class SchedulerContainer():
             or epochNumb in epochStep
 
     def step(self, shtypes: [str, list], epochNumb: int, metadata, metrics):
+        """
+            Zwraca True, gdy typ schedulera zgadza się z wartością lub którąś z wartości w zmiennej 'shtypes'.
+            Wartość True zostaje również zwrócona nawet, kiedy żaden scheduler nie został wywołany.
+        """
         if( (isinstance(shtypes, list) and self.schedType in shtypes) or self.schedType == shtypes):
             for epochStep, scheduler, metric in self.schedulers:
                 if(self._schedulerStep(epochNumb=epochNumb, epochStep=epochStep)):
@@ -2346,6 +2358,27 @@ class SchedulerContainer():
             return True
         return False
         
+class SchedulerManager():
+    def __init__(self):
+        self.schedulers = []
+
+    def add(self, schedContainer):
+        if(not isinstance(schedContainer, SchedulerContainer)):
+            raise Exception("Variable schedContainer is not the type of SchedulerContainer.")
+
+        self.schedulers.append(schedContainer) 
+        self.schedulers.sort(key=lambda x : x.getImportance())
+
+    def schedulerStep(self, epochNumb, metadata, shtypes: Union[str, list], metrics):
+        """
+            Jeżeli któryś z obiektów klasy SchedulerContainer zostanie pomyślnie wywołany,
+            wtedy inne obiekty tego typu nie zostaną wywołane.
+            Każdy z obiektów SchedulerContainer jest posortowany po jego wazności.
+        """
+        if(self.schedulers is not None):
+            for schedulerObj in self.schedulers:
+                if(schedulerObj.step(shtypes=shtypes, epochNumb=epochNumb, metadata=metadata, metrics=metrics)):
+                    return
 
 class __BaseModel(nn.Module, SaveClass, BaseMainClass, BaseLogicClass):
     def __init__(self):
@@ -2353,7 +2386,7 @@ class __BaseModel(nn.Module, SaveClass, BaseMainClass, BaseLogicClass):
 
         self.loss_fn = None
         self.optimizer = None
-        self.schedulers = None
+        self.schedulers = SchedulerManager()
 
     def prepare(self, lossFunc, optimizer, schedulers: list=None):
         """
@@ -2363,10 +2396,9 @@ class __BaseModel(nn.Module, SaveClass, BaseMainClass, BaseLogicClass):
         """
         self.loss_fn = lossFunc
         self.optimizer = optimizer
-        self.schedulers = schedulers
-
-        if(self.schedulers is not None):
-            self.schedulers.sort(key=lambda x : x.getImportance())
+        if(schedulers is not None):
+            for s in schedulers:
+                self.schedulers.add(s)
 
     def _step(self, metadata, scheduler):
         scheduler.step()
@@ -2374,13 +2406,11 @@ class __BaseModel(nn.Module, SaveClass, BaseMainClass, BaseLogicClass):
 
     def schedulerStep(self, epochNumb, metadata, shtypes: Union[str, list], metrics):
         """
-            When step() of a given SchedulerContainer object is called successfully, 
-            other objects of type SchedulerContainer will not be called.
+            Jeżeli któryś z obiektów klasy SchedulerContainer zostanie pomyślnie wywołany,
+            wtedy inne obiekty tego typu nie zostaną wywołane.
+            Każdy z obiektów SchedulerContainer jest posortowany po jego wazności.
         """
-        if(self.schedulers is not None):
-            for schedulerObj in self.schedulers:
-                if(schedulerObj.step(shtypes=shtypes, epochNumb=epochNumb, metadata=metadata, metrics=metrics)):
-                    return
+        self.schedulers.schedulerStep(epochNumb=epochNumb, metadata=metadata, shtypes=shtypes, metrics=metrics)
 
     def canUpdate(self = None):
         return True
