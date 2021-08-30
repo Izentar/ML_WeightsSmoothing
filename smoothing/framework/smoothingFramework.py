@@ -1631,7 +1631,7 @@ class Statistics():
                 idx = (avgName, xlabel, newylabel)
                 self.avgPlotBatches[idx] = out
 
-                plot(filePath=self.avgPlotBatches[idx], xlabel=xlabel, ylabel=ylabel, name=avgName, 
+                plot(filePath=self.avgPlotBatches[idx], xlabel=xlabel, ylabel=newylabel, name=avgName, 
                     plotInputRoot=self.rootInputFolder, plotOutputRoot=self.logFolder, **kwargs)
             
             elif(runningAvgSize > 0):
