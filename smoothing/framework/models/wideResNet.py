@@ -100,5 +100,5 @@ class WideResNet(nn.Module):
         return self.fc(out)
 
 if(__name__ == '__main__'):
-    model = WideResNet(depth=28, widen_factor=4, num_classes=10, dropRate=0.3)
+    model = WideResNet(depth=28, widen_factor=10, num_classes=10, dropRate=0.3)
     print(model)
