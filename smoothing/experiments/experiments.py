@@ -1,5 +1,7 @@
 import sys
-import setup; setup.run()
+import setup
+setup.run()
+
 from framework import smoothingFramework as sf
 import traceback
 

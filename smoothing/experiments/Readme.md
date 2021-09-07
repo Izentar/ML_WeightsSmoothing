@@ -1,7 +1,7 @@
 Folder ten służy do tworzenia skryptów dla wykonywanych eksperymentów.
-Dla poprawnego działania należy na samym początku zaimportować 
-    import setup; setup.run()
-która zmienia ścieżkę systemową wywołanego skryptu na folder 'smoothing/'.
+Dla poprawnego działania należy na samym początku zaimportować <br>
+    &emsp;import setup; setup.run()<br>
+która zmienia ścieżkę systemową wywołanego skryptu na folder 'smoothing/'. Trzeba uważać na moment wywołania setup.run(), gdyż danie go przed importowaniem pozostałych skryptów zmieni dla nich katalog roboczy.
 
 Użytkownik może wywołać domyślny skrypt smoothing/experiments/exp_pytorch.py, który pozwala na przekazanie argumentów wywołania w linii poleceń. Zawiera on wszystkie konfiguracje potrzebne do wykonania eksperymentów. Jednocześnie użytkownik może stworzyć swój własny skrypt korzystając z dostępnych implementacji lub pisząc własne klasy dziedziczące po domyśłnych klasach frameworka.
 

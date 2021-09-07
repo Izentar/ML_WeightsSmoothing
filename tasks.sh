@@ -4,7 +4,7 @@
 
 # pole do modyfikacji
 declare -a commands=(
-    "python smoothing/experiments/exp_pytorch.py --model vgg19_bn --dataset CIFAR100 --optim SGD --loops 5 \
+    "python3 smoothing/experiments/exp_pytorch.py --model vgg19_bn --dataset CIFAR100 --optim SGD --loops 5 \
     --smoothing generMean --smmovingparam 0.001 --smlossPatience 300 --smlossWarmup 200 --smlosscontainer 200 \
     --smweightsumcontsize 400 --smweightThreshold 0.0000001 --smweightWarmup 400 --smweightPatience 430 \
     --smstartAt 128 --teststep 1 --epochs 164 --gamma 0.1 --sched multiplic --schedule 81 122 --smannealEpochs 1"
@@ -12,20 +12,20 @@ declare -a commands=(
 
 : '
 
-"python smoothing/experiments/exp_pytorch.py --model vgg19_bn --dataset CIFAR100 --optim SGD --loops 2 \
+"python3 smoothing/experiments/exp_pytorch.py --model vgg19_bn --dataset CIFAR100 --optim SGD --loops 2 \
     --smoothing generMean --smmovingparam 0.001 --smlossPatience 300 --smlossWarmup 200 --smlosscontainer 200 \
     --smweightsumcontsize 400 --smweightThreshold 0.0000001 --smweightWarmup 400 --smweightPatience 430 \
     --smstartAt 128 --teststep 1 --epochs 164 --gamma 0.1 --sched multiplic --schedule 81 122 --smannealEpochs 1\
     --batchtrainsize 32 --batchtestsize 32"
 
-    "python smoothing/experiments/exp_pytorch.py --dev cuda:0 --model wide_resnet --depth 28 --widen-factor 10 --drop 0.3 \
+    "python3 smoothing/experiments/exp_pytorch.py --dev cuda:0 --model wide_resnet --depth 28 --widen-factor 10 --drop 0.3 \
     --dataset CIFAR10 --optim Adam --lr 0.001 --loops 2 --smoothing ewma --smlr 0.0001 --smdev cuda:0 \
     --smmovingparam 0.001 --smlossPatience 300 --smlossWarmup 200 --smlosscontainer 200 --smweightsumcontsize 400 \
     --smweightThreshold 0.00001 --smweightWarmup 400 --smweightPatience 430 --smstartAt 166 --smstart 0.85 \
     --teststep 5 --epochs 200 --gamma 0.2 --sched multiplic --schedule 60 120 160 --smannealEpochs 1 \
     --batchtrainsize 32 --batchtestsize 32"
 
-    "python smoothing/experiments/exp_pytorch.py --dev cuda:0 --model densenet --depth 100 --growthRate 12 \
+    "python3 smoothing/experiments/exp_pytorch.py --dev cuda:0 --model densenet --depth 100 --growthRate 12 \
     --dataset CIFAR100 --optim SGD --loops 2 --smoothing pytorch --smdev cuda:0 --smlr 0.01 --smmovingparam 0.001 \
     --smlossPatience 300 --smlossWarmup 200 --smlosscontainer 200 --smweightsumcontsize 400 --smweightThreshold 0.00001 \
     --smweightWarmup 400 --smweightPatience 430 --smstartAt 260 --teststep 5 --epochs 300 --schedule 150 225 \

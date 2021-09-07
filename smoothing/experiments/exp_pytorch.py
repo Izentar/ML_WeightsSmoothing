@@ -1,4 +1,6 @@
-import setup; setup.run()
+import setup
+setup.run()
+
 import experiments
 
 import torch
