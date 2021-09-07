@@ -22,13 +22,18 @@ Możliwe też jest przekazanie argumentów wywołań ze skryptu do każdego wywo
 Flagi dodane do skryptu bash zostaną przekazane do każdego wywołanego wewnętrznie skryptu.
 
 UWAGA
-W zależności od miejsca wywołania skryptu savedLogs pojawią się w danym miejscu.
+W zależności od miejsca wywołania skryptu savedLogs pojawią się w katalogu wywołania skryptu.
 
 
 Program wymaga stworzenia w katalogu domowym folderu dataSmoothing z uwagi na konieczność pobrania oraz zapisywania wag stworzonych modelów.
 Zaleca się stworzenie dla tego folderu dowiązanie symboliczne lub inne podobne działanie w celu wybrania odpowiednio dużego nośnika na zapis.
 Jeden model potrafi ważyć ponad 0.5 GB, a dane treningowe oraz walidacyjne od 100 MB do 2 GB.
 Domyślnie, jeżeli użytkownik nie posiada tego folderu, zostanie on stworzony automatycznie w jego katalogu domowym.
+
+
+Aby zobaczyć implementacje modeli w tym ich warstwy, należy wywołać skrypt z danym modelem, który wypisze w konsoli schemat modelu.
+Przykład wywołania: <br>
+&emsp;python smoothing/framework/models/wideResNet.py
 
 <br>
 
@@ -38,7 +43,8 @@ Uruchomienie testów:
     &emsp;cd smoothing/ <br>
     &emsp;python -m unittest invokeTests.py
 
-Aby usunąć logi powstałe na wskutek wykonania testu, należy wykonać: python smoothing/framework/test/removeDump.py
+Aby usunąć logi powstałe na wskutek wykonania testu, należy wykonać: <br>
+&emsp;python smoothing/framework/test/removeDump.py
 
 
 <br> <br>
