@@ -160,5 +160,5 @@ def densenet(**kwargs):
     return DenseNet(**kwargs)
 
 if(__name__ == '__main__'):
-    model = densenet(num_classes=10)
+    model = densenet(num_classes=10, depth=100, growthRate=12, compressionRate=2, dropRate=0)
     print(model)
