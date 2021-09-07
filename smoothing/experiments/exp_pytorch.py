@@ -1,4 +1,5 @@
-from experiments import experiments
+import setup; setup.run()
+import experiments
 
 import torch
 import torchvision
@@ -37,6 +38,9 @@ def getParser():
     parser.add_argument('--debug', help='debug / test mode', action='store_true')
     parser.add_argument('--testarg', help='Use the arguments from the command line. If not, then use special default arguments prepared for \
         test mode.', action='store_true')
+
+    parser.add_argument('--batchtrainsize', default=128, type=int, help='size of the train batch.')
+    parser.add_argument('--batchtestsize', default=100, type=int, help='size of the test batch.')
 
     parser.add_argument('--swindow', type=int, default=20, help='sliding window size. To disable set less than 1.')
     parser.add_argument('--savgwindow', type=int, default=10, help='sliding window size for averaged logs. To disable set less than 1.')
@@ -259,7 +263,7 @@ def createDataMetadata(args):
     CIFAR100_normalize = transforms.Normalize(mean=(0.5070,  0.4865,  0.4409), std=(0.2673,  0.2564,  0.2761))
 
     dataMetadata = dc.DefaultData_Metadata(pin_memoryTest=False, pin_memoryTrain=False, epoch=args.epochs,
-        batchTrainSize=128, batchTestSize=100, startTestAtEpoch=list(range(0, args.epochs+args.teststep + 1, args.teststep)) + [1], 
+        batchTrainSize=args.batchtrainsize, batchTestSize=args.batchtestsize, startTestAtEpoch=list(range(0, args.epochs+args.teststep + 1, args.teststep)) + [1], 
         transformTrain=transforms.Compose([
             transforms.RandomCrop(32, padding=4),
             #transforms.ColorJitter(),

@@ -22,7 +22,13 @@ Możliwe też jest przekazanie argumentów wywołań ze skryptu do każdego wywo
 Flagi dodane do skryptu bash zostaną przekazane do każdego wywołanego wewnętrznie skryptu.
 
 UWAGA
-W zależności od miejsca wywołania skryptu savedLogs pojawią się w katalogu wywołania skryptu.
+W zależności od miejsca wywołania skryptu savedLogs pojawią się w katalogu wywołania skryptu.<br>
+Domyślne wywołanie ./tasks.sh zakłada posiadanie przynajmniej jednej karty graficznej, aby można było je wykonać. 
+W przeciwnym wypadku należy zmienić 'cuda:0' na 'cpu'. <br>
+Jednocześnie domyślne wywołania w skrypcie ./tasks.sh nie są tymi, któ©e zostały użyte przy wykonywaniu ekperymentów.
+Zmniejszono ich zajętość pamięciową po to, aby mogły zmieścić się na karcie graficznej z 4GB pamięci.
+
+
 
 
 Program wymaga stworzenia w katalogu domowym folderu dataSmoothing z uwagi na konieczność pobrania oraz zapisywania wag stworzonych modelów.

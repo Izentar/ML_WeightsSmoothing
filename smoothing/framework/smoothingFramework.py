@@ -19,6 +19,8 @@ import operator
 import copy
 import json
 
+from experiments import setup
+
 import matplotlib.pyplot as plt
 import numpy
 
@@ -123,14 +125,14 @@ class StaticData:
     NAME_CLASS_METADATA = 'Metadata'
     DATA_PATH = os.path.join(expanduser("~"), 'dataSmoothing')
     PREDEFINED_MODEL_SUFFIX = '.pdmodel'
-    LOG_FOLDER = os.path.join('.', 'savedLogs') 
+    LOG_FOLDER = os.path.join(setup.PrimaryWorkingDir, 'savedLogs') 
     IGNORE_IO_WARNINGS = False
     FORCE_DEBUG_PRINT = False
     TEST_MODE = False
     PRINT_WARNINGS = True
     FORCE_PRINT_WARNINGS = False
     MAX_DEBUG_LOOPS = 71
-    MAX_EPOCH_DEBUG_LOOPS = 3
+    MAX_EPOCH_DEBUG_LOOPS = 4
 
 class SaveClass:
     """
@@ -2785,7 +2787,7 @@ def averageStatistics(statistics: list, filePaths: dict=None, outputRelativeRoot
             newVals[index] = list(map(operator.add, rows, newVals[index]))
             
             if(badSize):
-                Output.printBash("averageStatistics - one of the files have bad size: {}".format(fileToOpen), 'warn')
+                Output.printBash("averageStatistics - one of the files have bad size: {}\nThe value buffer has been increased by the required value. ".format(fileToOpen), 'warn')
     
     
     flattedNewVals = []
