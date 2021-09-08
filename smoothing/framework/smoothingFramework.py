@@ -2770,29 +2770,31 @@ def averageStatistics(statistics: list, filePaths: dict=None, outputRelativeRoot
         seen_add = seen.add
         return [x for x in seq if not (x in seen or seen_add(x))]
 
-    def addToBuffer(fileToOpen, newVals, index):
+    def addToBuffer(fileToOpen, newVals: list, index: int):
         with open(fileToOpen) as fh:
-            badSize = False
+            #badSize = False
             resizeSize = []
             rows = [float(l.rstrip("\n")) for l in fh] # wczytaj liczby do listy
+
 
             if(len(rows) < len(newVals[index])): # jeżeli trzeba rozszerzyć bufor rows
                 resize = len(newVals[index]) - len(rows)
                 resizeSize.append(resize)
                 rows = rows + [0.0 for _ in range(resize)]
-                badSize = True
+                #badSize = True
             if(len(rows) > len(newVals[index])): # jeżeli trzeba rozszerzyć bufor newVals[index]
                 resize = len(rows) - len(newVals[index])
                 resizeSize.append(resize)
                 newVals[index] = newVals[index] + [0.0 for _ in range(resize)]
-                badSize = True
+                #badSize = True
             # else len == len: OK
 
             # dodaj do bufora
             newVals[index] = list(map(operator.add, rows, newVals[index]))
             
-            if(badSize):
-                Output.printBash("averageStatistics - one of the files have bad size: {}\nThe buffer has been increased by the needed values {}. ".format(fileToOpen, resizeSize), 'warn')
+            # warunek niepotrzebny, ponieważ newVals[index] na samym początku może być pustą listą
+            #if(badSize):
+            #    Output.printBash("averageStatistics - one of the files have bad size: {}\nThe buffer has been increased by the needed values {}. ".format(fileToOpen, resizeSize), 'warn')
     
     
     flattedNewVals = []
