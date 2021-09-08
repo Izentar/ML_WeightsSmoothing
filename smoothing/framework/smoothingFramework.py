@@ -125,7 +125,7 @@ class StaticData:
     NAME_CLASS_METADATA = 'Metadata'
     DATA_PATH = os.path.join(expanduser("~"), 'dataSmoothing')
     PREDEFINED_MODEL_SUFFIX = '.pdmodel'
-    LOG_FOLDER = os.path.join(setup.PrimaryWorkingDir, 'savedLogs') 
+    LOG_FOLDER = os.path.join(setup.PrimaryWorkingDir if setup.PrimaryWorkingDir is not None else '.', 'savedLogs') 
     IGNORE_IO_WARNINGS = False
     FORCE_DEBUG_PRINT = False
     TEST_MODE = False
@@ -2773,13 +2773,18 @@ def averageStatistics(statistics: list, filePaths: dict=None, outputRelativeRoot
     def addToBuffer(fileToOpen, newVals, index):
         with open(fileToOpen) as fh:
             badSize = False
+            resizeSize = []
             rows = [float(l.rstrip("\n")) for l in fh] # wczytaj liczby do listy
 
             if(len(rows) < len(newVals[index])): # jeżeli trzeba rozszerzyć bufor rows
-                rows = rows + [0.0 for _ in range(len(newVals[index]) - len(rows))]
+                resize = len(newVals[index]) - len(rows)
+                resizeSize.append(resize)
+                rows = rows + [0.0 for _ in range(resize)]
                 badSize = True
             if(len(rows) > len(newVals[index])): # jeżeli trzeba rozszerzyć bufor newVals[index]
-                newVals[index] = newVals[index] + [0.0 for _ in range(len(rows) - len(newVals[index]))]
+                resize = len(rows) - len(newVals[index])
+                resizeSize.append(resize)
+                newVals[index] = newVals[index] + [0.0 for _ in range(resize)]
                 badSize = True
             # else len == len: OK
 
@@ -2787,7 +2792,7 @@ def averageStatistics(statistics: list, filePaths: dict=None, outputRelativeRoot
             newVals[index] = list(map(operator.add, rows, newVals[index]))
             
             if(badSize):
-                Output.printBash("averageStatistics - one of the files have bad size: {}\nThe value buffer has been increased by the required value. ".format(fileToOpen), 'warn')
+                Output.printBash("averageStatistics - one of the files have bad size: {}\nThe buffer has been increased by the needed values {}. ".format(fileToOpen, resizeSize), 'warn')
     
     
     flattedNewVals = []

@@ -1,10 +1,22 @@
 import torch
 import torchvision
 import torch.optim as optim
-from framework import smoothingFramework as sf
 import torch.nn as nn
 import torch.nn.functional as F
 
+import os, sys
+
+if(os.path.basename(os.getcwd()) == 'models'):
+    os.chdir((os.path.dirname(os.getcwd())))
+    import smoothingFramework as sf
+    from framework import defaultClasses as dc
+    from framework.models import utils
+
+else:
+    sys.path.append(os.getcwd())
+    from framework import smoothingFramework as sf
+    from framework import defaultClasses as dc
+    from framework.models import utils
 
 class DefaultModelSimpleConv(sf.Model):
     """
@@ -58,3 +70,9 @@ class DefaultModelSimpleConv(sf.Model):
 
     def createDefaultMetadataObj(self):
         return DefaultModel_Metadata()
+
+if(__name__ == '__main__'):
+    metadata = dc.DefaultModel_Metadata()
+    model = DefaultModelSimpleConv(modelMetadata=metadata)
+    print(model)
+    print("Model params:", utils.count_parameters(model))

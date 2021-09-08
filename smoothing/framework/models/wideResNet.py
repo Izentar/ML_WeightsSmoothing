@@ -8,6 +8,16 @@ import sys
 import numpy as np
 import math
 
+import os, sys
+
+if(os.path.basename(os.getcwd()) == 'models'):
+    os.chdir((os.path.dirname(os.getcwd())))
+    from framework.models import utils
+
+else:
+    sys.path.append(os.getcwd())
+    from framework.models import utils
+
 ##############################################################################
 # Źródło https://github.com/bearpaw/pytorch-classification/
 ##############################################################################
@@ -102,3 +112,4 @@ class WideResNet(nn.Module):
 if(__name__ == '__main__'):
     model = WideResNet(depth=28, widen_factor=10, num_classes=10, dropRate=0.3)
     print(model)
+    print("Model params:", utils.count_parameters(model))
