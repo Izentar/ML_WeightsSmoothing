@@ -1227,8 +1227,17 @@ class Data_Metadata(SaveClass, BaseMainClass):
         Klasa konfiguracyjna przechowująca dane odnośnie pewnego zbioru danych. Klasa zbioru danych 
         korzysta z instancji tej klasy.
     """
-    def __init__(self, worker_seed = 841874, train = True, download = True, pin_memoryTrain = False, pin_memoryTest = False,
+    def __init__(self, worker_seed = 841874, download = True, pin_memoryTrain = False, pin_memoryTest = False,
             epoch = 1, batchTrainSize = 64, batchTestSize = 64):
+        """
+            pin_memoryTrain - zarezerwowanie miejsca w pamięci karty graficznej na dane ze zbioru uczęcego. Przyśpiesza transfer danych.
+            pin_memoryTest - zarezerwowanie miejsca w pamięci karty graficznej na dane ze zbioru treningowego. Przyśpiesza transfer danych.
+
+            batchTrainSize - liczba próbek danych w jednym mini-batchu treningowym
+            batchTrainSize - liczba próbek danych w jednym mini-batchu walidacyjnym
+
+            epoch - liczba epok dla treningu
+        """
         super().__init__()
 
         # default values:

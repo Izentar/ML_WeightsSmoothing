@@ -202,10 +202,8 @@ class _Test_SmoothingOscilationBase_Metadata(_SmoothingOscilationBase_Metadata):
 
 class _SmoothingOscilationBase(sf.Smoothing):
     """
-    Włącza wygładzanie gdy zostaną spełnione określone warunki:
-    - po przekroczeniu pewnej minimalnej ilości iteracji pętli oraz 
-        gdy różnica pomiędzy średnią N ostatnich strat treningowych modelu, 
-        a średnią średnich N ostatnich strat treningowych modelu jest mniejsza niż epsilon.
+    Włącza wygładzanie gdy przekroczy pewną ilości epok oznaczonej parametrem 'startAt' oraz zostanie spełniony jeden z warunków:
+    - gdy średnia N ostatnich strat jest mniejsza od wartości straty modelu z iteracji N+1 przez określoną liczbę wywołań
     - po przekroczeniu pewnej maksymalnej ilości iteracji pętli.
 
     Liczy średnią arytmetyczną dla wag.
@@ -245,7 +243,7 @@ class _SmoothingOscilationBase(sf.Smoothing):
     def _canComputeWeights(self, helper, helperEpoch, dataMetadata, smoothingMetadata, metadata) -> bool:
         """
             Algorytm:
-                - jeżeli wygładzanie jest włączone, zwraca True
+                - jeżeli wygładzanie wag jest włączone, zwraca zawsze True
                 - na początku sprawdza ilość wywołań tej metody, czy przekroczyła ona limit lossWarmup.
                     * jeżeli tak, to kontynuuje działanie algorytmu
                     * w przeciwnym wypadku zwraca False
@@ -299,9 +297,14 @@ class _SmoothingOscilationBase(sf.Smoothing):
 
     def cmpLoss_isLower(self, metric, smoothingMetadata):
         """
-            metric: float, smoothingMetadata.lossThreshold: float, 
-            smoothingMetadata.lossThresholdMode: ['rel', 'abs'], smoothingMetadata.lossThreshold: float,
-            self.bestLoss: float
+            metric: float, 
+            smoothingMetadata.lossThreshold: float, 
+
+            wykorzystuje
+                smoothingMetadata.lossThresholdMode: ['rel', 'abs'], smoothingMetadata.lossThreshold: float,
+
+            ustawia
+                - self.bestLoss: float
         """
         if(smoothingMetadata.lossThresholdMode == 'rel'):
             return metric < self.bestLoss * (1. - smoothingMetadata.lossThreshold)
@@ -311,10 +314,10 @@ class _SmoothingOscilationBase(sf.Smoothing):
     def cmpWeightSum_isWider(self, metric, smoothingMetadata) -> bool:
         """
             Porównuje metrykę wraz z obliczoną różnicą. Można to wyobrazić jako prostokątne pudełko, w którym wyznaczamy
-            minimum oraz maksimum archiwalnych wartości std. Jego długość, to rozmiar bufora, a wysokość, to różnica między abs(max - min.
+            minimum oraz maksimum archiwalnych wartości std. Jego długość, to rozmiar bufora, a wysokość, to różnica między abs(max - min).
             Bufor ten służy jedynie do przetrzymywania wartości.
             Algorytm zwraca True, jeżeli znajdzie takie wartości, które są wyżej lub niżej względem wyznaczonego prostokątu.
-            Jednocześnie prostokąt będzie się zwiększał, zmniejszał wraz z wartościami w buforze.
+            Jednocześnie prostokąt będzie się zwiększał czy też zmniejszał wraz z dodawaniem kolejnych wartości do bufora.
 
             metric: float, smoothingMetadata.weightThreshold: float, 
             smoothingMetadata.weightThresholdMode: ['rel', 'abs'], smoothingMetadata.weightThreshold: float,
@@ -457,10 +460,10 @@ class Test_DefaultSmoothingSimpleMean_Metadata(DefaultSmoothingSimpleMean_Metada
 class DefaultSmoothingSimpleMean(sf.Smoothing):
     """
     Włącza wygładzanie po przejściu przez określoną ilość iteracji pętli oaznaczonej parametrem batchPercentStart.
-    Wygładzanie polega na liczeniu średnich tensorów.
+    Wygładzanie polega na obliczeniu średnich wartości parametrów modelu.
     Wygładzanie włączane jest od momentu wykonania określonej ilości pętli oraz jest liczone od końca iteracji.
     Liczy średnią arytmetyczną.
-    Działanie podobne do klasy AveragedModel.
+    Działanie podobne do klasy z frameworka Pytorch - AveragedModel.
     """
     def __init__(self, smoothingMetadata):
         super().__init__(smoothingMetadata=smoothingMetadata)
@@ -550,13 +553,11 @@ class Test_DefaultSmoothingOscilationGeneralizedMean_Metadata(DefaultSmoothingOs
 
 class DefaultSmoothingOscilationGeneralizedMean(_SmoothingOscilationBase):
     """
-    Włącza wygładzanie gdy zostaną spełnione określone warunki:
-    - po przekroczeniu pewnej minimalnej ilości iteracji pętli oraz 
-        gdy różnica pomiędzy średnią N ostatnich strat treningowych modelu, 
-        a średnią średnich N ostatnich strat treningowych modelu jest mniejsza niż epsilon.
-    - po przekroczeniu pewnej maksymalnej ilości iteracji pętli.
-
-    Liczy średnią generalizowaną dla wag (domyślne średnia arytmetyzna).
+    Włącza wygładzanie zgodnie z opisem klasy _SmoothingOscilationBase.
+    Liczy średnią geometryczną dla wag (domyślne średnia arytmetyzna).
+    Nazywa się ją w programie średnią generalizowaną z powodu błędu tłumaczenia. Ze względu na zapisane logi eksperymentów,
+    nie zmienia się jej nazwy w programie, gdyż nazwa klasy pojawia się w logach. Tyczy się to również klas
+    metadanych dla tej klasy.
     """
     def __init__(self, smoothingMetadata):
         super().__init__(smoothingMetadata=smoothingMetadata)
@@ -592,6 +593,10 @@ class DefaultSmoothingOscilationGeneralizedMean(_SmoothingOscilationBase):
 # oscillation moving mean
 class DefaultSmoothingOscilationEWMA_Metadata(_SmoothingOscilationBase_Metadata):
     def __init__(self, movingAvgParam = 0.005, **kwargs):
+        """
+            movingAvgParam - wartość hiperparametru średniej EWMA podanej wzorem 
+                S = ax + (1-a)S, gdzie 'a' jest wspominaną wartością.
+        """
 
         super().__init__(**kwargs)
 
@@ -610,6 +615,7 @@ class Test_DefaultSmoothingOscilationEWMA_Metadata(DefaultSmoothingOscilationEWM
 
 class DefaultSmoothingOscilationEWMA(_SmoothingOscilationBase):
     """
+        Włącza wygładzanie zgodnie z opisem klasy _SmoothingOscilationBase.
         Liczy średnią EWMA względem wag.
         Wzór to S = ax + (1-a)S, gdzie 
             a - współczynnik z przedziału [0;1]; movingAvgParam
@@ -719,11 +725,7 @@ class Test_DefaultSmoothingOscilationWeightedMean_Metadata(DefaultSmoothingOscil
 
 class DefaultSmoothingOscilationWeightedMean(_SmoothingOscilationBase):
     """
-        Włącza wygładzanie, gdy zostaną spełnione określone warunki:
-        - po przekroczeniu pewnej minimalnej ilości iteracji pętli oraz 
-            gdy różnica pomiędzy średnią N ostatnich strat treningowych modelu, 
-            a średnią średnich N ostatnich strat treningowych modelu jest mniejsza niż epsilon.
-        - po przekroczeniu pewnej maksymalnej ilości iteracji pętli.
+        Włącza wygładzanie zgodnie z opisem klasy _SmoothingOscilationBase.
 
         Liczy średnią ważoną dla wag. Wagi są nadawane względem kolejności ich zapamiętywania. 
         Domyślnie, im starsza, tym posiada mniejszą wagę, jednak można podać swoją własną implementację.
@@ -847,7 +849,7 @@ class Test_DefaultPytorchAveragedSmoothing_Metadata(DefaultPytorchAveragedSmooth
 class DefaultPytorchAveragedSmoothing(sf.Smoothing):
     """
         Algorytm SWA. Korzysta z implementacji pytorcha torch.optim.swa_utils.AveragedModel.
-        Wygładzanie jest włączane po określonej liczbie iteracji pętli treningowej, określonej parametrem smoothingStartPercent.
+        Wygładzanie jest włączane po określonej liczbie iteracji pętli treningowej, określonej hiperparametrem smoothingStartPercent.
     """
     def __init__(self, smoothingMetadata, model):
         super().__init__(smoothingMetadata)
@@ -894,6 +896,8 @@ class DefaultPytorchAveragedSmoothing(sf.Smoothing):
 # data classes
 class DefaultData_Metadata(sf.Data_Metadata):
     """
+        Klasa metadanych dla danych - zbiorów uczących i treningowych.
+
         startTestAtEpoch - wartość -1, jeżeli przy każdym epochu należy wywołać test albo lista epochy dla których należy wywołać test.
             Przykład 
             startTestAtEpoch = [*range(3)] # wywoła testy tylko dla pierwszych 3 epochy [0, 1, 2]
@@ -946,8 +950,10 @@ class DefaultData_Metadata(sf.Data_Metadata):
 
 class DefaultData(sf.Data):
     """
-        Domyślna klasa na dane. Jeżeli zabrakło pamięci, należy zwrócić uwagę na rozmiar wejściowego obrazka. Można go zmniejszyć
-        uswawiając odpowiedni rozmiar w metadanych dla tej klasy argumentem resizeTo. 
+        Domyślna klasa na dane treningowe oraz walidacyjne. Jeżeli zabrakło pamięci, 
+        należy zwrócić uwagę na 
+            - rozmiar wejściowego obrazka. Można go zmniejszyć uswawiając odpowiedni rozmiar w metadanych dla tej klasy argumentem resizeTo, 
+            - liczbę użytych próbek w jednym mini-batchu
     """
     def __init__(self, dataMetadata):
         super().__init__(dataMetadata=dataMetadata)

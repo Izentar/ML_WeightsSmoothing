@@ -1,4 +1,5 @@
-Framework do testowania wygładzania wag modelu
+Framework do testowania wygładzania wag modelu<br>
+Został przetestowany na platformie Ubuntu oraz Windows. Wykorzystywana wersja python - 3.6.9 64 bitowa.
 
 Na każdym poziomie folderów znajduje się osobny plik Readme wyjaśniający cel zawartych plików.
 Obecny folder jest folderem nadrzędnym. Po uruchomieniu skryptu znajdą się w nim
