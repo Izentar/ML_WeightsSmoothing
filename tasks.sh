@@ -4,15 +4,7 @@
 
 # pole do modyfikacji
 declare -a commands=(
-    "python3 smoothing/experiments/exp_pytorch.py --model vgg19_bn --dataset CIFAR100 --optim SGD --loops 5 \
-    --smoothing generMean --smmovingparam 0.001 --smlossPatience 300 --smlossWarmup 200 --smlosscontainer 200 \
-    --smweightsumcontsize 400 --smweightThreshold 0.0000001 --smweightWarmup 400 --smweightPatience 430 \
-    --smstartAt 128 --teststep 1 --epochs 164 --gamma 0.1 --sched multiplic --schedule 81 122 --smannealEpochs 1"
-)
-
-: '
-
-"python3 smoothing/experiments/exp_pytorch.py --model vgg19_bn --dataset CIFAR100 --optim SGD --loops 2 \
+    "python3 smoothing/experiments/exp_pytorch.py --model vgg19_bn --dataset CIFAR100 --optim SGD --loops 2 \
     --smoothing generMean --smmovingparam 0.001 --smlossPatience 300 --smlossWarmup 200 --smlosscontainer 200 \
     --smweightsumcontsize 400 --smweightThreshold 0.0000001 --smweightWarmup 400 --smweightPatience 430 \
     --smstartAt 128 --teststep 1 --epochs 164 --gamma 0.1 --sched multiplic --schedule 81 122 --smannealEpochs 1\
@@ -31,8 +23,9 @@ declare -a commands=(
     --smweightWarmup 400 --smweightPatience 430 --smstartAt 260 --teststep 5 --epochs 300 --schedule 150 225 \
     --wd 1e-4 --gamma 0.1 --sched multiplic --smannealEpochs 1 \
     --batchtrainsize 32 --batchtestsize 32"
+)
 
-
+: '
 komentarz
 wywołania bez wygładzania
 
