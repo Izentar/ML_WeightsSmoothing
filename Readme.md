@@ -28,8 +28,8 @@ Wymagania przętowe:
 ## Wywołanie programu
 
 Istnieją 2 sposoby wywołania programu:
-1. Uruchomienie przygotowanego przez użytkownika skryptu. <br>
-    python smoothing/experiments/exp_pytorch.py
+1. Uruchomienie skryptu z linii poleceń wraz z podaniem argumentów wywołania. <br>
+    python smoothing/experiment.py
 2. Uruchomienie linuksowego skryptu tasks.sh, który można modyfikować i zawrzeć kolejne instrukcje wywołań. Taki sposób uruchomienia zapewnia wywołanie kolejnych skryptów z kolejki nawet, jeżeli któryś z nich będzie posiadał krytyczny błąd.
 Możliwe też jest przekazanie argumentów wywołań ze skryptu do każdego wywołania zawartych w nim eksperymentów. Przykład:
     ./tasks.sh --test

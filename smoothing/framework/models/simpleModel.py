@@ -14,6 +14,7 @@ if(os.path.basename(os.getcwd()) == 'models'):
 
 else:
     sys.path.append(os.getcwd())
+    sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
     from framework import smoothingFramework as sf
     from framework import defaultClasses as dc
     from framework.models import utils
