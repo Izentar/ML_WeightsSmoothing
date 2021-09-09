@@ -1,15 +1,15 @@
 
 import argparse
 import sys, os
-
+"""
 if(os.path.basename(os.getcwd()) == 'smoothing'):
     from experiments import setup
     setup.run()
 else:
     import setup
     setup.run()
-
-import experiments
+"""
+from experiments import experiments
 
 import torch
 import torchvision
@@ -29,6 +29,10 @@ from framework.models.wideResNet import WideResNet
 VGG = "vgg19_bn"
 DENSENET = "densenet"
 WRESNET = "wide_resnet"
+
+for i, arg in enumerate(sys.argv):
+    if(arg == "--debug" or arg == "--test"):
+        sf.StaticData.TEST_MODE = True
 
 def getParser():
     parser = argparse.ArgumentParser(description='PyTorch Classification Training', add_help=True)

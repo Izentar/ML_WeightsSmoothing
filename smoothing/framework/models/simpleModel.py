@@ -5,16 +5,13 @@ import torch.nn as nn
 import torch.nn.functional as F
 
 import os, sys
-
-if(os.path.basename(os.getcwd()) == 'models'):
-    os.chdir((os.path.dirname(os.getcwd())))
-    import smoothingFramework as sf
+if(__name__ != '__main__'):
+    from framework import smoothingFramework as sf
     from framework import defaultClasses as dc
-    from framework.models import utils
-
+    from framework import utils
 else:
+    os.chdir(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
     sys.path.append(os.getcwd())
-    sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
     from framework import smoothingFramework as sf
     from framework import defaultClasses as dc
     from framework.models import utils

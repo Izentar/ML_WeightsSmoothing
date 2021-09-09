@@ -1,13 +1,12 @@
 import sys, os
 from pathlib import Path
-sys.path.append(os.path.abspath(str(Path(__file__).parents[1])))
 
 import torch
 import torchvision
 import torch.optim as optim
 from framework import smoothingFramework as sf
 from framework import defaultClasses as dc
-from experiments import experiments
+from experiments import setup, experiments
 
 import matplotlib.pyplot as plt
 import torchvision.transforms as transforms

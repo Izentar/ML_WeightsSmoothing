@@ -9,16 +9,11 @@ import numpy as np
 import math
 
 import os, sys
-
-if(os.path.basename(os.getcwd()) == 'models'):
-    os.chdir((os.path.dirname(os.getcwd())))
-    from framework.models import utils
-
+if(__name__ != '__main__'):
+    from framework import utils
 else:
-    sys.path.append(os.getcwd())
-    sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
-    from framework.models import utils
-
+    import utils
+    
 ##############################################################################
 # Źródło https://github.com/bearpaw/pytorch-classification/
 ##############################################################################

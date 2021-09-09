@@ -1959,7 +1959,7 @@ class Data(SaveClass, BaseMainClass, BaseLogicClass):
         self.trainHelper.loopTimer.addToStatistics()
         self.trainHelper.loopEnded = True
 
-        metadata.stream.print("Train epoch accuracy: {}%".format(100.*correct/total), "model:0")
+        metadata.stream.print("Train epoch accuracy: {}%".format(100.*((correct/total) if total != 0 else 0)), "model:0")
 
         self.__afterTrainLoop__(helperEpoch=helperEpoch, helper=self.trainHelper, model=model, dataMetadata=dataMetadata, modelMetadata=modelMetadata, metadata=metadata, smoothing=smoothing, smoothingMetadata=smoothingMetadata)
         self.__trainLoopExit__(helperEpoch=helperEpoch, helper=self.trainHelper, model=model, dataMetadata=dataMetadata, modelMetadata=modelMetadata, metadata=metadata, smoothing=smoothing, smoothingMetadata=smoothingMetadata)

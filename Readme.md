@@ -27,6 +27,7 @@ Wymagania przętowe:
 
 ## Wywołanie programu
 
+Aby uruchomić program, należy przejść do katalogu **smoothing**. Inne ścieżki nie gwarantują poprawności importowania modułów.
 Istnieją 2 sposoby wywołania programu:
 1. Uruchomienie skryptu z linii poleceń wraz z podaniem argumentów wywołania. <br>
     python smoothing/experiment.py
@@ -93,7 +94,7 @@ Dla poprawnego działania należy na samym początku zaimportować <br>
 &emsp;&emsp;import setup; setup.run()<br>
 która zmienia ścieżkę systemową wywołanego skryptu na folder 'smoothing/'. Trzeba uważać na moment wywołania setup.run(), gdyż danie go przed importowaniem pozostałych skryptów zmieni dla nich katalog roboczy.
 
-Użytkownik może wywołać domyślny skrypt smoothing/experiments/exp_pytorch.py, który pozwala na przekazanie argumentów wywołania w linii poleceń. Zawiera on wszystkie konfiguracje potrzebne do wykonania eksperymentów. Jednocześnie użytkownik może stworzyć swój własny skrypt korzystając z dostępnych implementacji lub pisząc własne klasy dziedziczące po domyśłnych klasach frameworka.
+Użytkownik może wywołać domyślny skrypt smoothing/experiment.py, który pozwala na przekazanie argumentów wywołania w linii poleceń. Zawiera on wszystkie konfiguracje potrzebne do wykonania eksperymentów. Jednocześnie użytkownik może stworzyć swój własny skrypt korzystając z dostępnych implementacji lub pisząc własne klasy dziedziczące po domyśłnych klasach frameworka.
 
 Skrypt może się nie wykonać z różnych, czasem niezależnych od użytkownika przyczyn, dlatego aby nie wstrzymywać dalszych eksperymentów ze skryptu zaleca się również, aby wywoływane eksperymenty zamykać w bloku 'try except'.
 

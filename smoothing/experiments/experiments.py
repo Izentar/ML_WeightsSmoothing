@@ -1,13 +1,18 @@
-import sys
-import setup
-setup.run()
-
+import sys, os
+"""
+if(os.path.basename(os.getcwd()) == 'smoothing'):
+    print(os.getcwd())
+    os.chdir(os.path.dirname(os.getcwd()))
+    print(os.getcwd())
+    from experiments import setup
+    #import setup
+    setup.run()
+else:
+    import setup
+    setup.run()
+"""
 from framework import smoothingFramework as sf
 import traceback
-
-for i, arg in enumerate(sys.argv):
-    if(arg == "--debug" or arg == "--test"):
-        sf.StaticData.TEST_MODE = True
 
 ##############################################################
 

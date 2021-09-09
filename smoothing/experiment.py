@@ -1,5 +1,3 @@
-from experiments import setup
-setup.run()
 
 from experiments import exp_pytorch as ex
 
