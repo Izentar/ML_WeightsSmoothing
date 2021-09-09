@@ -13,7 +13,7 @@ def run():
 
     if(PrimaryWorkingDir is None):
         PrimaryWorkingDir = os.getcwd()
-        print(PrimaryWorkingDir)
+        #print(PrimaryWorkingDir)
 
         newDir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
         sys.path.append(newDir)

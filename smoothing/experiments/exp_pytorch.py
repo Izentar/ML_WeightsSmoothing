@@ -1,5 +1,13 @@
-import setup
-setup.run()
+
+import argparse
+import sys, os
+
+if(os.path.basename(os.getcwd()) == 'smoothing'):
+    from experiments import setup
+    setup.run()
+else:
+    import setup
+    setup.run()
 
 import experiments
 
@@ -17,9 +25,6 @@ from framework.utils import Cutout
 from framework.models.densenet import DenseNet
 from framework.models.vgg import vgg19_bn
 from framework.models.wideResNet import WideResNet
-
-import argparse
-import sys, os
 
 VGG = "vgg19_bn"
 DENSENET = "densenet"
